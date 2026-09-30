@@ -1,9 +1,9 @@
-import { and, asc, desc, eq, gt, isNull, like, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, like, or, sql } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { cache } from "react";
 import { getDb } from ".";
 import { ensureDatabase } from "./bootstrap";
-import { categories, contentPages, postSlugHistory, posts, siteSettings } from "./schema";
+import { categories, contentPages, posts, siteSettings } from "./schema";
 import { getSpacePath } from "./spaces";
 import { spacePathSql } from "./space-path-sql";
 import { CONTENT_LIMITS, DEFAULT_ABOUT_PAGE, DEFAULT_CONNECT_PAGE, DEFAULT_SITE_SETTINGS } from "@/domain/site/config";
