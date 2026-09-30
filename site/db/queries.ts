@@ -146,8 +146,9 @@ const publicPostSelection = `SELECT
   LEFT JOIN categories c ON p.category_id = c.id`;
 
 async function getPublicReadSession(session?: PublicReadSession) {
+  if (session) return session;
   await ensureDatabase();
-  return session ?? createPublicReadSession();
+  return createPublicReadSession();
 }
 
 async function readPublicPostBySlug(session: PublicReadSession, slug: string) {
