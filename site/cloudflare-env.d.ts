@@ -3,6 +3,7 @@
 interface __BaseEnv_Env {
 	MEDIA: R2Bucket;
 	DB: D1Database;
+	VIEW_RATE_LIMITER: RateLimit;
 	IMAGES: ImagesBinding;
 	ASSETS: Fetcher;
 	APP_ENV: string;
