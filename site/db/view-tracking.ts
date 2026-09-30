@@ -1,13 +1,14 @@
-/** Pure view-tracking primitives: no Cloudflare bindings, testable directly. */
+/** Pure view-tracking primitives: no direct Cloudflare env access, testable directly. */
 
 /** Local fallback only; production must set the VIEWS_IDENTITY_SECRET secret. */
 export const VIEWS_IDENTITY_SECRET_FALLBACK = "xingyu-local-views-identity-secret";
-export const VIEWS_REQUEST_WINDOW_MS = 60_000;
-export const VIEWS_REQUEST_CAPACITY = 240;
-export const VIEWS_BLOCK_MS = 300_000;
 export const POST_VIEWS_RETENTION_DAYS = 90;
 
-export type TrackResult = boolean | "unknown" | "limited" | Error;
+export type TrackResult = boolean | "unknown" | Error;
+export type ViewRateLimitResult = "allowed" | "limited" | "unavailable";
+export type ViewRateLimiter = {
+  limit(input: { key: string }): Promise<{ success: boolean }>;
+};
 
 async function hmacHex(secret: string, value: string) {
   const key = await crypto.subtle.importKey(
@@ -41,36 +42,40 @@ async function viewerIdHash(secret: string, address: string) {
   return hmacHex(secret, `view:${address}:${viewedOnToday()}`);
 }
 
-export async function trackPostView(db: D1Database, secret: string, request: Request, slug: string): Promise<TrackResult> {
+export async function readerIdentityHashes(secret: string, request: Request) {
+  const address = coarseReaderAddress(request);
+  const [rateKey, viewerHash] = await Promise.all([
+    rateIdentityHash(secret, address),
+    viewerIdHash(secret, address),
+  ]);
+  return { rateKey, viewerHash };
+}
+
+/**
+ * Production requires the native Cloudflare Rate Limiting binding. Local
+ * development may run without it, but never falls back to a D1 write path.
+ */
+export async function checkViewRateLimit(
+  limiter: ViewRateLimiter | undefined,
+  rateKey: string,
+  appEnvironment: string | undefined,
+): Promise<ViewRateLimitResult> {
+  if (!limiter) return appEnvironment === "production" ? "unavailable" : "allowed";
+  try {
+    const result = await limiter.limit({ key: rateKey });
+    return result.success ? "allowed" : "limited";
+  } catch {
+    return "unavailable";
+  }
+}
+
+export async function trackPostView(
+  db: D1Database,
+  viewerHash: string,
+  slug: string,
+): Promise<TrackResult> {
   if (typeof slug !== "string" || !slug || slug.length > 200) {
     return new Error("invalid slug");
-  }
-  const address = coarseReaderAddress(request);
-  const limitHash = await rateIdentityHash(secret, address);
-  const viewerHash = await viewerIdHash(secret, address);
-  const now = Date.now();
-
-  // A single UPSERT reserves the rate slot across concurrent Worker instances.
-  const limit = await db.prepare(`INSERT INTO view_request_limits
-      (identity_hash, attempts, window_started, blocked_until, updated_at)
-      VALUES (?, 1, ?, 0, ?)
-      ON CONFLICT(identity_hash) DO UPDATE SET
-        attempts = CASE WHEN excluded.updated_at - view_request_limits.window_started >= ?
-          THEN 1 ELSE view_request_limits.attempts + 1 END,
-        window_started = CASE WHEN excluded.updated_at - view_request_limits.window_started >= ?
-          THEN excluded.updated_at ELSE view_request_limits.window_started END,
-        blocked_until = CASE
-          WHEN excluded.updated_at - view_request_limits.window_started >= ? THEN 0
-          WHEN view_request_limits.attempts >= ? THEN excluded.updated_at + ?
-          ELSE 0 END,
-        updated_at = excluded.updated_at
-      WHERE view_request_limits.blocked_until <= excluded.updated_at
-      RETURNING attempts, blocked_until`)
-    .bind(limitHash, now, now, VIEWS_REQUEST_WINDOW_MS, VIEWS_REQUEST_WINDOW_MS,
-      VIEWS_REQUEST_WINDOW_MS, VIEWS_REQUEST_CAPACITY, VIEWS_BLOCK_MS)
-    .first<{ attempts: number; blocked_until: number }>();
-  if (!limit || Number(limit.attempts) > VIEWS_REQUEST_CAPACITY || Number(limit.blocked_until) > now) {
-    return "limited";
   }
 
   const post = await db.prepare(
