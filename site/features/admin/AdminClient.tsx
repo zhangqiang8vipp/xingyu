@@ -72,6 +72,12 @@ export default function AdminClient({ categories:initialCategories, settings, co
   }, []);
 
   useEffect(() => {
+    const refresh = () => { void loadStats(); };
+    window.addEventListener("xingyu:spaces-changed", refresh);
+    return () => window.removeEventListener("xingyu:spaces-changed", refresh);
+  }, [loadStats]);
+
+  useEffect(() => {
     const controller = new AbortController();
     const task = window.setTimeout(() => { void load(controller.signal); }, 160);
     return () => { window.clearTimeout(task); controller.abort(); };
