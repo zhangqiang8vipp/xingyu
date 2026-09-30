@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { DEFAULT_ABOUT_PAGE, DEFAULT_CONNECT_PAGE, DEFAULT_SITE_SETTINGS } from "@/domain/site/config";
 import { createPostPublicId } from "./public-id";
 import { PUBLIC_CACHE_SCHEMA_STATEMENTS } from "./public-cache-schema";
+import { assertStoredInstanceIdentity, requireRuntimeInstanceIdentity } from "./instance-identity";
 
 let ready: Promise<void> | null = null;
 
@@ -61,19 +62,21 @@ export function ensureDatabase() {
 async function initialize() {
   const d1 = env.DB;
   if (!d1) throw new Error("D1 binding DB is unavailable");
-  const runtimeEnvironment = env.APP_ENV === "development" ? "development" : "production";
+  const runtimeIdentity = requireRuntimeInstanceIdentity(
+    env.APP_ENV,
+    (env as Env & { INSTANCE_ID?: string }).INSTANCE_ID,
+  );
+  const runtimeEnvironment = runtimeIdentity.environment;
   const schemaMode = env.DB_SCHEMA_MODE ?? "legacy-bootstrap";
   const localPreviewBootstrap = schemaMode === "local-preview-bootstrap" && runtimeEnvironment === "production";
   if (schemaMode === "migration-only") {
-    const markers = await d1.prepare("SELECT key, value FROM app_meta WHERE key IN ('schema_version', 'app_environment')")
+    const markers = await d1.prepare("SELECT key, value FROM app_meta WHERE key IN ('schema_version', 'app_environment', 'instance_id')")
       .all<{ key: string; value: string }>();
     const values = new Map((markers.results ?? []).map((row) => [row.key, row.value]));
     if (values.get("schema_version") !== schemaVersion) {
       throw new Error(`D1 schema version mismatch: expected ${schemaVersion}, found ${values.get("schema_version") ?? "missing"}`);
     }
-    if (values.get("app_environment") !== runtimeEnvironment) {
-      throw new Error(`D1 environment mismatch: expected ${runtimeEnvironment}, found ${values.get("app_environment") ?? "missing"}`);
-    }
+    assertStoredInstanceIdentity(runtimeIdentity, values);
     const objects = await d1.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type IN ('table', 'index', 'trigger')")
       .all<{ type: string; name: string; tbl_name: string; sql: string | null }>();
     const actual = new Set((objects.results ?? []).map(({ type, name }) => `${type}:${name}`));
@@ -165,17 +168,25 @@ async function initialize() {
 
   const metadataTable = await d1.prepare("SELECT name FROM sqlite_master WHERE name = 'app_meta' LIMIT 1")
     .first<{ name: string }>();
+  if (!metadataTable) {
+    const existingApplicationTable = await d1.prepare(`SELECT name FROM sqlite_master
+      WHERE type = 'table'
+        AND name NOT LIKE 'sqlite_%'
+        AND name NOT LIKE '_cf_%'
+        AND name <> 'd1_migrations'
+      LIMIT 1`).first<{ name: string }>();
+    if (existingApplicationTable) {
+      throw new Error(`D1 instance identity is missing; refusing to claim non-empty database containing ${existingApplicationTable.name}`);
+    }
+  }
   if (runtimeEnvironment === "production" && !localPreviewBootstrap && !metadataTable) {
     throw new Error("Production D1 has no schema marker; run and verify migrations before deploying this worker");
   }
   if (metadataTable) {
-    const markers = await d1.prepare("SELECT key, value FROM app_meta WHERE key IN ('schema_version', 'app_environment')")
+    const markers = await d1.prepare("SELECT key, value FROM app_meta WHERE key IN ('schema_version', 'app_environment', 'instance_id')")
       .all<{ key:string; value:string }>();
     const values = new Map((markers.results ?? []).map((row) => [row.key, row.value]));
-    const storedEnvironment = values.get("app_environment");
-    if (storedEnvironment && storedEnvironment !== runtimeEnvironment) {
-      throw new Error(`D1 environment mismatch: expected ${runtimeEnvironment}, found ${storedEnvironment}`);
-    }
+    assertStoredInstanceIdentity(runtimeIdentity, values);
     const storedVersion = values.get("schema_version");
     if (runtimeEnvironment === "production" && !localPreviewBootstrap && storedVersion !== schemaVersion) {
       throw new Error(`Production D1 schema version mismatch: expected ${schemaVersion}, found ${storedVersion ?? "missing"}; explicit migration is required`);
@@ -195,12 +206,7 @@ async function initialize() {
         if (conflict) throw new Error("D1 historical Slug conflicts with another current article; audit data before upgrading schema");
       }
     }
-    if (storedVersion === schemaVersion) {
-      if (!storedEnvironment) {
-        throw new Error(`D1 environment marker is missing for schema version ${schemaVersion}`);
-      }
-      return;
-    }
+    if (storedVersion === schemaVersion) return;
   }
 
   await d1.batch([
@@ -527,13 +533,12 @@ async function initialize() {
   await d1.prepare("CREATE INDEX IF NOT EXISTS posts_space_published_idx ON posts(space_id, published_at DESC, id DESC)").run();
   await d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS post_slug_history_slug_uidx ON post_slug_history(slug)").run();
 
-  const storedEnvironment = await d1.prepare("SELECT value FROM app_meta WHERE key = 'app_environment'")
-    .first<{ value: string }>();
-  if (storedEnvironment && storedEnvironment.value !== runtimeEnvironment) {
-    throw new Error(`D1 environment mismatch: expected ${runtimeEnvironment}, found ${storedEnvironment.value}`);
-  }
-  await d1.prepare("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('app_environment', ?)")
-    .bind(runtimeEnvironment).run();
+  await d1.batch([
+    d1.prepare("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('app_environment', ?)")
+      .bind(runtimeEnvironment),
+    d1.prepare("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('instance_id', ?)")
+      .bind(runtimeIdentity.instanceId),
+  ]);
 
   const s = DEFAULT_SITE_SETTINGS;
   const p = DEFAULT_ABOUT_PAGE;
