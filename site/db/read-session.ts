@@ -7,6 +7,8 @@ export type PublicReadSessionStart =
 
 type PublicReadBinding = string | number | null;
 
+type PublicReadExecutor = Pick<D1Database, "prepare">;
+
 export type PublicReadSession = {
   first<T extends Record<string, unknown>>(
     sql: string,
@@ -31,6 +33,19 @@ function sessionConstraint(start: PublicReadSessionStart) {
   return bookmark;
 }
 
+function createReadOnlyAdapter(executor: PublicReadExecutor, getBookmark: () => string | null): PublicReadSession {
+  return {
+    async first<T extends Record<string, unknown>>(
+      sql: string,
+      bindings: readonly PublicReadBinding[] = [],
+    ) {
+      assertReadOnlySql(sql);
+      return executor.prepare(sql).bind(...bindings).first<T>();
+    },
+    getBookmark,
+  };
+}
+
 /**
  * Creates a D1 session for public read paths.
  *
@@ -46,18 +61,13 @@ export function createPublicReadSession(
   start: PublicReadSessionStart = "first-unconstrained",
 ): PublicReadSession {
   if (!env.DB) throw new Error("D1 binding DB is unavailable");
-  const session = env.DB.withSession(sessionConstraint(start));
 
-  return {
-    async first<T extends Record<string, unknown>>(
-      sql: string,
-      bindings: readonly PublicReadBinding[] = [],
-    ) {
-      assertReadOnlySql(sql);
-      return session.prepare(sql).bind(...bindings).first<T>();
-    },
-    getBookmark() {
-      return session.getBookmark();
-    },
-  };
+  // Some local/test adapters predate the Sessions API. Absence is compatible;
+  // an actual withSession() failure is not and must propagate to the caller.
+  if (typeof env.DB.withSession !== "function") {
+    return createReadOnlyAdapter(env.DB, () => null);
+  }
+
+  const session = env.DB.withSession(sessionConstraint(start));
+  return createReadOnlyAdapter(session, () => session.getBookmark());
 }
