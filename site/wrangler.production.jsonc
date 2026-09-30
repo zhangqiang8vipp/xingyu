@@ -22,6 +22,16 @@
       "migrations_pattern": "drizzle/[0-9][0-9][0-9][0-9]_*.sql"
     }
   ],
+  "ratelimits": [
+    {
+      "name": "VIEW_RATE_LIMITER",
+      "namespace_id": "1901",
+      "simple": {
+        "limit": 240,
+        "period": 60
+      }
+    }
+  ],
   "r2_buckets": [
     {
       "binding": "MEDIA",
