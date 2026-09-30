@@ -9,7 +9,7 @@ const BRIDGE_NAME = "xingyu-integration-binding-bridge";
 const FAULT_R2_NAME = "xingyu-integration-faulting-r2";
 const productionConfig = JSON.parse(readFileSync(new URL("../../wrangler.production.jsonc", import.meta.url), "utf8"));
 
-export function createTestHarness(options) {
+export function createTestHarness({ d1SessionFault = false, ...options }) {
   const server = createWranglerTestHarness({
     ...options,
     workers: [
@@ -32,7 +32,7 @@ export function createTestHarness(options) {
     const bridge = originalGetWorker(BRIDGE_NAME);
     return new Proxy(worker, {
       get(target, key) {
-        if (key === "getEnv") return async () => bridgeBindings(bridge);
+        if (key === "getEnv") return async () => bridgeBindings(bridge, { d1SessionFault });
         const value = Reflect.get(target, key);
         return typeof value === "function" ? value.bind(target) : value;
       },
@@ -41,7 +41,7 @@ export function createTestHarness(options) {
   return server;
 }
 
-function bridgeBindings(bridge) {
+function bridgeBindings(bridge, { d1SessionFault = false } = {}) {
   const call = async (payload) => {
     const response = await bridge.fetch("/", {
       method: "POST",
@@ -52,15 +52,23 @@ function bridgeBindings(bridge) {
     if (!response.ok) throw new Error(body.error);
     return body.result;
   };
+  const prepare = (sql) => {
+    const statement = (params) => ({
+      bind: (...values) => statement(values),
+      run: () => call({ operation: "run", sql, params }),
+      all: () => call({ operation: "all", sql, params }),
+      first: () => call({ operation: "first", sql, params }),
+    });
+    return statement([]);
+  };
   const DB = {
-    prepare(sql) {
-      const statement = (params) => ({
-        bind: (...values) => statement(values),
-        run: () => call({ operation: "run", sql, params }),
-        all: () => call({ operation: "all", sql, params }),
-        first: () => call({ operation: "first", sql, params }),
-      });
-      return statement([]);
+    prepare,
+    withSession() {
+      if (d1SessionFault) throw new Error("injected D1 session failure");
+      return {
+        prepare,
+        getBookmark: () => "integration-session-bookmark",
+      };
     },
   };
   const MEDIA = {
@@ -107,7 +115,7 @@ export const TEST_TITLES = {
  * initialization promise in module scope, so reusing a server across tests and
  * resetting storage underneath it can leave that cache stale.
  */
-export async function openTestHarness({ r2DeleteFault = false, vars = {} } = {}) {
+export async function openTestHarness({ r2DeleteFault = false, d1SessionFault = false, vars = {} } = {}) {
   const appWorker = {
     configPath: "./wrangler.production.jsonc",
     vars: { APP_ENV: "development", DB_SCHEMA_MODE: "legacy-bootstrap", ...vars },
@@ -119,6 +127,7 @@ export async function openTestHarness({ r2DeleteFault = false, vars = {} } = {})
     ...(r2DeleteFault ? { bindingOverrides: { MEDIA: FAULT_R2_NAME } } : {}),
   };
   const server = createTestHarness({
+    d1SessionFault,
     root: SITE_ROOT,
     workers: [
       appWorker,
