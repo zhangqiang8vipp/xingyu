@@ -5,6 +5,7 @@ export const VIEWS_IDENTITY_SECRET_FALLBACK = "xingyu-local-views-identity-secre
 export const POST_VIEWS_RETENTION_DAYS = 90;
 
 export type TrackResult = boolean | "unknown" | Error;
+export type ViewRequestResult = TrackResult | "limited" | "unavailable";
 export type ViewRateLimitResult = "allowed" | "limited" | "unavailable";
 export type ViewRateLimiter = {
   limit(input: { key: string }): Promise<{ success: boolean }>;
@@ -67,6 +68,20 @@ export async function checkViewRateLimit(
   } catch {
     return "unavailable";
   }
+}
+
+export async function trackPostViewRequest(
+  db: D1Database,
+  limiter: ViewRateLimiter | undefined,
+  secret: string,
+  request: Request,
+  slug: string,
+  appEnvironment: string | undefined,
+): Promise<ViewRequestResult> {
+  const { rateKey, viewerHash } = await readerIdentityHashes(secret, request);
+  const rateLimit = await checkViewRateLimit(limiter, rateKey, appEnvironment);
+  if (rateLimit !== "allowed") return rateLimit;
+  return trackPostView(db, viewerHash, slug);
 }
 
 export async function trackPostView(
