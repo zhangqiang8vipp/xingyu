@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { ensureDatabase } from "./bootstrap";
 
 export type PublicReadSessionStart =
   | "first-unconstrained"
@@ -70,4 +71,14 @@ export function createPublicReadSession(
 
   const session = env.DB.withSession(sessionConstraint(start));
   return createReadOnlyAdapter(session, () => session.getBookmark());
+}
+
+
+/** Runs one public request inside a single D1 consistency context. */
+export async function withPublicReadSession<T>(
+  read: (session: PublicReadSession) => Promise<T>,
+  start: PublicReadSessionStart = "first-unconstrained",
+) {
+  await ensureDatabase();
+  return read(createPublicReadSession(start));
 }
