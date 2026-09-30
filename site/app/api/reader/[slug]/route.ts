@@ -8,6 +8,7 @@ import {
 } from "@/db/queries";
 import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 import { parseAdminReaderContext } from "@/domain/reader/admin-reader-context";
+import { withPublicReadSession } from "@/db/read-session";
 
 export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -24,16 +25,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     ]);
     return Response.json({post,previousPost,nextPost},{headers:{"Cache-Control":"no-store"}});
   }
-  const post = await resolvePublicPost(slug);
-  if (!post) return Response.json({ error: "文章不存在" }, { status: 404 });
+  return withPublicReadSession(async (session) => {
+    const post = await resolvePublicPost(slug, session);
+    if (!post) return Response.json({ error: "文章不存在" }, { status: 404 });
 
-  const [previousPost, nextPost] = await Promise.all([
-    getPreviousPublishedPost(post.publishedAt, post.id),
-    getNextPublishedPost(post.publishedAt, post.id),
-  ]);
+    const [previousPost, nextPost] = await Promise.all([
+      getPreviousPublishedPost(post.publishedAt, post.id, session),
+      getNextPublishedPost(post.publishedAt, post.id, session),
+    ]);
 
-  return Response.json(
-    { post, previousPost, nextPost },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+    return Response.json(
+      { post, previousPost, nextPost },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  });
 }
