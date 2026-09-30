@@ -55,7 +55,7 @@ async function seedReaderFixture(db) {
 }
 
 test("public reader resolves slug, public ID, history, and public-only neighbors", async () => {
-  const harness = await openTestHarness();
+  const harness = await openTestHarness({ d1SessionRejectConcurrent: true });
   try {
     await seedReaderFixture(harness.db);
 
@@ -128,6 +128,28 @@ test("D1 session creation failure fails the public request instead of falling ba
     assert.ok(response.status >= 500, `session failure must fail closed, got ${response.status}`);
     const text = await response.text();
     assert.ok(!text.includes("Reader Private Secret"), "failure response must not leak private content");
+  } finally {
+    await closeTestHarness(harness);
+  }
+});
+
+
+test("missing D1 Sessions API fails the public request instead of silently using plain DB reads", async () => {
+  const harness = await openTestHarness({ d1SessionUnavailable: true });
+  try {
+    await seedReaderFixture(harness.db);
+
+    let response;
+    try {
+      response = await jsonRequest(harness, "/api/reader/reader-current");
+    } catch (error) {
+      assert.match(String(error), /Sessions API|D1/i);
+      return;
+    }
+
+    assert.ok(response.status >= 500, `missing Sessions API must fail closed, got ${response.status}`);
+    const text = await response.text();
+    assert.ok(!text.includes("Reader Current"), "failure response must not fall back to plain public reads");
   } finally {
     await closeTestHarness(harness);
   }
