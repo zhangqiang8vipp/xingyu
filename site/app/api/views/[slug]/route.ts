@@ -13,7 +13,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     return Response.json({ counted: false }, { status: 503, headers: noStore });
   }
 
-  await ensureDatabase();
   const result = await trackPostViewRequest(
     env.DB,
     env.VIEW_RATE_LIMITER,
@@ -21,6 +20,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     request,
     slug,
     env.APP_ENV,
+    ensureDatabase,
   );
   if (result === "limited") {
     return Response.json(
