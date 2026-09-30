@@ -96,6 +96,22 @@ test("beta runtime rejects a production database and identity", async () => {
   );
 });
 
+test("runtime without INSTANCE_ID fails closed before claiming a valid D1", async () => {
+  await withWorker(
+    { environment: "beta", instanceId: "" },
+    { environment: "beta", instanceId: "beta:alice" },
+    async ({ worker, DB }) => {
+      const response = await worker.fetch("/");
+      assert.equal(response.status, 500);
+      assert.equal(
+        (await DB.prepare("SELECT value FROM app_meta WHERE key = 'instance_id'").first())?.value,
+        "beta:alice",
+        "a missing runtime identity must not modify the persisted D1 identity",
+      );
+    },
+  );
+});
+
 test("marked database without instance identity fails closed and stays unclaimed", async () => {
   await withWorker(
     { environment: "beta", instanceId: "beta:alice" },
