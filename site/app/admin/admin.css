@@ -554,7 +554,8 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
 .activation-next{padding:16px 17px;display:grid;gap:7px;border:1px dashed var(--admin-line-strong);border-radius:15px;background:color-mix(in srgb,var(--admin-accent) 4%,var(--admin-control))}
 .activation-next strong{color:var(--admin-ink);font-size:12px}
 .activation-next p{margin:0;color:var(--admin-copy);font-size:12px;line-height:1.65}
-.activation-next a{width:max-content;color:var(--admin-accent);font-size:12px;font-weight:750}
+.activation-next a,.activation-next button{width:max-content;color:var(--admin-accent);font-size:12px;font-weight:750}
+.activation-next button{padding:0;border:0;background:none;cursor:pointer}
 .activation-next code{width:max-content;max-width:100%;padding:8px 10px;overflow-wrap:anywhere;white-space:normal;border:1px solid var(--admin-line);border-radius:9px;color:var(--admin-ink);background:var(--admin-panel);font-family:inherit;font-size:11px}
 .activation-proof{padding:17px;display:grid;gap:10px;border:1px solid color-mix(in srgb,#238a5a 35%,var(--admin-line));border-radius:16px;background:color-mix(in srgb,#238a5a 6%,var(--admin-control))}
 .activation-proof header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}

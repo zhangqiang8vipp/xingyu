@@ -44,3 +44,14 @@ test("activity actor identifies the exact OAuth connection session without expos
   assert.equal(activityActorLabel("oauth:chatgpt-client", connections), "ChatGPT");
   assert.equal(activityActorLabel("oauth:unknown:anything", connections), "已连接的 AI");
 });
+
+test("activation panel keeps setup user-facing and points to the live connection endpoint", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("../features/admin/AdminIntegrationsPanel.tsx", import.meta.url), "utf8");
+  assert.match(source, /已连接，还差一次真实写入/);
+  assert.match(source, /作为草稿，不要发布/);
+  assert.match(source, /最近一次私有写入/);
+  assert.match(source, /window\.location\.origin\}\/mcp/);
+  assert.doesNotMatch(source, />AI \/ MCP</);
+  assert.doesNotMatch(source, /OAUTH 2\.1|LEGACY TOKEN|有效令牌|MCP_WRITE_TOKEN/);
+});

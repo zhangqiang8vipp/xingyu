@@ -39,8 +39,20 @@ export default function AdminIntegrationsPanel({
       setConnections(data.connections ?? []);
       if (data.activation) setActivation(data.activation);
       setMessage("状态已刷新");
+    } catch {
+      setMessage("状态刷新失败，请检查网络后重试");
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function copyConnectionAddress() {
+    const endpoint = `${window.location.origin}/mcp`;
+    try {
+      await navigator.clipboard.writeText(endpoint);
+      setMessage("AI 连接地址已复制。去 AI 的连接或工具设置里粘贴它，完成授权后回来刷新。");
+    } catch {
+      setMessage("AI 连接地址：" + endpoint);
     }
   }
 
@@ -111,11 +123,11 @@ export default function AdminIntegrationsPanel({
           {activation.stage === "needs-knowledge"
             ? <Link href="/admin?section=spaces">打开知识空间</Link>
             : activation.stage === "needs-connection"
-              ? <Link href="/admin?section=connect">打开接入</Link>
+              ? <button type="button" onClick={() => void copyConnectionAddress()}>复制 AI 连接地址</button>
               : activation.stage === "connected-only"
                 ? <code>把这段真实内容保存到星屿，作为草稿，不要发布。</code>
                 : activation.stage === "activated" && !activation.connected
-                  ? <Link href="/admin?section=connect">重新连接 AI</Link>
+                  ? <button type="button" onClick={() => void copyConnectionAddress()}>复制 AI 连接地址</button>
                   : null}
         </div>
 
@@ -203,7 +215,7 @@ function stageDescription(activation: BetaActivationSignal) {
 
 function nextStepCopy(activation: BetaActivationSignal) {
   if (activation.stage === "needs-knowledge") return "先在“文章”或“知识空间”放入一篇真实内容。不要为了过流程创建无意义的测试空壳。";
-  if (activation.stage === "needs-connection") return "打开“接入”，按页面提示把星屿加到你常用的 AI。连接成功后回到这里刷新状态。";
+  if (activation.stage === "needs-connection") return "在你常用 AI 的“连接”或“工具”设置里新增星屿，粘贴下面复制的地址；出现星屿授权页时确认访问，然后回这里刷新。";
   if (activation.stage === "connected-only") return "回到刚连接的 AI，给它一段你愿意长期保存在星屿里的真实内容，并明确要求保存为草稿、不要发布。";
   if (!activation.connected) return "先核对下面的历史变更证明；需要继续让 AI 协作时，再重新连接。";
   return "核对下面的变更证明是否符合你的意图；如果不符合，回到对应内容继续修正，而不是直接发布。";
