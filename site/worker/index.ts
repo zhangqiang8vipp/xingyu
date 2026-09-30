@@ -5,7 +5,7 @@ import { handleBlogMcpRequest, isBlogMcpPath } from "./blog-mcp";
 import { handleOAuthRequest, isOAuthPath } from "./oauth";
 import { enqueueExpiredUnboundAttachments, UNBOUND_ATTACHMENT_RETENTION_DAYS } from "@/db/attachment-cleanup";
 import { cleanupExpiredPostViews, POST_VIEWS_RETENTION_DAYS } from "@/db/view-tracking";
-import { schemaVersion } from "@/db/bootstrap";
+import { ensureDatabase, schemaVersion } from "@/db/bootstrap";
 import { collectSiteHealth } from "@/db/health";
 import { cspHeaderFor, cspModeLabel, summarizeCspReport, CSP_REPORT_PATH } from "@/domain/security/csp";
 import { hasRequestIdentity, isHtmlDocumentRequest, isPublicDocumentRequest, publicDocumentCacheControl, publicDocumentCacheKey, publicDocumentCategory, publicDocumentStorageCacheControl, readPublicContentRevision, responseAllowsPublicStorage } from "./public-document-cache";
@@ -77,6 +77,7 @@ async function readCspReport(request: Request, limit = 8192): Promise<unknown> {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestStartedAt = performance.now();
+    await ensureDatabase();
     const url = new URL(request.url);
     const identityBearing=hasRequestIdentity(request);
     if (url.pathname === CSP_REPORT_PATH && request.method === "POST") {
@@ -154,6 +155,15 @@ const worker = {
 
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil((async () => {
+      try {
+        await ensureDatabase();
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "scheduled_instance_guard_failed",
+          errorType: error instanceof Error ? error.name : typeof error,
+        }));
+        return;
+      }
       try {
         const enqueued = await enqueueExpiredUnboundAttachments(env.DB, UNBOUND_ATTACHMENT_RETENTION_DAYS);
         const pruned = await cleanupExpiredPostViews(env.DB, POST_VIEWS_RETENTION_DAYS);
