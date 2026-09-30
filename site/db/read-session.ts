@@ -1,5 +1,4 @@
 import { env } from "cloudflare:workers";
-import { ensureDatabase } from "./bootstrap";
 
 export type PublicReadSessionStart =
   | "first-unconstrained"
@@ -63,10 +62,8 @@ export function createPublicReadSession(
 ): PublicReadSession {
   if (!env.DB) throw new Error("D1 binding DB is unavailable");
 
-  // Some local/test adapters predate the Sessions API. Absence is compatible;
-  // an actual withSession() failure is not and must propagate to the caller.
   if (typeof env.DB.withSession !== "function") {
-    return createReadOnlyAdapter(env.DB, () => null);
+    throw new Error("D1 Sessions API is unavailable");
   }
 
   const session = env.DB.withSession(sessionConstraint(start));
@@ -75,10 +72,9 @@ export function createPublicReadSession(
 
 
 /** Runs one public request inside a single D1 consistency context. */
-export async function withPublicReadSession<T>(
+export function withPublicReadSession<T>(
   read: (session: PublicReadSession) => Promise<T>,
   start: PublicReadSessionStart = "first-unconstrained",
 ) {
-  await ensureDatabase();
   return read(createPublicReadSession(start));
 }
