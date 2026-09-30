@@ -48,6 +48,41 @@ export function isPrivateActivationWrite(input: {
     && (input.afterStatus === "draft" || input.spaceId != null);
 }
 
+export type ActivationConnectionIdentity = {
+  id: string;
+  name: string;
+  kind: "legacy" | "oauth";
+  sessions: Array<{ subject: string; label: string }>;
+};
+
+export function displayActivationConnectionName(connection: Pick<ActivationConnectionIdentity, "kind" | "name">) {
+  if (connection.kind !== "legacy") return connection.name.trim() || "AI 连接";
+  return connection.name.replace(/\s*·\s*Legacy$/iu, "").trim() || "旧版 AI 连接";
+}
+
+export function activityActorLabel(clientLabel: string, connections: ActivationConnectionIdentity[]) {
+  if (clientLabel.startsWith("oauth:")) {
+    const connection = connections.find((item) => {
+      if (item.kind !== "oauth") return false;
+      const prefix = `oauth:${item.id}`;
+      return clientLabel === prefix || clientLabel.startsWith(prefix + ":");
+    });
+    if (connection) {
+      const prefix = `oauth:${connection.id}:`;
+      const subject = clientLabel.startsWith(prefix) ? clientLabel.slice(prefix.length) : "";
+      const session = subject ? connection.sessions.find((item) => item.subject === subject) : undefined;
+      const connectionName = displayActivationConnectionName(connection);
+      return session ? `${connectionName} · ${session.label}` : connectionName;
+    }
+    return "已连接的 AI";
+  }
+  if (/chatgpt/i.test(clientLabel)) return "ChatGPT";
+  if (/\bgrok\b/i.test(clientLabel)) return "Grok";
+  if (/\bclaude\b/i.test(clientLabel)) return "Claude";
+  const legacy = connections.find((item) => item.kind === "legacy");
+  return legacy ? displayActivationConnectionName(legacy) : "已连接的 AI";
+}
+
 export function privateWriteActionLabel(action: BetaActivationWriteAction) {
   return action === "create_draft" ? "创建了私有草稿" : "更新了私有内容";
 }

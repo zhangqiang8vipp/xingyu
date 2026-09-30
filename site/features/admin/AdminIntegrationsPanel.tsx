@@ -5,6 +5,7 @@ import { useState } from "react";
 import { readApiJson } from "@/app/api-response";
 import {
   activationFieldLabels,
+  displayActivationConnectionName,
   privateWriteActionLabel,
   type BetaActivationSignal,
 } from "@/domain/admin/activation";
@@ -139,7 +140,7 @@ export default function AdminIntegrationsPanel({
           <article className="integration-card" key={connection.id}>
             <div>
               <small>{connection.kind === "legacy" ? "旧版连接" : "账号连接"}</small>
-              <b>{displayConnectionName(connection)}</b>
+              <b>{displayActivationConnectionName(connection)}</b>
               <span>状态：{statusLabel(connection.status)}{connection.sessions.filter((session) => session.status === "connected").length > 1 ? " · " + connection.sessions.filter((session) => session.status === "connected").length + " 个有效连接" : ""}</span>
             </div>
             {connection.sessions.length === 0
@@ -201,11 +202,6 @@ function nextStepCopy(activation: BetaActivationSignal) {
   if (activation.stage === "needs-connection") return "打开“接入”，按页面提示把星屿加到你常用的 AI。连接成功后回到这里刷新状态。";
   if (activation.stage === "connected-only") return "回到刚连接的 AI，给它一段你愿意长期保存在星屿里的真实内容，并明确要求保存为草稿、不要发布。";
   return "核对下面的变更证明是否符合你的意图；如果不符合，回到对应内容继续修正，而不是直接发布。";
-}
-
-function displayConnectionName(connection: AdminMcpConnection) {
-  if (connection.kind !== "legacy") return connection.name;
-  return connection.name.replace(/\s*·\s*Legacy$/iu, "").trim() || "旧版 AI 连接";
 }
 
 function statusLabel(status: AdminMcpConnection["status"]) {

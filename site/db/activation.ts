@@ -4,31 +4,13 @@ import { ensureDatabase } from "./bootstrap";
 import type { McpConnection } from "./integrations";
 import { mcpActivity, posts } from "./schema";
 import {
+  activityActorLabel,
   betaActivationStage,
+  displayActivationConnectionName,
   isPrivateActivationWrite,
   type BetaActivationSignal,
   type BetaActivationWriteAction,
 } from "@/domain/admin/activation";
-
-function displayConnectionName(connection: McpConnection) {
-  if (connection.kind === "legacy") {
-    const cleaned = connection.name.replace(/\s*·\s*Legacy$/iu, "").trim();
-    return cleaned || "旧版 AI 连接";
-  }
-  return connection.name.trim() || "AI 连接";
-}
-
-function actorForActivity(clientLabel: string, connections: McpConnection[]) {
-  if (clientLabel.startsWith("oauth:")) {
-    const connection = connections.find((item) => item.kind === "oauth" && clientLabel === "oauth:" + item.id);
-    return connection ? displayConnectionName(connection) : "已连接的 AI";
-  }
-  if (/chatgpt/i.test(clientLabel)) return "ChatGPT";
-  if (/\bgrok\b/i.test(clientLabel)) return "Grok";
-  if (/\bclaude\b/i.test(clientLabel)) return "Claude";
-  const legacy = connections.find((item) => item.kind === "legacy");
-  return legacy ? displayConnectionName(legacy) : "已连接的 AI";
-}
 
 function parseChangedFields(value: string) {
   try {
@@ -73,7 +55,7 @@ export async function getBetaActivationSignal(connections: McpConnection[]): Pro
   const connectionNames = [...new Set(
     connections
       .filter((connection) => connection.status === "connected")
-      .map(displayConnectionName),
+      .map(displayActivationConnectionName),
   )];
   const knowledgeCount = Number(knowledgeRows[0]?.value ?? 0);
   const privateWrite = privateRow ? {
@@ -82,7 +64,7 @@ export async function getBetaActivationSignal(connections: McpConnection[]): Pro
     postId: privateRow.postId,
     publicId: privateRow.publicId,
     title: privateRow.title,
-    actor: actorForActivity(privateRow.clientLabel, connections),
+    actor: activityActorLabel(privateRow.clientLabel, connections),
     summary: privateRow.summary,
     changedFields: parseChangedFields(privateRow.changedFields),
     createdAt: privateRow.createdAt,
