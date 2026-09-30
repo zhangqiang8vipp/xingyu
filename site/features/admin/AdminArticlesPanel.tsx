@@ -8,6 +8,7 @@ export default function AdminArticlesPanel({
   posts,
   categories,
   loading,
+  message,
   query,
   category,
   status,
@@ -30,6 +31,7 @@ export default function AdminArticlesPanel({
   posts:AdminPost[];
   categories:AdminCategory[];
   loading:boolean;
+  message:string;
   query:string;
   category:string;
   status:string;
@@ -49,6 +51,7 @@ export default function AdminArticlesPanel({
 }){
   return <section className="admin-main">
     <header className="admin-header"><div><p>CONTENT</p><h1>文章管理</h1><span>管理、筛选并发布{brandName}的全部内容。</span></div><button className="new-button" onClick={onNew}>＋ 新建文章</button></header>
+    {message&&<p className="form-message" role="alert">{message}</p>}
     <div className="stats admin-real-stats"><div><span>全部文章</span><b>{stats.total.toLocaleString()}</b></div><div><span>已发布</span><b>{stats.published.toLocaleString()}</b></div><div><span>草稿</span><b>{stats.drafts.toLocaleString()}</b></div><div><span>总阅读量</span><b>{stats.views.toLocaleString()}</b></div></div>
     <div className="table-tools">
       <div className="admin-search"><span>⌕</span><input value={query} onChange={(event)=>onQueryChange(event.target.value)} placeholder="全文搜索标题、摘要或正文"/></div>

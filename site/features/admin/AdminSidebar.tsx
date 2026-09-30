@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import ThemeToggle from "@/features/navigation/ThemeToggle";
+import ThemeToggle from "../navigation/ThemeToggle";
 import type { AdminSection, AdminStats } from "./admin-types";
 
 type NavItem = {

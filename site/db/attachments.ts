@@ -1,9 +1,10 @@
 import { env } from "cloudflare:workers";
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from ".";
 import { ensureDatabase } from "./bootstrap";
-import { attachments, posts } from "./schema";
+import { attachments, posts, attachmentCleanupQueue } from "./schema";
 import { removeAttachmentReference } from "@/domain/attachments/markdown-reference";
+import { cleanupFailedAttachmentUpload, enqueueAttachmentCleanup } from "./attachment-cleanup";
 
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 export const MAX_MCP_ATTACHMENT_BYTES = 8 * 1024 * 1024;
@@ -51,6 +52,7 @@ export async function createAttachment(input: {
   contentType: string;
   bytes: Uint8Array;
   postId?: number | null;
+  audit?: { summary: string; clientLabel: string };
 }) {
   await ensureDatabase();
   const checked = validateAttachmentInput(input.name, input.contentType, input.bytes.byteLength);
@@ -72,23 +74,56 @@ export async function createAttachment(input: {
     customMetadata: { originalName: checked.name, attachmentId: publicId, sha256 },
   });
 
-  try {
-    const [record] = await getDb().insert(attachments).values({
-      publicId,
-      postId: input.postId ?? null,
-      objectKey,
-      originalName: checked.name,
-      contentType: checked.contentType,
-      size: input.bytes.byteLength,
-      sha256,
-    }).returning();
-    if (!record) throw new AttachmentError("附件记录创建失败", 409);
-    return record;
-  } catch (error) {
-    await env.MEDIA.delete(objectKey);
-    if (error instanceof AttachmentError) throw error;
-    throw new AttachmentError("附件保存失败", 409);
+  const postId = input.postId ?? null;
+  // Same UTC layout as SQLite CURRENT_TIMESTAMP so expiry comparisons stay consistent.
+  const unboundAt = postId === null ? new Date().toISOString().slice(0, 19).replace("T", " ") : null;
+  const insert = env.DB.prepare(`INSERT INTO attachments
+      (public_id, post_id, object_key, original_name, content_type, size, sha256, unbound_at)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?
+      WHERE (? IS NULL OR EXISTS (SELECT 1 FROM posts WHERE id = ?))
+      RETURNING id, public_id AS publicId, post_id AS postId, object_key AS objectKey,
+        original_name AS originalName, content_type AS contentType, size, sha256,
+        created_at AS createdAt`).bind(
+      publicId, postId, objectKey, checked.name, checked.contentType,
+      input.bytes.byteLength, sha256, unboundAt, postId, postId,
+    );
+  const statements = [insert];
+  if (input.audit) {
+    statements.push(env.DB.prepare(`INSERT INTO mcp_activity
+        (action, post_id, public_id, title, before_status, after_status, changed_fields, summary, client_label)
+        SELECT 'upload_attachment', COALESCE(p.id, 0),
+          CASE WHEN a.post_id IS NULL THEN 'attachment:' || a.public_id ELSE p.public_id END,
+          CASE WHEN a.post_id IS NULL THEN a.original_name ELSE p.title END,
+          p.status, COALESCE(p.status, 'unbound_private'), '["attachments"]', ?, ?
+        FROM attachments a LEFT JOIN posts p ON p.id = a.post_id
+        WHERE a.public_id = ? AND changes() = 1 RETURNING id, created_at`).bind(
+        input.audit.summary, input.audit.clientLabel, publicId,
+    ));
   }
+  let results;
+  try {
+    results = await env.DB.batch(statements);
+  } catch (error) {
+    await cleanupFailedAttachmentUpload(env.MEDIA, publicId, objectKey, error, env.DB);
+    throw error;
+  }
+  const record = results[0]?.results?.[0] as {
+      id: number; publicId: string; postId: number | null; objectKey: string;
+      originalName: string; contentType: string; size: number; sha256: string; createdAt: string;
+  } | undefined;
+  if (!record) {
+    const error = new AttachmentError(postId === null
+      ? "附件记录创建失败" : "要关联的文章已不存在，附件未保存", 409);
+    await cleanupFailedAttachmentUpload(env.MEDIA, publicId, objectKey, error, env.DB);
+    throw error;
+  }
+  const auditRow = input.audit ? results[1]?.results?.[0] as { id?: number; created_at?: string } | undefined : undefined;
+  if (input.audit && (!auditRow?.id || !auditRow.created_at)) {
+    // D1 already returned a committed attachment row. Keep its R2 object reachable.
+    console.error(JSON.stringify({ event: "attachment_audit_receipt_missing", publicId, objectKey }));
+    throw new Error(`附件 ${publicId} 已写入，但审计回执缺失；请联系管理员核查`);
+  }
+  return { ...record, activity: auditRow ? { id: auditRow.id!, createdAt: auditRow.created_at! } : undefined };
 }
 
 export async function getAttachment(publicId: string) {
@@ -114,6 +149,27 @@ export async function getAttachmentObject(objectKey: string) {
   return env.MEDIA.get(objectKey);
 }
 
+export async function listAttachmentOrphanCandidates(cursor?: string) {
+  await ensureDatabase();
+  const page = await env.MEDIA.list({ prefix: "attachments/", limit: 100, ...(cursor ? { cursor } : {}) });
+  const keys = page.objects.map((object) => object.key);
+  const known = keys.length
+    ? await env.DB.prepare(`SELECT object_key FROM attachments
+      WHERE object_key IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(keys))
+      .all<{ object_key: string }>()
+    : null;
+  const recorded = new Set((known?.results ?? []).map((row) => row.object_key));
+  return {
+    candidates: page.objects.filter((object) => !recorded.has(object.key)).map((object) => ({
+      objectKey: object.key,
+      attachmentId: object.key.match(/^attachments\/\d{4}\/\d{2}\/(att_[a-f0-9]{32})\//)?.[1] ?? null,
+      size: object.size,
+      uploadedAt: object.uploaded.toISOString(),
+    })),
+    nextCursor: page.truncated ? page.cursor : null,
+  };
+}
+
 export async function listPostAttachments(postId: number) {
   await ensureDatabase();
   return getDb().select().from(attachments)
@@ -121,48 +177,167 @@ export async function listPostAttachments(postId: number) {
     .orderBy(attachments.createdAt, attachments.id);
 }
 
-export async function deleteAttachment(publicId: string) {
+export async function deleteAttachment(publicId: string, expectedVersion?: number) {
   await ensureDatabase();
   const record = await getDb().select().from(attachments)
     .where(eq(attachments.publicId, publicId)).limit(1);
   if (!record[0]) throw new AttachmentError("附件不存在或已经删除", 404);
 
-  if (record[0].postId) {
-    const post = await getDb().select({ content: posts.content }).from(posts)
+  let nextVersion: number | null = null;
+  if (record[0].postId !== null) {
+    const post = await getDb().select({ content: posts.content, version: posts.version }).from(posts)
       .where(eq(posts.id, record[0].postId)).limit(1);
     if (post[0]) {
+      if (!Number.isSafeInteger(expectedVersion) || (expectedVersion ?? 0) < 1) {
+        throw new AttachmentError("缺少有效的文章版本，请重新打开文章后再删除附件", 409);
+      }
+      if (post[0].version !== expectedVersion) {
+        throw new AttachmentError("文章已被其他编辑者更新，请重新打开并核对附件", 409);
+      }
       const markdown = attachmentMarkdown(record[0]);
       const content = removeAttachmentReference(post[0].content, { url: attachmentUrl(record[0]), markdown });
-      if (content !== post[0].content) {
-        await getDb().update(posts).set({ content, updatedAt: new Date().toISOString() })
-          .where(eq(posts.id, record[0].postId));
+      const result = await env.DB.batch([
+        env.DB.prepare(`DELETE FROM attachments WHERE public_id = ? AND post_id = ?
+          AND EXISTS (SELECT 1 FROM posts WHERE id = ? AND version = ?)`)
+          .bind(publicId, record[0].postId, record[0].postId, expectedVersion),
+        env.DB.prepare(`UPDATE posts SET content = ?, updated_at = ?, version = version + 1
+          WHERE id = ? AND version = ? AND changes() = 1`)
+          .bind(content, new Date().toISOString(), record[0].postId, expectedVersion),
+        env.DB.prepare("SELECT changes() AS changed"),
+      ]);
+      const changed = result[2]?.results?.[0] as { changed?: number } | undefined;
+      if (Number(changed?.changed ?? 0) !== 1) {
+        throw new AttachmentError("附件或文章已发生变化，请刷新后重试", 409);
+      }
+      nextVersion = expectedVersion + 1;
+    } else {
+      const result = await env.DB.batch([
+        env.DB.prepare(`DELETE FROM attachments WHERE public_id = ? AND post_id = ?
+          AND NOT EXISTS (SELECT 1 FROM posts WHERE id = ?)`)
+          .bind(publicId, record[0].postId, record[0].postId),
+        env.DB.prepare("SELECT changes() AS changed"),
+      ]);
+      const changed = result[1]?.results?.[0] as { changed?: number } | undefined;
+      if (Number(changed?.changed ?? 0) !== 1) {
+        throw new AttachmentError("附件归属已发生变化，请刷新后重试", 409);
       }
     }
+  } else {
+    const result = await env.DB.batch([
+      env.DB.prepare("DELETE FROM attachments WHERE public_id = ? AND post_id IS NULL").bind(publicId),
+      env.DB.prepare("SELECT changes() AS changed"),
+    ]);
+    const changed = result[1]?.results?.[0] as { changed?: number } | undefined;
+    if (Number(changed?.changed ?? 0) !== 1) {
+      throw new AttachmentError("附件归属已发生变化，请刷新后重试", 409);
+    }
   }
-  await getDb().delete(attachments).where(eq(attachments.publicId, publicId));
   try {
     await env.MEDIA.delete(record[0].objectKey);
   } catch (error) {
     // The database row owns reachability. Once it is gone the object is private
     // and can be reclaimed later without turning a successful delete into a retry.
-    console.error("attachment object cleanup failed", { publicId, error });
+    console.error(JSON.stringify({
+      event: "attachment_object_cleanup_required", operation: "delete", publicId,
+      objectKey: record[0].objectKey,
+      cleanupErrorType: error instanceof Error ? error.name : typeof error,
+    }));
+    await enqueueAttachmentCleanup(env.DB, publicId, record[0].objectKey, "delete", error);
   }
-  return record[0];
+  return { ...record[0], version: nextVersion };
 }
 
-export async function bindMarkdownAttachments(postId: number, markdown: string) {
+export async function listCleanupQueueItems(limit = 100) {
+  await ensureDatabase();
+  const rows = await getDb().select({
+    id: attachmentCleanupQueue.id,
+    publicId: attachmentCleanupQueue.publicId,
+    objectKey: attachmentCleanupQueue.objectKey,
+    operation: attachmentCleanupQueue.operation,
+    status: attachmentCleanupQueue.status,
+    attempts: attachmentCleanupQueue.attempts,
+    lastError: attachmentCleanupQueue.lastError,
+    createdAt: attachmentCleanupQueue.createdAt,
+    updatedAt: attachmentCleanupQueue.updatedAt,
+  }).from(attachmentCleanupQueue)
+    .where(eq(attachmentCleanupQueue.status, "pending"))
+    .orderBy(attachmentCleanupQueue.createdAt, attachmentCleanupQueue.id)
+    .limit(Math.min(Math.max(Number.isSafeInteger(limit) ? limit : 100, 1), 500));
+  return rows.map((row) => ({
+    id: row.id,
+    publicId: row.publicId,
+    objectKey: row.objectKey,
+    operation: row.operation,
+    attempts: row.attempts,
+    lastError: row.lastError,
+    createdAt: row.createdAt,
+  }));
+}
+
+/**
+ * Marks a queued cleanup as resolved. The operator must reclaim the R2 object
+ * by its exact key first; resolving verifies server-side that the object is
+ * gone before the queue entry is closed, so a stray click cannot hide an
+ * object that is still stored.
+ */
+export async function resolveCleanupQueueItem(objectKey: string) {
+  await ensureDatabase();
+  const rows = await getDb().select({
+    id: attachmentCleanupQueue.id,
+    status: attachmentCleanupQueue.status,
+    operation: attachmentCleanupQueue.operation,
+  }).from(attachmentCleanupQueue).where(eq(attachmentCleanupQueue.objectKey, objectKey)).limit(1);
+  if (!rows[0]) throw new AttachmentError("待回收对象不存在", 404);
+  if (rows[0].status === "resolved") throw new AttachmentError("该对象已标记为回收完成", 409);
+  if (rows[0].operation === "expired_unbound") {
+    const attachment = await env.DB.prepare("SELECT post_id FROM attachments WHERE object_key = ?")
+      .bind(objectKey).first<{ post_id: number | null }>();
+    if (attachment?.post_id != null) throw new AttachmentError("附件已绑定文章，不能按过期未绑定附件回收", 409);
+  }
+  const head = await env.MEDIA.head(objectKey);
+  if (head) throw new AttachmentError("对象仍存在于 R2，请先按精确键删除对象再确认回收", 409);
+  if (rows[0].operation === "expired_unbound") {
+    const results = await env.DB.batch([
+      env.DB.prepare(`DELETE FROM attachments WHERE object_key = ? AND post_id IS NULL
+        AND EXISTS (SELECT 1 FROM attachment_cleanup_queue
+          WHERE object_key = ? AND operation = 'expired_unbound' AND status = 'pending')`)
+        .bind(objectKey, objectKey),
+      env.DB.prepare(`UPDATE attachment_cleanup_queue SET status = 'resolved', updated_at = CURRENT_TIMESTAMP
+        WHERE object_key = ? AND operation = 'expired_unbound' AND status = 'pending'
+          AND NOT EXISTS (SELECT 1 FROM attachments WHERE object_key = ?)`)
+        .bind(objectKey, objectKey),
+    ]);
+    if (results[1]?.meta.changes !== 1) {
+      throw new AttachmentError("附件归属已变化，请重新检查后再确认回收", 409);
+    }
+    return { objectKey, operation: rows[0].operation, resolved: true };
+  }
+  await getDb().update(attachmentCleanupQueue)
+    .set({ status: "resolved", updatedAt: new Date().toISOString() })
+    .where(eq(attachmentCleanupQueue.objectKey, objectKey));
+  return { objectKey, operation: rows[0].operation, resolved: true };
+}
+
+export function prepareMarkdownAttachmentBinding(
+  db: D1Database,
+  post: { id: number } | { publicId: string },
+  markdown: string,
+  requirePreviousWrite = false,
+) {
   const ids = attachmentIdsFromMarkdown(markdown);
-  if (!ids.length) return;
-  await getDb().update(attachments).set({ postId })
-    .where(and(
-      inArray(attachments.publicId, ids),
-      or(eq(attachments.postId, postId), isNull(attachments.postId)),
-    ));
+  if (!ids.length) return null;
+  const identifier = "id" in post ? post.id : post.publicId;
+  const target = "id" in post ? "?" : "(SELECT id FROM posts WHERE public_id = ?)";
+  return db.prepare(`UPDATE attachments SET post_id = ${target}
+    WHERE public_id IN (SELECT value FROM json_each(?))
+      AND (post_id IS NULL OR post_id = ${target})
+      ${requirePreviousWrite ? "AND changes() = 1" : ""}`)
+    .bind(identifier, JSON.stringify(ids), identifier);
 }
 
 export function attachmentIdsFromMarkdown(markdown: string) {
   const matches = markdown.matchAll(/\/api\/attachments\/(att_[a-f0-9]{32})(?:\/|[)\s"']|$)/gi);
-  return [...new Set(Array.from(matches, (match) => match[1].toLowerCase()))].slice(0, 200);
+  return [...new Set(Array.from(matches, (match) => match[1].toLowerCase()))];
 }
 
 export function attachmentUrl(record: { publicId: string; originalName: string }) {

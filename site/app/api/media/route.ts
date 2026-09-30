@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { isAdminRequest, unauthorized } from "../admin-auth";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 
 const allowedTypes = new Map([
   ["image/jpeg", "jpg"], ["image/png", "png"], ["image/webp", "webp"],

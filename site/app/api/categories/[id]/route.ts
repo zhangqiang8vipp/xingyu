@@ -1,5 +1,5 @@
-import { isAdminRequest, unauthorized } from "../../admin-auth";
-import { CategoryServiceError, deleteCategory, updateCategory } from "@/server/services/categories";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
+import { CategoryServiceError, deleteCategory, updateCategory } from "@/db/categories";
 
 export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){
   if(!(await isAdminRequest(request)))return unauthorized();

@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ArticleEndMark from "./ArticleEndMark";
-import IslandSearch from "@/features/navigation/IslandSearch";
+import IslandSearch from "../navigation/IslandSearch";
 import { formatLongDate, isEditableTarget } from "@/app/content-utils";
-import MarkdownRenderer from "@/features/markdown/MarkdownRenderer";
+import MarkdownRenderer from "../markdown/MarkdownRenderer";
 import { adminReaderHref, adminReaderSearchParams, DEFAULT_ADMIN_READER_CONTEXT, normalizeAdminReaderContext, type AdminReaderContext, type AdminReaderReturnTarget } from "@/domain/reader/admin-reader-context";
 
 type ReaderPost = {

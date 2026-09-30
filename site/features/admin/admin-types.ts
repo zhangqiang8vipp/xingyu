@@ -39,6 +39,7 @@ export type AdminCategory={
 
 export type AdminPost={
   id:number;
+  version:number;
   publicId:string;
   title:string;
   slug:string;
@@ -51,18 +52,21 @@ export type AdminPost={
   publishedAt:string|null;
   updatedAt:string;
   spaceId:number|null;
+  sortOrder?:number;
   spacePath:string|null;
 };
 
 export type ArticleForm={
   id?:number;
   publicId?:string;
+  version?:number;
   title:string;
   slug:string;
   excerpt:string;
   content:string;
   categoryId:number;
   spaceId:number|null;
+  sortOrder?:number;
   spacePath?:string;
   status:"draft"|"published";
   featured:boolean;

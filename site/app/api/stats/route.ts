@@ -1,5 +1,5 @@
-import { getAdminStats } from "../../../db/queries";
-import { isAdminRequest, unauthorized } from "../admin-auth";
+import { getAdminStats } from "@/db/queries";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 
 export async function GET(request: Request) {
   if (!(await isAdminRequest(request))) return unauthorized();

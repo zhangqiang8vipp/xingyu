@@ -1,6 +1,6 @@
-import { listAdminPosts } from "../../../db/queries";
-import { createPostRecord, PostWriteError } from "../../../db/post-write";
-import { isAdminRequest, unauthorized } from "../admin-auth";
+import { listAdminPosts } from "@/db/queries";
+import { createPostRecord, PostWriteError } from "@/db/post-write";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 import { parsePostPayload } from "@/domain/posts/post-input";
 
 export async function GET(request: Request) {

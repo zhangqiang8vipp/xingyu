@@ -1,5 +1,5 @@
 import { notFound, permanentRedirect } from "next/navigation";
-import { getPostBySlug, resolvePublicPost } from "../../../db/queries";
+import { getPostBySlug, resolvePublicPost } from "@/db/queries";
 import type { PageSearchParams } from "../../content-utils";
 import { postPath } from "../../post-path";
 import PostPageView from "@/features/reader/PostPageView";

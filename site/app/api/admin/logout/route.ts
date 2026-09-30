@@ -1,4 +1,4 @@
-import { clearLocalAdminSession } from "../../admin-auth";
+import { clearLocalAdminSession } from "@/server/auth/admin-auth";
 
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");

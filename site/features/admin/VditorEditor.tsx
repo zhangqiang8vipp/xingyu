@@ -4,6 +4,7 @@ import "vditor/dist/index.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type Vditor from "vditor";
 import { removeAttachmentReference } from "@/domain/attachments/markdown-reference";
+import { mermaidAppearance } from "../markdown/mermaid-theme";
 
 const slashHints = [
   { html: "<b>H1</b><span>一级标题</span>", value: "# 一级标题" },
@@ -24,7 +25,7 @@ const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 type AttachmentItem={id:string;name:string;contentType:string;size:number;createdAt:string;url:string;markdown:string};
 type UploadNotice={kind:"success"|"error";title:string;detail:string};
 
-export default function VditorEditor({ value, onChange, previewMode="both", autoFocus=false, attachments=false, postId }: { value: string; onChange: (value: string) => void; previewMode?:"both"|"editor"; autoFocus?:boolean; attachments?:boolean; postId?:number }) {
+export default function VditorEditor({ value, onChange, previewMode="both", autoFocus=false, attachments=false, postId, postVersion, onPostVersionChange }: { value: string; onChange: (value: string) => void; previewMode?:"both"|"editor"; autoFocus?:boolean; attachments?:boolean; postId?:number; postVersion?:number; onPostVersionChange?:(version:number)=>void }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Vditor | null>(null);
   const changeRef = useRef(onChange);
@@ -119,9 +120,13 @@ export default function VditorEditor({ value, onChange, previewMode="both", auto
   const deleteManagedAttachment=useCallback(async(item:AttachmentItem)=>{
     setManagerMessage("");
     try {
-      const response=await fetch(`/api/attachments/${item.id}`,{method:"DELETE"});
+      const response=await fetch(`/api/attachments/${item.id}`,{
+        method:"DELETE",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({version:postVersion}),
+      });
       const payload=await readAttachmentResponse(response);
       if(!response.ok)throw new Error(uploadErrorDetail(response.status,payload.error));
+      if(typeof payload.version==="number")onPostVersionChange?.(payload.version);
       setAttachmentItems((current)=>current.filter((entry)=>entry.id!==item.id));
       setDeleteCandidate(null);
       const editor=editorRef.current;
@@ -136,7 +141,7 @@ export default function VditorEditor({ value, onChange, previewMode="both", auto
       setManagerMessage(detail);
       setNotice({kind:"error",title:"附件删除失败",detail});
     }
-  },[]);
+  },[postVersion,onPostVersionChange]);
 
   useEffect(() => {
     let disposed = false;
@@ -150,13 +155,14 @@ export default function VditorEditor({ value, onChange, previewMode="both", auto
       const runtime = (window as Window & { mermaid?: { initialize?: (config: Record<string, unknown>) => void; __xingyuConfigured?: boolean } }).mermaid;
       if (!runtime?.initialize || runtime.__xingyuConfigured) return;
       const initialize = runtime.initialize.bind(runtime);
-      runtime.initialize = (config) => initialize({
-        ...config,
-        fontFamily: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif',
-        altFontFamily: '"PingFang SC", "Microsoft YaHei", sans-serif',
-        htmlLabels: false,
-        flowchart: { ...(config.flowchart as Record<string, unknown> ?? {}), htmlLabels: false, useMaxWidth: false, wrappingWidth: 280, nodeSpacing: 34, rankSpacing: 42, padding: 18 },
-      });
+      runtime.initialize = (config) => {
+        const appearance = mermaidAppearance(document.documentElement.dataset.theme === "dark");
+        return initialize({
+          ...config,
+          ...appearance,
+          flowchart: { ...(config.flowchart as Record<string, unknown> ?? {}), ...appearance.flowchart },
+        });
+      };
       runtime.__xingyuConfigured = true;
     };
     // Vditor loads Mermaid itself. Intercept the script's capture-phase load event
@@ -280,7 +286,7 @@ export default function VditorEditor({ value, onChange, previewMode="both", auto
 }
 
 async function readAttachmentResponse(response:Response){
-  try{return await response.json() as {id?:string;markdown?:string;attachment?:AttachmentItem;attachments?:AttachmentItem[];error?:string}}
+  try{return await response.json() as {id?:string;markdown?:string;attachment?:AttachmentItem;attachments?:AttachmentItem[];error?:string;version?:number|null}}
   catch{return {error:response.ok?"服务器返回了无法识别的数据":"服务器没有返回错误详情"}}
 }
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getAdminReaderPost } from "../../../db/queries";
-import { resolvePostPreviewToken } from "../../../db/post-preview-tokens";
+import { getAdminReaderPost } from "@/db/queries";
+import { resolvePostPreviewToken } from "@/db/post-preview-tokens";
 import PostPageView from "@/features/reader/PostPageView";
 
 export const dynamic = "force-dynamic";

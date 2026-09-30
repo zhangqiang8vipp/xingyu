@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
-import { sha256Bytes, constantTimeBytesEqual } from "../db/admin-session";
-import { ALL_SCOPES, findAccessToken, hashSecret, mcpResourceFor, parseScopeList, touchAccessToken } from "../db/oauth";
+import { sha256Bytes, constantTimeBytesEqual } from "@/db/admin-session";
+import { ALL_SCOPES, findAccessToken, hashSecret, mcpResourceFor, parseScopeList, touchAccessToken } from "@/db/oauth";
 import { oauthLog } from "./oauth/errors";
 import { unauthorizedChallenge } from "./oauth/metadata";
 import type { McpAuth } from "./mcp/scope-policy";

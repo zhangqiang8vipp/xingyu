@@ -1,4 +1,4 @@
-import { ensureDatabase } from "../../db/bootstrap";
+import { ensureDatabase } from "@/db/bootstrap";
 import {
   ACCESS_TOKEN_TTL_SECONDS,
   consumeAuthorizationCode,
@@ -12,7 +12,7 @@ import {
   mcpResourceFor,
   REFRESH_TOKEN_MAX_TTL_SECONDS,
   revokeRefreshFamily,
-} from "../../db/oauth";
+} from "@/db/oauth";
 import { refreshTokenDecision } from "../mcp/scope-policy";
 import { OAuthError, oauthLog } from "./errors";
 import { verifyS256 } from "./pkce";

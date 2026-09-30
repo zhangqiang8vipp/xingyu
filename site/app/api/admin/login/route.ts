@@ -1,4 +1,4 @@
-import { clearAdminLoginFailures, createLocalAdminSession, getAdminLoginLimit, isPasswordLoginConfigured, recordAdminLoginFailure, verifyLocalAdminPassword } from "../../admin-auth";
+import { clearAdminLoginFailures, createLocalAdminSession, getAdminLoginLimit, isPasswordLoginConfigured, recordAdminLoginFailure, verifyLocalAdminPassword } from "@/server/auth/admin-auth";
 
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");

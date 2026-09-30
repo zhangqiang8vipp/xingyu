@@ -1,5 +1,5 @@
 import { notFound, permanentRedirect } from "next/navigation";
-import { getPostByPublicId } from "../../../../db/queries";
+import { getPostByPublicId } from "@/db/queries";
 import { postPath } from "../../../post-path";
 import PostPageView from "@/features/reader/PostPageView";
 

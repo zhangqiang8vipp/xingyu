@@ -1,9 +1,9 @@
 import { env } from "cloudflare:workers";
 import { attachmentCacheControl, attachmentEtagMatches } from "#domain/attachments/http-cache";
 import { mergeResponseHeaders } from "#domain/media/image-transform";
-import { getAttachment } from "../../../../../db/attachments";
-import { previewTokenCanReadPost } from "../../../../../db/post-preview-tokens";
-import { isAdminRequest, unauthorized } from "../../../admin-auth";
+import { getAttachment } from "@/db/attachments";
+import { previewTokenCanReadPost } from "@/db/post-preview-tokens";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 
 const MAX_IMAGE_TRANSFORM_BYTES = 20 * 1024 * 1024;
 

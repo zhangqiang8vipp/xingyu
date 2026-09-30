@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CursorPost } from "../../db/queries";
+import type { CursorPost } from "@/db/queries";
 import ModalPostLink from "@/features/reader/ModalPostLink";
 import { CONTENT_LIMITS } from "@/domain/site/config";
 import { formatLongDate, formatMonthDay } from "../content-utils";

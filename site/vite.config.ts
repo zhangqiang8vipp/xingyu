@@ -3,10 +3,8 @@ import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json" with { type: "json" };
 import { sites } from "./plugins/sites-vite-plugin.ts";
 
-const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
-  "00000000-0000-4000-8000-000000000000";
-const PRODUCTION_PREVIEW_DATABASE_ID =
-  "00000000-0000-4000-8000-000000000001";
+const DEVELOPMENT_DATABASE_ID = "4e2a8280-5a0f-4534-bee6-4329ff16231a";
+const PRODUCTION_PREVIEW_DATABASE_ID = "6c4a3215-cbe7-426e-bfef-17acc33db39a";
 
 const { d1, r2 } = hostingConfig;
 
@@ -20,14 +18,15 @@ export default defineConfig(async ({ command, mode }) => {
     compatibility_flags: ["nodejs_compat"],
     vars: {
       APP_ENV: appEnvironment,
+      DB_SCHEMA_MODE: "migration-only",
     },
     d1_databases: d1
       ? [
           {
             binding: d1,
-            database_name: appEnvironment === "development" ? "xingyu-development" : "xingyu-production-preview",
+            database_name: appEnvironment === "development" ? "xingyu-development-v2" : "xingyu-production-preview-v2",
             database_id: appEnvironment === "development"
-              ? SITE_CREATOR_PLACEHOLDER_DATABASE_ID
+              ? DEVELOPMENT_DATABASE_ID
               : PRODUCTION_PREVIEW_DATABASE_ID,
           },
         ]

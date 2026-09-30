@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getCategories, getSiteSettings, listArchivePosts } from "../../db/queries";
+import { getCategories, getSiteSettings, listArchivePosts } from "@/db/queries";
 import type { PageSearchParams } from "../content-utils";
 import { CONTENT_LIMITS, copyrightText } from "@/domain/site/config";
 import StableLink from "../StableLink";

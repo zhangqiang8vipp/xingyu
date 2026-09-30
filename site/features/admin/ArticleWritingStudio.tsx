@@ -5,7 +5,7 @@ import VditorEditor from "./VditorEditor";
 import { formatLongDate } from "@/app/content-utils";
 
 type Mode="code"|"split"|"reading";
-export type ArticleDraft={id?:number;publicId?:string;title:string;slug?:string;excerpt:string;content:string;publishedAt?:string|null;status?:"draft"|"published";spaceId?:number|null;spacePath?:string};
+export type ArticleDraft={id?:number;publicId?:string;version?:number;title:string;slug?:string;excerpt:string;content:string;publishedAt?:string|null;status?:"draft"|"published";spaceId?:number|null;spacePath?:string};
 /** Keeps Markdown source and the real frontstage iframe on one reading progress. */
 export function useSplitScrollSync(rootRef:RefObject<HTMLElement|null>,enabled=true){
   useEffect(()=>{
@@ -63,7 +63,7 @@ export function useSplitScrollSync(rootRef:RefObject<HTMLElement|null>,enabled=t
     return()=>{observer.disconnect();source?.removeEventListener("scroll",onSourceScroll);frame?.removeEventListener("load",attachFrame);detachFrame()};
   },[enabled,rootRef]);
 }
-export default function ArticleWritingStudio({draft,categoryName,categoryColor,authorName,avatarUrl,initialMode="split",onChange,onClose}:{draft:ArticleDraft;categoryName:string;categoryColor:string;authorName:string;avatarUrl:string;initialMode?:Mode;onChange:(content:string)=>void;onClose:()=>void}){
+export default function ArticleWritingStudio({draft,categoryName,categoryColor,authorName,avatarUrl,initialMode="split",onChange,onPostVersionChange,onClose}:{draft:ArticleDraft;categoryName:string;categoryColor:string;authorName:string;avatarUrl:string;initialMode?:Mode;onChange:(content:string)=>void;onPostVersionChange?:(version:number)=>void;onClose:()=>void}){
   const [mode,setMode]=useState<Mode>(initialMode);
   useEffect(()=>{const close=(event:KeyboardEvent)=>{if(event.key==="Escape")onClose()};window.addEventListener("keydown",close);const overflow=document.body.style.overflow;document.body.style.overflow="hidden";return()=>{window.removeEventListener("keydown",close);document.body.style.overflow=overflow}},[onClose]);
   useEffect(()=>{
@@ -122,7 +122,7 @@ export default function ArticleWritingStudio({draft,categoryName,categoryColor,a
   },[mode]);
   return <div className={`writing-studio mode-${mode}`} role="dialog" aria-modal="true" aria-label="沉浸式文章写作">
     <header><div className="writing-studio-brand"><i style={{background:categoryColor}}/><span>实时写作</span><b>{draft.title||"未命名文章"}</b></div><div className="writing-mode-switch" aria-label="写作方式"><button className={mode==="code"?"active":""} onClick={()=>setMode("code")}>源码</button><button className={mode==="split"?"active":""} onClick={()=>setMode("split")}>分屏</button><button className={mode==="reading"?"active":""} onClick={()=>setMode("reading")}>阅读</button></div><div className="writing-studio-actions"><span>内容实时保留在编辑表单</span><button onClick={onClose}>完成</button></div></header>
-    <main>{mode!=="reading"&&<section className="writing-source"><div><span>MARKDOWN SOURCE</span><small>输入 / 使用指令 · Ctrl+V 粘贴图片</small></div><VditorEditor value={draft.content} onChange={onChange} previewMode="editor" autoFocus attachments postId={draft.id}/></section>}{mode!=="code"&&<ArticleFrontstage key={draft.publicId ?? draft.id ?? "new-draft"} draft={draft} categoryName={categoryName} categoryColor={categoryColor} authorName={authorName} avatarUrl={avatarUrl}/>}</main>
+    <main>{mode!=="reading"&&<section className="writing-source"><div><span>MARKDOWN SOURCE</span><small>输入 / 使用指令 · Ctrl+V 粘贴图片</small></div><VditorEditor value={draft.content} onChange={onChange} previewMode="editor" autoFocus attachments postId={draft.id} postVersion={draft.version} onPostVersionChange={onPostVersionChange}/></section>}{mode!=="code"&&<ArticleFrontstage key={draft.publicId ?? draft.id ?? "new-draft"} draft={draft} categoryName={categoryName} categoryColor={categoryColor} authorName={authorName} avatarUrl={avatarUrl}/>}</main>
   </div>;
 }
 

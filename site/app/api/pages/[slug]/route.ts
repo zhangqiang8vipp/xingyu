@@ -1,6 +1,6 @@
-import { getContentPage } from "../../../../db/queries";
-import { isAdminRequest, unauthorized } from "../../admin-auth";
-import { SiteContentError, upsertContentPage } from "@/server/services/site-content";
+import { getContentPage } from "@/db/queries";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
+import { SiteContentError, upsertContentPage } from "@/db/site-content";
 
 export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   if (!(await isAdminRequest(request))) return unauthorized();

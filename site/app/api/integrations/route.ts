@@ -1,6 +1,6 @@
-import { isAdminRequest, unauthorized } from "../admin-auth";
-import { ensureDatabase } from "../../../db/bootstrap";
-import { listMcpConnections, revokeMcpConnection } from "../../../db/integrations";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
+import { ensureDatabase } from "@/db/bootstrap";
+import { listMcpConnections, revokeMcpConnection } from "@/db/integrations";
 
 export async function GET(request: Request) {
   if (!(await isAdminRequest(request))) return unauthorized();

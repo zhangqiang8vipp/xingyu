@@ -1,4 +1,4 @@
-import { listArchivePosts } from "../../../db/queries";
+import { listArchivePosts } from "@/db/queries";
 import { CONTENT_LIMITS } from "@/domain/site/config";
 
 export async function GET(request: Request) {

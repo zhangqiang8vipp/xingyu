@@ -15,8 +15,8 @@
     "deploy:production": "npm run build && wrangler deploy --config wrangler.production.jsonc",
     "start": "vinext start",
     "test": "npm run typecheck && npm run build && npm run types:worker:check && npm run test:source && npm run test:integration",
-    "test:source": "node --test tests/rendered-html.test.mjs tests/oauth-auth.test.mjs tests/oauth-protocol.test.mjs tests/mcp-read.test.mjs tests/admin-reader-context.test.mjs tests/public-document-cache.test.mjs tests/media-response.test.mjs",
-    "test:integration": "node --test tests/integration/security-contracts.test.mjs",
+    "test:source": "node --test tests/rendered-html.test.mjs tests/oauth-auth.test.mjs tests/oauth-protocol.test.mjs tests/mcp-read.test.mjs tests/admin-reader-context.test.mjs tests/public-document-cache.test.mjs tests/media-response.test.mjs tests/public-read-session.test.mjs",
+    "test:integration": "node --test tests/integration/security-contracts.test.mjs tests/integration/schema-migrations.test.mjs tests/integration/post-write-contracts.test.mjs tests/integration/views-contracts.test.mjs tests/integration/read-session-contracts.test.mjs",
     "ci": "npm run lint && npm run typecheck && npm run build && npm run types:worker:check && npm run test:source && npm run test:integration",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -57,6 +57,7 @@
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "^16.2.11",
+    "puppeteer-core": "^25.12.0",
     "react-server-dom-webpack": "^19.2.8",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
@@ -65,16 +66,25 @@
     "wrangler": "4.130.0"
   },
   "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    },
     "@hono/node-server": "2.0.11",
     "baseline-browser-mapping": "2.11.21",
     "dompurify": "3.4.15",
-    "fast-uri": "3.1.7",
+    "fast-uri": "3.1.8",
     "hono": "4.13.7",
-    "ip-address": "10.7.0",
+    "ip-address": "10.7.2",
+    "miniflare": {
+      "undici": "7.30.0"
+    },
     "nanoid@3.3.16": "3.3.18",
     "postcss": "8.5.28",
     "qs": "6.16.0",
-    "sharp": "0.35.4"
+    "sharp": "0.35.4",
+    "vinext": {
+      "image-size": "2.0.4"
+    }
   },
   "type": "module"
 }

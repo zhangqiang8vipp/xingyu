@@ -3,8 +3,13 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import { handleBlogMcpRequest, isBlogMcpPath } from "./blog-mcp";
 import { handleOAuthRequest, isOAuthPath } from "./oauth";
+import { enqueueExpiredUnboundAttachments, UNBOUND_ATTACHMENT_RETENTION_DAYS } from "@/db/attachment-cleanup";
+import { cleanupExpiredPostViews, POST_VIEWS_RETENTION_DAYS } from "@/db/view-tracking";
+import { schemaVersion } from "@/db/bootstrap";
+import { collectSiteHealth } from "@/db/health";
+import { cspHeaderFor, cspModeLabel, summarizeCspReport, CSP_REPORT_PATH } from "@/domain/security/csp";
 import { hasRequestIdentity, isHtmlDocumentRequest, isPublicDocumentRequest, publicDocumentCacheControl, publicDocumentCacheKey, publicDocumentCategory, publicDocumentStorageCacheControl, readPublicContentRevision, responseAllowsPublicStorage } from "./public-document-cache";
-import { normalizeImageOutputFormat } from "../domain/media/image-transform";
+import { normalizeImageOutputFormat } from "@/domain/media/image-transform";
 
 const edgeCache = (caches as CacheStorage & { default: Cache }).default;
 
@@ -37,11 +42,56 @@ function addSecurityHeaders(response: Response, url: URL, publicDocument: boolea
 // dangerouslyAllowSVG: true in next.config.js and uncomment below:
 // const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
 
+function applyCsp(headers: Headers, env: Env, htmlDocument: boolean) {
+  if (!htmlDocument) return;
+  const header = cspHeaderFor(cspModeLabel(env.CSP_MODE));
+  if (header) headers.set(header.name, header.value);
+}
+
+async function readCspReport(request: Request, limit = 8192): Promise<unknown> {
+  const contentType = request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+  if (contentType !== "application/csp-report" || !request.body) return null;
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  try { return JSON.parse(new TextDecoder().decode(bytes)); } catch { return null; }
+}
+
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestStartedAt = performance.now();
     const url = new URL(request.url);
     const identityBearing=hasRequestIdentity(request);
+    if (url.pathname === CSP_REPORT_PATH && request.method === "POST") {
+      if (cspModeLabel(env.CSP_MODE) !== "off") {
+        const summary = summarizeCspReport(await readCspReport(request).catch(() => null));
+        if (summary) console.error(JSON.stringify({ event: "csp_violation", at: new Date().toISOString(), ...summary }));
+      }
+      return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+    }
+    if (url.pathname === "/" && request.method === "POST") {
+      return addSecurityHeaders(new Response(null, {
+        status: 405,
+        headers: { "Allow": "GET, HEAD", "Cache-Control": "no-store" },
+      }), url, false, null, identityBearing, false);
+    }
     const htmlDocument=isHtmlDocumentRequest(request);
     const cacheable = isPublicDocumentRequest(request, url);
     const revisionStartedAt=performance.now();
@@ -73,6 +123,7 @@ const worker = {
       const cached = await edgeCache.match(cacheKey);
       if (cached) {
         const headers = new Headers(cached.headers);
+        applyCsp(headers, env, htmlDocument);
         headers.set("X-Xingyu-Cache", "HIT");
         headers.set("Cache-Control",publicDocumentCacheControl(revision));
         headers.set("CDN-Cache-Control","no-store");
@@ -88,6 +139,7 @@ const worker = {
     const appResponse=await handler.fetch(request, env, ctx);
     const publicStorageAllowed=cacheable&&responseAllowsPublicStorage(appResponse);
     const response = addSecurityHeaders(appResponse, url, publicStorageAllowed,revision,identityBearing,htmlDocument);
+    applyCsp(response.headers, env, htmlDocument);
     response.headers.set("Server-Timing", `${cacheable?`cache-revision;dur=${revisionDuration.toFixed(1)}, `:""}app;dur=${(performance.now() - requestStartedAt).toFixed(1)}`);
     if (cacheKey && publicStorageAllowed) {
       const cachedResponse = response.clone();
@@ -98,6 +150,41 @@ const worker = {
       response.headers.set("X-Xingyu-Cache", "MISS");
     }
     return response;
+  },
+
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil((async () => {
+      try {
+        const enqueued = await enqueueExpiredUnboundAttachments(env.DB, UNBOUND_ATTACHMENT_RETENTION_DAYS);
+        const pruned = await cleanupExpiredPostViews(env.DB, POST_VIEWS_RETENTION_DAYS);
+        console.log(JSON.stringify({ event: "attachment_expiry_scan", enqueued, prunedViews: pruned }));
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "attachment_expiry_scan_failed",
+          errorType: error instanceof Error ? error.name : typeof error,
+        }));
+      }
+      try {
+        const health = await collectSiteHealth(env.DB, schemaVersion);
+        const anomalies = Object.entries(health.audit)
+          .filter(([, count]) => count !== 0)
+          .map(([name, count]) => ({ name, count }));
+        if (!health.ownerPresent) anomalies.push({ name: "owner_missing", count: 1 });
+        if (anomalies.length > 0) {
+          console.error(JSON.stringify({
+            event: "site_health_anomaly",
+            anomalyCount: anomalies.length,
+            anomalies,
+            generatedAt: health.generatedAt,
+          }));
+        }
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "site_health_check_failed",
+          errorType: error instanceof Error ? error.name : typeof error,
+        }));
+      }
+    })());
   },
 } satisfies ExportedHandler<Env>;
 

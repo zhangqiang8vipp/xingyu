@@ -1,4 +1,4 @@
-import { getCategories, getSiteSettings, listHomePosts } from "../db/queries";
+import { getCategories, getSiteSettings, listHomePosts } from "@/db/queries";
 import { type PageSearchParams } from "./content-utils";
 import NavTitleChrome from "@/features/navigation/NavTitleChrome";
 import IslandSearch from "@/features/navigation/IslandSearch";

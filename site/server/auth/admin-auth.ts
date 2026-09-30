@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { env } from "cloudflare:workers";
 import { pbkdf2Sync, scryptSync } from "node:crypto";
-import { ensureDatabase } from "../../db/bootstrap";
+import { ensureDatabase } from "@/db/bootstrap";
 import {
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_SECONDS,
@@ -14,7 +14,7 @@ import {
   sha256Bytes,
   signAdminPayload,
   validSessionSecret,
-} from "../../db/admin-session";
+} from "@/db/admin-session";
 
 const LOGIN_WINDOW_SECONDS = 15 * 60;
 const LOGIN_BLOCK_SECONDS = 30 * 60;

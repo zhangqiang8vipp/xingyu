@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { getAdminReaderPost } from "../../../../db/queries";
-import { getAdminIdentity } from "../../../api/admin-auth";
+import { getAdminReaderPost } from "@/db/queries";
+import { getAdminIdentity } from "@/server/auth/admin-auth";
 import PostPageView from "@/features/reader/PostPageView";
 import "../../admin-reader.css";
 import { normalizeAdminReaderContext, type AdminReaderRange, type AdminReaderSource, type AdminReaderStatus } from "@/domain/reader/admin-reader-context";

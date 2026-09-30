@@ -3,7 +3,7 @@ import { getDb } from "./index";
 import { ensureDatabase } from "./bootstrap";
 import { mcpActivity, oauthAccessTokens, oauthClients, oauthConsents } from "./schema";
 import { parseScopeList, revokeConsent } from "./oauth";
-import { sessionLabel } from "../worker/oauth/account-subject";
+import { sessionLabel } from "@/worker/oauth/account-subject";
 
 export type McpSession = {
   subject: string;

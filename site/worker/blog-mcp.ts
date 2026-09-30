@@ -1,6 +1,6 @@
 import { createMcpHandler } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { ensureDatabase } from "../db/bootstrap";
+import { ensureDatabase } from "@/db/bootstrap";
 import { authenticateMcp, rememberTokenUse, type McpAuth } from "./mcp-auth";
 import { registerDraftTools } from "./mcp/draft-tools";
 import { registerPublishTools } from "./mcp/publish-tools";

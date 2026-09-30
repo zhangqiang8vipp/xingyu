@@ -1,4 +1,4 @@
-import { ALL_SCOPES, mcpResourceFor } from "../../db/oauth";
+import { ALL_SCOPES, mcpResourceFor } from "@/db/oauth";
 
 function corsJson(body: unknown) {
   return Response.json(body, {

@@ -23,7 +23,7 @@ test("OAuth tables and dual auth stay beside the existing MCP token", async () =
   ]);
   assert.match(schema, /oauthClients = sqliteTable\("oauth_clients"/);
   assert.match(schema, /oauthRefreshTokens = sqliteTable\("oauth_refresh_tokens"/);
-  assert.match(bootstrap, /schemaVersion = "12"/);
+  assert.match(bootstrap, /schemaVersion = "19"/);
   assert.match(bootstrap, /grok-xingyu/);
   assert.match(bootstrap, /chatgpt-xingyu/);
   assert.match(worker, /isOAuthPath/);
@@ -40,7 +40,7 @@ test("OAuth discovery and Grok public client follow the design contract", async 
     source("worker/oauth/metadata.ts"),
     source("worker/oauth/token.ts"),
     source("worker/oauth/authorize.ts"),
-    source("app/api/admin-auth.ts"),
+    source("server/auth/admin-auth.ts"),
   ]);
   assert.match(metadata, /oauth-protected-resource\/mcp/);
   assert.match(metadata, /code_challenge_methods_supported: \["S256"\]/);

@@ -1,5 +1,5 @@
 import type { Root } from "mdast";
-import { isValidElement, type ReactNode } from "react";
+import { isValidElement, memo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
@@ -102,7 +102,7 @@ const markdownSchema = {
   },
 };
 
-export default function MarkdownRenderer({ children, previewToken }: { children: string; previewToken?: string }) {
+const MarkdownRenderer = memo(function MarkdownRenderer({ children, previewToken }: { children: string; previewToken?: string }) {
   const hasMath = /(^|[^\\])\$\$[\s\S]+?\$\$|(^|[^\\])\$(?!\s)(?:\\.|[^$\n])+\$/m.test(children);
   return <>
     {hasMath && <MarkdownKatexStyles />}
@@ -155,4 +155,6 @@ export default function MarkdownRenderer({ children, previewToken }: { children:
       }}
     >{children}</ReactMarkdown>
   </>;
-}
+});
+
+export default MarkdownRenderer;

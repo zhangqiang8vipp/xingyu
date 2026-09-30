@@ -5,14 +5,21 @@
   "compatibility_date": "2026-07-23",
   "compatibility_flags": ["nodejs_compat"],
   "no_bundle": true,
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  },
   "vars": {
-    "APP_ENV": "production"
+    "APP_ENV": "production",
+    "DB_SCHEMA_MODE": "migration-only",
+    "CSP_MODE": "report-only"
   },
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "xingyu-production",
-      "database_id": "3d1f4b08-a1f8-4ba3-a876-2ba4b3a10b16"
+      "database_name": "xingyu-production-v2",
+      "database_id": "ef27f3c6-349a-44ea-ae09-0cc9dccca691",
+      "migrations_dir": "drizzle",
+      "migrations_pattern": "drizzle/[0-9][0-9][0-9][0-9]_*.sql"
     }
   ],
   "r2_buckets": [

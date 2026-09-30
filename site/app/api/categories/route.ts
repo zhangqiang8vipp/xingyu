@@ -1,6 +1,6 @@
-import { getCategories } from "../../../db/queries";
-import { isAdminRequest, unauthorized } from "../admin-auth";
-import { CategoryServiceError, createCategory } from "@/server/services/categories";
+import { getCategories } from "@/db/queries";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
+import { CategoryServiceError, createCategory } from "@/db/categories";
 
 export async function GET(request: Request) {
   if (!(await isAdminRequest(request))) return unauthorized();

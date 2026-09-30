@@ -10,7 +10,7 @@ import {
 } from "./schema";
 import { bytesToHex, sha256Bytes } from "./admin-session";
 
-export { CHATGPT_CLIENT_ID, GROK_CLIENT_ID, isKnownChatGptRedirect, shouldAcceptRedirect } from "../worker/oauth/redirect-policy";
+export { CHATGPT_CLIENT_ID, GROK_CLIENT_ID, isKnownChatGptRedirect, shouldAcceptRedirect } from "@/worker/oauth/redirect-policy";
 export const OAUTH_SUBJECT = "xingyu-owner";
 export const ALL_SCOPES = ["xingyu.read", "xingyu.draft", "xingyu.publish", "offline_access"] as const;
 export const DEFAULT_GROK_SCOPES = ["xingyu.read", "xingyu.draft", "offline_access"] as const;

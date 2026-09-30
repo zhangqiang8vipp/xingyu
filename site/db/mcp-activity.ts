@@ -17,78 +17,61 @@ export type McpActivityAction =
 
 type ActivityInput = {
   action: McpActivityAction;
-  post: {
-    id: number;
-    publicId: string;
-    title: string;
-    status: string;
-  };
   beforeStatus?: string | null;
   changedFields: string[];
   summary: string;
   clientLabel: string;
 };
 
-export async function recordMcpActivity(input: ActivityInput) {
-  await ensureDatabase();
-  const [activity] = await getDb().insert(mcpActivity).values({
-    action: input.action,
-    postId: input.post.id,
-    publicId: input.post.publicId,
-    title: input.post.title,
-    beforeStatus: input.beforeStatus ?? null,
-    afterStatus: input.post.status,
-    changedFields: JSON.stringify(input.changedFields),
-    summary: input.summary,
-    clientLabel: input.clientLabel,
-  }).returning({ id: mcpActivity.id, createdAt: mcpActivity.createdAt });
-  return activity;
+export type PostWriteAudit = Pick<ActivityInput,
+  "action" | "beforeStatus" | "changedFields" | "summary" | "clientLabel">;
+
+export function preparePostWriteActivity(
+  d1: D1Database,
+  post: { publicId: string; version?: number },
+  audit: PostWriteAudit,
+  requirePreviousWrite = false,
+) {
+  return d1.prepare(`INSERT INTO mcp_activity
+    (action, post_id, public_id, title, before_status, after_status, changed_fields, summary, client_label)
+    SELECT ?, id, public_id, title, ?, status, ?, ?, ? FROM posts
+    WHERE public_id = ? ${post.version === undefined ? "" : "AND version = ?"}
+    ${requirePreviousWrite ? "AND changes() = 1" : ""}
+    RETURNING id, created_at`).bind(
+    audit.action, audit.beforeStatus ?? null, JSON.stringify(audit.changedFields),
+    audit.summary, audit.clientLabel, post.publicId,
+    ...(post.version === undefined ? [] : [post.version]),
+  );
 }
 
-export async function recordMcpPageActivity(input: {
-  slug: string;
-  title: string;
+export type SpaceWriteAudit = {
+  action: Extract<McpActivityAction, "create_space" | "update_space" | "move_space" | "delete_space">;
   changedFields: string[];
   summary: string;
   clientLabel: string;
-}) {
-  await ensureDatabase();
-  const [activity] = await getDb().insert(mcpActivity).values({
-    action: "update_page",
-    postId: 0,
-    publicId: `page:${input.slug}`,
-    title: input.title,
-    beforeStatus: "published",
-    afterStatus: "published",
-    changedFields: JSON.stringify(input.changedFields),
-    summary: input.summary,
-    clientLabel: input.clientLabel,
-  }).returning({ id: mcpActivity.id, createdAt: mcpActivity.createdAt });
-  return activity;
-}
-
-export async function recordMcpSpaceActivity(input: {
-  action: Extract<McpActivityAction, "create_space" | "update_space" | "move_space" | "delete_space">;
-  space: { id: number; name: string };
   beforeParentId?: number | null;
   afterParentId?: number | null;
-  changedFields: string[];
-  summary: string;
-  clientLabel: string;
-}) {
-  await ensureDatabase();
-  const [activity] = await getDb().insert(mcpActivity).values({
-    action: input.action,
-    postId: input.space.id,
-    publicId: `space:${input.space.id}`,
-    title: input.space.name,
-    beforeStatus: input.beforeParentId === undefined ? null : `parent:${input.beforeParentId ?? "root"}`,
-    afterStatus: input.afterParentId === undefined ? null : `parent:${input.afterParentId ?? "root"}`,
-    changedFields: JSON.stringify(input.changedFields),
-    summary: input.summary,
-    clientLabel: input.clientLabel,
-  }).returning({ id: mcpActivity.id, createdAt: mcpActivity.createdAt });
-  return activity;
+};
+
+export function prepareSpaceWriteActivity(
+  d1: D1Database,
+  space: { id?: number; name: string },
+  audit: SpaceWriteAudit,
+) {
+  // A failed/conditional space write must abort the batch, including earlier
+  // child/article moves. post_id is NOT NULL, so a zero-row write fails here.
+  const idExpression = space.id === undefined ? "last_insert_rowid()" : "?";
+  return d1.prepare(`INSERT INTO mcp_activity
+    (action, post_id, public_id, title, before_status, after_status, changed_fields, summary, client_label)
+    SELECT ?, guarded.id, 'space:' || CAST(guarded.id AS INTEGER), ?, ?, ?, ?, ?, ?
+    FROM (SELECT CASE WHEN changes() >= 1 THEN ${idExpression} ELSE NULL END AS id) guarded
+    RETURNING id, created_at`).bind(
+    audit.action, space.name,
+    audit.beforeParentId === undefined ? null : `parent:${audit.beforeParentId ?? "root"}`,
+    audit.afterParentId === undefined ? null : `parent:${audit.afterParentId ?? "root"}`,
+    JSON.stringify(audit.changedFields), audit.summary, audit.clientLabel,
+    ...(space.id === undefined ? [] : [space.id]),
+  );
 }
 
 export async function listMcpActivity(limit: number) {
@@ -103,6 +86,8 @@ export async function listMcpActivity(limit: number) {
       ? "page"
       : row.publicId.startsWith("space:")
         ? "space"
+        : row.publicId.startsWith("attachment:")
+          ? "attachment"
         : "post",
     public_id: row.publicId,
     title: row.title,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { avatarSource, estimateReadingMinutesFromLength, formatLongDate } from "@/app/content-utils";
-import ModalPostLink from "@/features/reader/ModalPostLink";
+import ModalPostLink from "../reader/ModalPostLink";
 import StableLink from "@/app/StableLink";
 import { copyrightText } from "@/domain/site/config";
 

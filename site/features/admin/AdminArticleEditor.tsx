@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, type RefObject, useState } from "react";
+import { type Dispatch, type FormEvent, type RefObject, type SetStateAction, useState } from "react";
 import { postPath } from "@/app/post-path";
 import type { SiteSettingsForm } from "./AdminSettingsPanel";
 import AdminSpacePicker from "./AdminSpacePicker";
@@ -42,7 +42,7 @@ export default function AdminArticleEditor({
   settings:SiteSettingsForm;
   message:string;
   previewRef:RefObject<HTMLDivElement|null>;
-  onChange:(form:ArticleForm)=>void;
+  onChange:Dispatch<SetStateAction<ArticleForm|null>>;
   onChangeSpace:(choice:SpaceChoice|null)=>void;
   onClose:()=>void;
   onOpenStudio:(mode:"split"|"reading")=>void;
@@ -80,7 +80,7 @@ export default function AdminArticleEditor({
         <section className="editor-section writing-section">
           <div className="editor-section-title"><span>02</span><div><b>正文内容</b><small>专注写作，右侧同步预览</small></div><button className="writing-launch" type="button" onClick={()=>onOpenStudio("split")}><i>↗</i> 打开沉浸写作</button></div>
           <div className="md-field"><div className="md-field-head"><span>Markdown</span><span className="paste-status">输入 / 查看指令 · Ctrl+V 粘贴图片 · 右侧实时预览</span></div><div ref={previewRef} className="article-editor-workspace">
-            <VditorEditor value={form.content} onChange={(content)=>onChange({...form,content})} previewMode="editor" attachments postId={form.id}/>
+            <VditorEditor value={form.content} onChange={(content)=>onChange((current)=>current?{...current,content}:current)} previewMode="editor" attachments postId={form.id} postVersion={form.version} onPostVersionChange={(version)=>onChange((current)=>current?{...current,version}:current)}/>
             <div className="article-editor-preview"><div className="article-editor-preview-label"><i/>真实前台预览 <span>未保存内容实时同步</span></div><ArticleFrontstage draft={form} categoryName={category?.name??"随笔"} categoryColor={category?.color??"#8E8E93"} authorName={settings.authorName} avatarUrl={settings.avatarUrl}/></div>
           </div></div>
         </section>
@@ -88,6 +88,7 @@ export default function AdminArticleEditor({
         <section className="editor-section publish-section">
           <div className="editor-section-title"><span>03</span><div><b>发布设置</b><small>决定文章如何出现在前台</small></div></div>
           <div className="form-row"><label>{form.spaceId?"内容状态":"发布状态"}<select value={form.status} onChange={(event)=>onChange({...form,status:event.target.value as ArticleForm["status"]})}><option value="draft">保存为草稿</option><option value="published">{form.spaceId?"标记为内容完成":"立即发布"}</option></select></label><label>发布时间<input type="datetime-local" value={toLocalDateTime(form.publishedAt)} onChange={(event)=>onChange({...form,publishedAt:event.target.value?new Date(event.target.value).toISOString():null})}/></label></div>
+          {form.spaceId&&<label>浏览顺序（仅与本空间直属文章比较，数字越小越靠前）<input type="number" step="1" value={form.sortOrder??0} onChange={(event)=>onChange({...form,sortOrder:Number(event.target.value)})}/></label>}
           {!form.spaceId&&<label className="check"><input type="checkbox" checked={form.featured} onChange={(event)=>onChange({...form,featured:event.target.checked})}/><span><b>设为精选文章</b><small>优先展示在首页首张大卡片</small></span></label>}
         </section>
         {message&&<p className="form-message">{message}</p>}

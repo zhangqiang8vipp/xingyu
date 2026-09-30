@@ -1,9 +1,77 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createTestHarness } from "wrangler";
+import { createTestHarness as createWranglerTestHarness } from "wrangler";
 
 const SITE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
+const BRIDGE_NAME = "xingyu-integration-binding-bridge";
+const FAULT_R2_NAME = "xingyu-integration-faulting-r2";
+const productionConfig = JSON.parse(readFileSync(new URL("../../wrangler.production.jsonc", import.meta.url), "utf8"));
+
+export function createTestHarness(options) {
+  const server = createWranglerTestHarness({
+    ...options,
+    workers: [
+      ...options.workers,
+      {
+        config: {
+          name: BRIDGE_NAME,
+          main: "./tests/integration/binding-bridge.mjs",
+          compatibility_date: productionConfig.compatibility_date,
+          d1_databases: productionConfig.d1_databases,
+          r2_buckets: productionConfig.r2_buckets,
+        },
+      },
+    ],
+  });
+  const originalGetWorker = server.getWorker.bind(server);
+  server.getWorker = (name) => {
+    const worker = originalGetWorker(name);
+    if (name === BRIDGE_NAME) return worker;
+    const bridge = originalGetWorker(BRIDGE_NAME);
+    return new Proxy(worker, {
+      get(target, key) {
+        if (key === "getEnv") return async () => bridgeBindings(bridge);
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  };
+  return server;
+}
+
+function bridgeBindings(bridge) {
+  const call = async (payload) => {
+    const response = await bridge.fetch("/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error);
+    return body.result;
+  };
+  const DB = {
+    prepare(sql) {
+      const statement = (params) => ({
+        bind: (...values) => statement(values),
+        run: () => call({ operation: "run", sql, params }),
+        all: () => call({ operation: "all", sql, params }),
+        first: () => call({ operation: "first", sql, params }),
+      });
+      return statement([]);
+    },
+  };
+  const MEDIA = {
+    put: (key, value) => call({ operation: "r2-put", key, value }),
+    head: (key) => call({ operation: "r2-head", key }),
+    get: (key) => call({ operation: "r2-get", key }),
+    delete: (key) => call({ operation: "r2-delete", key }),
+    list: (options) => call({ operation: "r2-list", options }),
+  };
+  return { DB, MEDIA };
+}
 
 export const TEST_ADMIN_PASSWORD = "xingyu-test-admin-password-2026";
 export const TEST_ADMIN_SESSION_SECRET =
@@ -39,19 +107,27 @@ export const TEST_TITLES = {
  * initialization promise in module scope, so reusing a server across tests and
  * resetting storage underneath it can leave that cache stale.
  */
-export async function openTestHarness() {
+export async function openTestHarness({ r2DeleteFault = false, vars = {} } = {}) {
+  const appWorker = {
+    configPath: "./wrangler.production.jsonc",
+    vars: { APP_ENV: "development", DB_SCHEMA_MODE: "legacy-bootstrap", ...vars },
+    secrets: {
+      ADMIN_PASSWORD: TEST_ADMIN_PASSWORD,
+      ADMIN_SESSION_SECRET: TEST_ADMIN_SESSION_SECRET,
+      MCP_WRITE_TOKEN: TEST_LEGACY_MCP_TOKEN,
+    },
+    ...(r2DeleteFault ? { bindingOverrides: { MEDIA: FAULT_R2_NAME } } : {}),
+  };
   const server = createTestHarness({
     root: SITE_ROOT,
     workers: [
-      {
-        configPath: "./wrangler.production.jsonc",
-        vars: { APP_ENV: "development" },
-        secrets: {
-          ADMIN_PASSWORD: TEST_ADMIN_PASSWORD,
-          ADMIN_SESSION_SECRET: TEST_ADMIN_SESSION_SECRET,
-          MCP_WRITE_TOKEN: TEST_LEGACY_MCP_TOKEN,
-        },
-      },
+      appWorker,
+      ...(r2DeleteFault ? [{ config: {
+        name: FAULT_R2_NAME,
+        main: "./tests/integration/faulting-r2.mjs",
+        compatibility_date: productionConfig.compatibility_date,
+        r2_buckets: productionConfig.r2_buckets.map((bucket) => ({ ...bucket, binding: "STORAGE" })),
+      } }] : []),
     ],
   });
 
@@ -266,12 +342,13 @@ export async function initializeMcp(harness, token) {
  * tool's declared outputSchema, so it proves the error contract is actually
  * readable by clients rather than only being present on the wire.
  */
-export async function withMcpClient({ origin }, token, run) {
+export async function withMcpClient({ origin, dispatch }, token, run) {
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
   const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
 
   const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`), {
     requestInit: { headers: { authorization: `Bearer ${token}` } },
+    fetch: (url, init) => dispatch(url, init),
   });
   const client = new Client({ name: "xingyu-pr01-integration", version: "1.0.0" });
   try {

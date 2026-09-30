@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getContentPage, getSiteSettings } from "../../db/queries";
+import { getContentPage, getSiteSettings } from "@/db/queries";
 import type { PageSearchParams } from "../content-utils";
 import { copyrightText } from "@/domain/site/config";
 import NavTitleChrome from "@/features/navigation/NavTitleChrome";

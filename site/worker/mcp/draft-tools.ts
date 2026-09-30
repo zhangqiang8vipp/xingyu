@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { slugify, type PostPayload } from "@/domain/posts/post-input";
-import { createPostRecord, updatePostRecord } from "../../db/post-write";
-import { getSpacePath, resolveSpace } from "../../db/spaces";
+import { createPostRecord, PostWriteError, updatePostRecord } from "@/db/post-write";
+import { getSpacePath, resolveSpace } from "@/db/spaces";
 import {
   AttachmentError,
   MAX_MCP_ATTACHMENT_BYTES,
   attachmentMarkdown,
   attachmentUrl,
   createAttachment,
-} from "../../db/attachments";
+} from "@/db/attachments";
 import { requireScope } from "../mcp-auth";
 import { scopeForAttachment, scopeForPostWrite } from "./scope-policy";
 import {
@@ -22,7 +22,6 @@ import {
   changedPostFields,
   hydratePost,
   publicPostUrl,
-  recordActivitySafely,
   resolveCategory,
   toolFailure,
   toolResult,
@@ -55,16 +54,9 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
         contentType: content_type,
         bytes,
         postId: post?.id ?? null,
+        audit: { summary: change_summary, clientLabel },
       });
       const changedFields = ["attachments"];
-      const activity = post ? await recordActivitySafely({
-        action: "upload_attachment",
-        post,
-        beforeStatus: post.status,
-        changedFields,
-        summary: change_summary,
-        clientLabel,
-      }) : null;
       return toolResult({
         ok: true,
         attachment: {
@@ -79,7 +71,7 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
           change_summary,
           visibility: post ? (post.status === "published" && post.spaceId === null ? "public" : "private") : "unbound_private",
         },
-        ...(post ? { receipt: activityReceipt("upload_attachment", activity, change_summary, changedFields) } : {}),
+        receipt: activityReceipt("upload_attachment", attachment.activity, change_summary, changedFields),
       });
     } catch (error) {
       return toolFailure(error);
@@ -95,17 +87,19 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
       excerpt: z.string().max(1_000).optional().default(""),
       category: CATEGORY_SCHEMA.optional(),
       space: SPACE_SCHEMA.optional(),
+      sort_order: z.number().int().optional().describe("知识空间内直属文章的浏览顺序；数字越小越靠前"),
       slug: z.string().trim().max(180).optional(),
       featured: z.boolean().optional().default(false),
       change_summary: CHANGE_SUMMARY_SCHEMA.optional().default("创建新的 Markdown 文章草稿"),
     },
     outputSchema: { post: z.record(z.string(), z.unknown()).optional(), receipt: RECEIPT_OUTPUT_SCHEMA.optional(), ...MCP_ERROR_OUTPUT_FIELDS },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-  }, async ({ title, content_markdown, excerpt, category, space, slug, featured, change_summary }) => {
+  }, async ({ title, content_markdown, excerpt, category, space, sort_order, slug, featured, change_summary }) => {
     try {
       requireScope(auth, "xingyu.draft");
       const resolvedCategory = await resolveCategory(category);
       const resolvedSpace = space ? await resolveSpace(space) : null;
+      const changedFields = ["title", "slug", "excerpt", "content_markdown", "category", "space", "featured", ...(sort_order===undefined?[]:["sort_order"])];
       const post = await createPostRecord({
         title,
         slug: slugify(slug || title),
@@ -113,14 +107,12 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
         content: content_markdown,
         categoryId: resolvedCategory.id,
         spaceId: resolvedSpace?.id ?? null,
+        sortOrder: sort_order,
         status: "draft",
         featured: resolvedSpace ? false : featured,
         publishedAt: null,
-      });
-      const changedFields = ["title", "slug", "excerpt", "content_markdown", "category", "space", "featured"];
-      const activity = await recordActivitySafely({
+      }, {
         action: "create_draft",
-        post,
         beforeStatus: null,
         changedFields,
         summary: change_summary,
@@ -130,6 +122,7 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
         ok: true,
         post: {
           public_id: post.publicId,
+          version: post.version,
           title: post.title,
           slug: post.slug,
           status: post.status,
@@ -138,7 +131,7 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
           space_path: resolvedSpace ? (await getSpacePath(resolvedSpace.id)).map((item) => item.name).join(" / ") : null,
           message: "草稿已保存，尚未公开发布。",
         },
-        receipt: activityReceipt("create_draft", activity, change_summary, changedFields),
+        receipt: activityReceipt("create_draft", post.activity, change_summary, changedFields),
       });
     } catch (error) {
       return toolFailure(error);
@@ -147,24 +140,29 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
 
   server.registerTool("update_post", {
     title: "更新文章内容",
-    description: "在用户确认后更新文章内容并记录修改字段。已发布且不属于知识空间的文章会立即改变公开页面；知识空间文章仍保持私有。发布状态本身保持不变。",
+    description: "先用 get_post 读取正文与 version，在用户确认后携带 expected_version 更新文章。版本过期会拒绝覆盖并要求重新核对。已发布且不属于知识空间的文章会立即改变公开页面；知识空间文章仍保持私有。发布状态本身保持不变。",
     inputSchema: {
       identifier: IDENTIFIER_SCHEMA,
+      expected_version: z.number().int().min(1).describe("必填：从 get_post 的 content 视图读取的文章 version；旧版本会拒绝覆盖"),
       title: z.string().trim().min(1).max(200).optional(),
       content_markdown: z.string().max(750_000).optional(),
       excerpt: z.string().max(1_000).optional(),
       category: CATEGORY_SCHEMA.optional(),
       space: SPACE_SCHEMA.nullable().optional().describe("目标知识空间；传 null 表示移回公开博客，省略则保持当前位置"),
+      sort_order: z.number().int().optional().describe("知识空间内直属文章的浏览顺序；数字越小越靠前"),
       slug: z.string().trim().max(180).optional(),
       featured: z.boolean().optional(),
       change_summary: CHANGE_SUMMARY_SCHEMA.optional().default("更新文章内容"),
     },
     outputSchema: { post: z.record(z.string(), z.unknown()).optional(), receipt: RECEIPT_OUTPUT_SCHEMA.optional(), ...MCP_ERROR_OUTPUT_FIELDS },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
-  }, async ({ identifier, title, content_markdown, excerpt, category, space, slug, featured, change_summary }) => {
+  }, async ({ identifier, expected_version, title, content_markdown, excerpt, category, space, sort_order, slug, featured, change_summary }) => {
     try {
       const current = await hydratePost(identifier);
       requireScope(auth, scopeForPostWrite(current.status));
+      if (current.version !== expected_version) {
+        throw new PostWriteError("文章已被其他编辑者更新，请重新读取后核对修改", 409);
+      }
       const resolvedCategory = category ? await resolveCategory(category) : null;
       const resolvedSpace = typeof space === "string" ? await resolveSpace(space) : space === null ? null : undefined;
       const nextSpaceId = resolvedSpace === undefined ? current.spaceId : resolvedSpace?.id ?? null;
@@ -175,6 +173,7 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
         content: content_markdown ?? current.content,
         categoryId: resolvedCategory?.id ?? current.categoryId,
         spaceId: nextSpaceId,
+        sortOrder: sort_order ?? current.sortOrder,
         status: current.status,
         featured: nextSpaceId === null ? (featured ?? current.featured) : false,
         publishedAt: current.publishedAt,
@@ -185,6 +184,7 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
           ok: true,
           post: {
             public_id: current.publicId,
+            version: current.version,
             title: current.title,
             slug: current.slug,
             status: current.status,
@@ -199,10 +199,8 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
           },
         });
       }
-      const post = await updatePostRecord(current.id, input);
-      const activity = await recordActivitySafely({
+      const post = await updatePostRecord(current.id, input, current.version, {
         action: "update_post",
-        post,
         beforeStatus: current.status,
         changedFields,
         summary: change_summary,
@@ -212,6 +210,7 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
         ok: true,
         post: {
           public_id: post.publicId,
+          version: post.version,
           title: post.title,
           slug: post.slug,
           status: post.status,
@@ -220,7 +219,7 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
           space_path: post.spaceId ? (await getSpacePath(post.spaceId)).map((item) => item.name).join(" / ") : null,
           public_url: post.status === "published" && !post.spaceId ? publicPostUrl(origin, post) : null,
         },
-        receipt: activityReceipt("update_post", activity, change_summary, changedFields),
+        receipt: activityReceipt("update_post", post.activity, change_summary, changedFields),
       });
     } catch (error) {
       return toolFailure(error);

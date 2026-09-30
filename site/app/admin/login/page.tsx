@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getAdminIdentity, isPasswordLoginConfigured } from "../../api/admin-auth";
+import { getAdminIdentity, isPasswordLoginConfigured } from "@/server/auth/admin-auth";
 import AdminLoginForm from "./AdminLoginForm";
-import { safeOAuthReturnTo } from "../../../worker/oauth/authorize";
-import { getSiteSettings } from "../../../db/queries";
+import { safeOAuthReturnTo } from "@/worker/oauth/authorize";
+import { getSiteSettings } from "@/db/queries";
 import ThemeToggle from "@/features/navigation/ThemeToggle";
 import "./login.css";
 

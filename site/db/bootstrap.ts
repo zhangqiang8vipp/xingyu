@@ -5,6 +5,50 @@ import { PUBLIC_CACHE_SCHEMA_STATEMENTS } from "./public-cache-schema";
 
 let ready: Promise<void> | null = null;
 
+/** 当前 worker 期望的 D1 schema 版本，供健康检查与迁移门禁共用。 */
+export const schemaVersion = "19";
+
+const requiredUniqueIndexes = {
+  attachments_object_key_uidx: { table: "attachments", columns: ["object_key"] },
+  attachments_public_id_uidx: { table: "attachments", columns: ["public_id"] },
+  attachment_cleanup_queue_object_key_uidx: { table: "attachment_cleanup_queue", columns: ["object_key"] },
+  categories_slug_uidx: { table: "categories", columns: ["slug"] },
+  content_pages_slug_uidx: { table: "content_pages", columns: ["slug"] },
+  oauth_access_tokens_hash_uidx: { table: "oauth_access_tokens", columns: ["token_hash"] },
+  oauth_authorization_codes_hash_uidx: { table: "oauth_authorization_codes", columns: ["code_hash"] },
+  oauth_clients_client_id_uidx: { table: "oauth_clients", columns: ["client_id"] },
+  oauth_consents_subject_client_resource_uidx: { table: "oauth_consents", columns: ["subject", "client_id", "resource"] },
+  oauth_refresh_tokens_hash_uidx: { table: "oauth_refresh_tokens", columns: ["token_hash"] },
+  post_preview_tokens_hash_uidx: { table: "post_preview_tokens", columns: ["token_hash"] },
+  post_slug_history_slug_uidx: { table: "post_slug_history", columns: ["slug"] },
+  posts_public_id_uidx: { table: "posts", columns: ["public_id"] },
+  posts_slug_uidx: { table: "posts", columns: ["slug"] },
+  site_memberships_user_id_uidx: { table: "site_memberships", columns: ["user_id"] },
+  spaces_parent_slug_uidx: { table: "spaces", columns: ["parent_id", "slug"] },
+  spaces_root_slug_uidx: { table: "spaces", columns: ["slug"] },
+  user_identities_provider_subject_uidx: { table: "user_identities", columns: ["provider", "subject"] },
+} as const;
+
+const requiredMigrationObjects = {
+  table: [
+    "admin_login_attempts", "app_meta", "attachment_cleanup_queue", "attachments", "categories",
+    "content_pages", "mcp_activity", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
+    "oauth_consents", "oauth_rate_limits", "oauth_refresh_tokens", "post_preview_tokens",
+    "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_identities", "users", "view_request_limits",
+  ],
+  index: Object.keys(requiredUniqueIndexes),
+  trigger: [
+    "posts_public_id_required_insert", "posts_public_id_required_update",
+    "posts_history_slug_guard_insert", "posts_history_slug_guard_update",
+    "history_current_slug_guard_insert", "history_current_slug_guard_update",
+    "posts_fts_insert", "posts_fts_delete", "posts_fts_update",
+    "public_cache_posts_insert", "public_cache_posts_delete", "public_cache_posts_update",
+    "public_cache_categories_insert", "public_cache_categories_update", "public_cache_categories_delete",
+    "public_cache_settings_update", "public_cache_pages_insert", "public_cache_pages_update",
+    "public_cache_pages_delete",
+  ],
+} as const;
+
 export function ensureDatabase() {
   // Reuse schema initialization inside a worker, but allow recovery after a transient D1 failure.
   ready ??= initialize().catch((error) => {
@@ -18,21 +62,145 @@ async function initialize() {
   const d1 = env.DB;
   if (!d1) throw new Error("D1 binding DB is unavailable");
   const runtimeEnvironment = env.APP_ENV === "development" ? "development" : "production";
-  const schemaVersion = "12";
+  const schemaMode = env.DB_SCHEMA_MODE ?? "legacy-bootstrap";
+  const localPreviewBootstrap = schemaMode === "local-preview-bootstrap" && runtimeEnvironment === "production";
+  if (schemaMode === "migration-only") {
+    const markers = await d1.prepare("SELECT key, value FROM app_meta WHERE key IN ('schema_version', 'app_environment')")
+      .all<{ key: string; value: string }>();
+    const values = new Map((markers.results ?? []).map((row) => [row.key, row.value]));
+    if (values.get("schema_version") !== schemaVersion) {
+      throw new Error(`D1 schema version mismatch: expected ${schemaVersion}, found ${values.get("schema_version") ?? "missing"}`);
+    }
+    if (values.get("app_environment") !== runtimeEnvironment) {
+      throw new Error(`D1 environment mismatch: expected ${runtimeEnvironment}, found ${values.get("app_environment") ?? "missing"}`);
+    }
+    const objects = await d1.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type IN ('table', 'index', 'trigger')")
+      .all<{ type: string; name: string; tbl_name: string; sql: string | null }>();
+    const actual = new Set((objects.results ?? []).map(({ type, name }) => `${type}:${name}`));
+    const missing = Object.entries(requiredMigrationObjects).flatMap(([type, names]) =>
+      names.filter((name) => !actual.has(`${type}:${name}`)).map((name) => `${type}:${name}`));
+    if (missing.length > 0) {
+      throw new Error(`D1 schema is incomplete for version ${schemaVersion}: ${missing.join(", ")}`);
+    }
+    const ftsDefinition = (objects.results ?? []).find(({ type, name }) => type === "table" && name === "posts_fts")?.sql
+      ?.replace(/[`"\[\]]/g, "").replace(/\s+/g, " ").trim() ?? "";
+    if (!/^CREATE VIRTUAL TABLE (?:IF NOT EXISTS )?posts_fts USING fts5\s*\(/i.test(ftsDefinition)
+      || !/\bcontent\s*=\s*'posts'/i.test(ftsDefinition)
+      || !/\bcontent_rowid\s*=\s*'id'/i.test(ftsDefinition)
+      || !/\btokenize\s*=\s*'trigram'/i.test(ftsDefinition)) {
+      throw new Error("D1 posts_fts is not the required content-linked FTS5 index");
+    }
+    const postColumns = await d1.prepare("PRAGMA table_info(posts)")
+      .all<{ name: string; type: string; notnull: number; dflt_value: string | null }>();
+    const versionColumn = (postColumns.results ?? []).find(({ name }) => name === "version");
+    if (!versionColumn || versionColumn.type.toUpperCase() !== "INTEGER"
+      || versionColumn.notnull !== 1 || Number(versionColumn.dflt_value) !== 1) {
+      throw new Error("D1 posts.version is missing or incompatible with optimistic writes");
+    }
+    const orderColumn = (postColumns.results ?? []).find(({ name }) => name === "sort_order");
+    if (!orderColumn || orderColumn.type.toUpperCase() !== "INTEGER"
+      || orderColumn.notnull !== 1 || Number(orderColumn.dflt_value) !== 0) {
+      throw new Error("D1 posts.sort_order is missing or incompatible with browsing order");
+    }
+    const nonUnique = (objects.results ?? []).filter(({ type, name, sql: definition }) =>
+      type === "index" && requiredMigrationObjects.index.some((required) => required === name)
+      && !/^CREATE\s+UNIQUE\s+INDEX\b/i.test(definition ?? ""));
+    if (nonUnique.length > 0) {
+      throw new Error(`D1 schema has non-unique required indexes: ${nonUnique.map(({ name }) => name).join(", ")}`);
+    }
+    const indexTables = new Map((objects.results ?? [])
+      .filter(({ type }) => type === "index")
+      .map(({ name, tbl_name }) => [name, tbl_name]));
+    const wrongTables = Object.entries(requiredUniqueIndexes).filter(([name, { table }]) =>
+      indexTables.get(name) !== table);
+    if (wrongTables.length > 0) {
+      throw new Error(`D1 schema has required indexes on the wrong tables: ${wrongTables.map(([name]) => name).join(", ")}`);
+    }
+    const requiredIndexNames = requiredMigrationObjects.index;
+    const indexColumns = await d1.prepare(`SELECT schema_index.name AS index_name,
+      info.seqno AS position, info.name AS column_name
+      FROM sqlite_master schema_index JOIN pragma_index_info(schema_index.name) info
+      WHERE schema_index.type = 'index'
+        AND schema_index.name IN (${requiredIndexNames.map(() => "?").join(", ")})
+      ORDER BY schema_index.name, info.seqno`).bind(...requiredIndexNames)
+      .all<{ index_name: string; position: number; column_name: string | null }>();
+    const actualIndexColumns = new Map<string, (string | null)[]>();
+    for (const row of indexColumns.results ?? []) {
+      const columns = actualIndexColumns.get(row.index_name) ?? [];
+      columns.push(row.column_name);
+      actualIndexColumns.set(row.index_name, columns);
+    }
+    const wrongColumns = Object.entries(requiredUniqueIndexes).filter(([name, { columns }]) =>
+      JSON.stringify(actualIndexColumns.get(name)) !== JSON.stringify(columns));
+    if (wrongColumns.length > 0) {
+      throw new Error(`D1 schema has required indexes on the wrong columns: ${wrongColumns.map(([name]) => name).join(", ")}`);
+    }
+    const misplacedPredicates = (objects.results ?? []).filter(({ type, name, sql: definition }) => {
+      if (type !== "index" || !requiredIndexNames.includes(name)) return false;
+      const normalized = (definition ?? "").replace(/["`\[\]]/g, "").replace(/\s+/g, " ").trim();
+      return name === "spaces_root_slug_uidx"
+        ? !/\bWHERE\s+spaces\.parent_id\s+IS\s+NULL\s*;?$/i.test(normalized)
+        : /\bWHERE\b/i.test(normalized);
+    });
+    if (misplacedPredicates.length > 0) {
+      throw new Error(`D1 schema has required indexes with wrong predicates: ${misplacedPredicates.map(({ name }) => name).join(", ")}`);
+    }
+    const requiredData = await d1.prepare(`SELECT
+      (SELECT COUNT(*) FROM site_settings WHERE id = 1) AS settings_count,
+      (SELECT COUNT(*) FROM categories) AS category_count,
+      (SELECT COUNT(*) FROM content_pages WHERE slug IN ('about', 'connect')) AS page_count,
+      (SELECT COUNT(*) FROM public_cache_state WHERE id = 1) AS cache_count,
+      (SELECT COUNT(*) FROM site_memberships WHERE role = 'owner') AS owner_count`).first<{
+        settings_count: number; category_count: number; page_count: number; cache_count: number; owner_count: number;
+      }>();
+    if (!requiredData || requiredData.settings_count !== 1 || requiredData.category_count < 1
+      || requiredData.page_count !== 2 || requiredData.cache_count !== 1 || requiredData.owner_count < 1) {
+      throw new Error(`D1 required data is incomplete for version ${schemaVersion}`);
+    }
+    return;
+  }
+  if (schemaMode !== "legacy-bootstrap" && !localPreviewBootstrap) {
+    throw new Error(`Unsupported D1 schema mode: ${schemaMode}`);
+  }
 
-  try {
+  const metadataTable = await d1.prepare("SELECT name FROM sqlite_master WHERE name = 'app_meta' LIMIT 1")
+    .first<{ name: string }>();
+  if (runtimeEnvironment === "production" && !localPreviewBootstrap && !metadataTable) {
+    throw new Error("Production D1 has no schema marker; run and verify migrations before deploying this worker");
+  }
+  if (metadataTable) {
     const markers = await d1.prepare("SELECT key, value FROM app_meta WHERE key IN ('schema_version', 'app_environment')")
       .all<{ key:string; value:string }>();
     const values = new Map((markers.results ?? []).map((row) => [row.key, row.value]));
-    if (values.get("schema_version") === schemaVersion) {
-      if (values.get("app_environment") !== runtimeEnvironment) {
-        throw new Error(`D1 environment mismatch: expected ${runtimeEnvironment}, found ${values.get("app_environment")}`);
+    const storedEnvironment = values.get("app_environment");
+    if (storedEnvironment && storedEnvironment !== runtimeEnvironment) {
+      throw new Error(`D1 environment mismatch: expected ${runtimeEnvironment}, found ${storedEnvironment}`);
+    }
+    const storedVersion = values.get("schema_version");
+    if (runtimeEnvironment === "production" && !localPreviewBootstrap && storedVersion !== schemaVersion) {
+      throw new Error(`Production D1 schema version mismatch: expected ${schemaVersion}, found ${storedVersion ?? "missing"}; explicit migration is required`);
+    }
+    if (storedVersion && (!/^\d+$/.test(storedVersion)
+      || !Number.isSafeInteger(Number(storedVersion))
+      || Number(storedVersion) > Number(schemaVersion))) {
+      throw new Error(`D1 schema version ${storedVersion} is newer than or incompatible with worker version ${schemaVersion}`);
+    }
+    if (storedVersion && Number(storedVersion) < 18) {
+      const legacyObjects = await d1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('posts', 'post_slug_history')")
+        .all<{ name: string }>();
+      if ((legacyObjects.results ?? []).length === 2) {
+        const conflict = await d1.prepare(`SELECT 1 FROM post_slug_history history
+          JOIN posts current ON current.slug = history.slug AND current.id <> history.post_id
+          LIMIT 1`).first();
+        if (conflict) throw new Error("D1 historical Slug conflicts with another current article; audit data before upgrading schema");
+      }
+    }
+    if (storedVersion === schemaVersion) {
+      if (!storedEnvironment) {
+        throw new Error(`D1 environment marker is missing for schema version ${schemaVersion}`);
       }
       return;
     }
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith("D1 environment mismatch")) throw error;
-    // A fresh database has no app_meta table yet and continues into initialization.
   }
 
   await d1.batch([
@@ -64,6 +232,7 @@ async function initialize() {
       status TEXT NOT NULL DEFAULT 'draft',
       featured INTEGER NOT NULL DEFAULT 0,
       view_count INTEGER NOT NULL DEFAULT 0,
+      version INTEGER NOT NULL DEFAULT 1,
       published_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -75,15 +244,15 @@ async function initialize() {
       author_name TEXT NOT NULL DEFAULT '星屿',
       avatar_url TEXT NOT NULL DEFAULT '/images/xingyu-avatar.jpg',
       tagline TEXT NOT NULL DEFAULT '设计 · 技术 · 生活',
-      description TEXT NOT NULL DEFAULT '',
-      hero_lead TEXT NOT NULL DEFAULT '',
-      hero_tail TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '记录那些值得慢下来思考的设计、技术与生活片段。',
+      hero_lead TEXT NOT NULL DEFAULT '在喧嚣之外，',
+      hero_tail TEXT NOT NULL DEFAULT '留一座思考的岛。',
       home_section_title TEXT NOT NULL DEFAULT '最近在写',
-      home_about_title TEXT NOT NULL DEFAULT '',
-      home_about_copy TEXT NOT NULL DEFAULT '',
-      footer_text TEXT NOT NULL DEFAULT '',
-      seo_title TEXT NOT NULL DEFAULT '',
-      seo_description TEXT NOT NULL DEFAULT '',
+      home_about_title TEXT NOT NULL DEFAULT '你好，这里是星屿。',
+      home_about_copy TEXT NOT NULL DEFAULT '一座关于设计、技术与生活的数字岛屿。希望每篇文章，都能给你留下一点值得带走的东西。',
+      footer_text TEXT NOT NULL DEFAULT '保持好奇，持续创造。',
+      seo_title TEXT NOT NULL DEFAULT '星屿 · 思考与创造',
+      seo_description TEXT NOT NULL DEFAULT '星屿个人博客，记录设计、技术与生活。',
       home_post_limit INTEGER NOT NULL DEFAULT 9,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
@@ -131,7 +300,19 @@ async function initialize() {
       content_type TEXT NOT NULL,
       size INTEGER NOT NULL,
       sha256 TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      unbound_at TEXT
+    )`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS attachment_cleanup_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      public_id TEXT,
+      object_key TEXT NOT NULL UNIQUE,
+      operation TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
     d1.prepare(`CREATE TABLE IF NOT EXISTS post_preview_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -161,12 +342,48 @@ async function initialize() {
     d1.prepare("CREATE INDEX IF NOT EXISTS mcp_activity_created_idx ON mcp_activity(created_at DESC, id DESC)"),
     d1.prepare("CREATE INDEX IF NOT EXISTS mcp_activity_post_idx ON mcp_activity(post_id, id DESC)"),
     d1.prepare("CREATE INDEX IF NOT EXISTS attachments_post_created_idx ON attachments(post_id, created_at DESC, id DESC)"),
+    d1.prepare("CREATE INDEX IF NOT EXISTS attachment_cleanup_queue_status_idx ON attachment_cleanup_queue(status, created_at, id)"),
     d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS post_preview_tokens_hash_uidx ON post_preview_tokens(token_hash)"),
     d1.prepare("CREATE INDEX IF NOT EXISTS post_preview_tokens_post_idx ON post_preview_tokens(post_id, expires_at DESC, id DESC)"),
     d1.prepare("CREATE INDEX IF NOT EXISTS post_preview_tokens_expiry_idx ON post_preview_tokens(expires_at)"),
     d1.prepare("CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"),
     d1.prepare(`CREATE TABLE IF NOT EXISTS admin_login_attempts (
       identifier TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      window_started INTEGER NOT NULL,
+      blocked_until INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    )`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      display_name TEXT NOT NULL DEFAULT '星屿管理员',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS user_identities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      provider TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      email TEXT,
+      name TEXT,
+      avatar_url TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_login_at TEXT
+    )`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS site_memberships (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      role TEXT NOT NULL DEFAULT 'owner',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
+    d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS user_identities_provider_subject_uidx ON user_identities(provider, subject)"),
+    d1.prepare("CREATE INDEX IF NOT EXISTS user_identities_user_idx ON user_identities(user_id)"),
+    d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS site_memberships_user_id_uidx ON site_memberships(user_id)"),
+    d1.prepare("CREATE INDEX IF NOT EXISTS site_memberships_role_idx ON site_memberships(role)"),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS view_request_limits (
+      identity_hash TEXT PRIMARY KEY,
       attempts INTEGER NOT NULL DEFAULT 0,
       window_started INTEGER NOT NULL,
       blocked_until INTEGER NOT NULL DEFAULT 0,
@@ -257,6 +474,18 @@ async function initialize() {
       INSERT INTO posts_fts(posts_fts, rowid, title, excerpt, content) VALUES ('delete', old.id, old.title, old.excerpt, old.content);
       INSERT INTO posts_fts(rowid, title, excerpt, content) VALUES (new.id, new.title, new.excerpt, new.content);
     END`),
+    d1.prepare(`CREATE TRIGGER IF NOT EXISTS posts_history_slug_guard_insert AFTER INSERT ON posts
+      WHEN EXISTS (SELECT 1 FROM post_slug_history WHERE slug = NEW.slug AND post_id <> NEW.id)
+      BEGIN SELECT RAISE(ABORT, 'slug reserved by another post history'); END`),
+    d1.prepare(`CREATE TRIGGER IF NOT EXISTS posts_history_slug_guard_update AFTER UPDATE OF slug ON posts
+      WHEN EXISTS (SELECT 1 FROM post_slug_history WHERE slug = NEW.slug AND post_id <> NEW.id)
+      BEGIN SELECT RAISE(ABORT, 'slug reserved by another post history'); END`),
+    d1.prepare(`CREATE TRIGGER IF NOT EXISTS history_current_slug_guard_insert AFTER INSERT ON post_slug_history
+      WHEN EXISTS (SELECT 1 FROM posts WHERE slug = NEW.slug AND id <> NEW.post_id)
+      BEGIN SELECT RAISE(ABORT, 'historical slug conflicts with another current post'); END`),
+    d1.prepare(`CREATE TRIGGER IF NOT EXISTS history_current_slug_guard_update AFTER UPDATE OF slug, post_id ON post_slug_history
+      WHEN EXISTS (SELECT 1 FROM posts WHERE slug = NEW.slug AND id <> NEW.post_id)
+      BEGIN SELECT RAISE(ABORT, 'historical slug conflicts with another current post'); END`),
     ...PUBLIC_CACHE_SCHEMA_STATEMENTS.map((statement)=>d1.prepare(statement)),
   ]);
 
@@ -267,12 +496,33 @@ async function initialize() {
   if (!(postColumns.results ?? []).some((column) => column.name === "space_id")) {
     await d1.prepare("ALTER TABLE posts ADD COLUMN space_id INTEGER").run();
   }
+  if (!(postColumns.results ?? []).some((column) => column.name === "version")) {
+    await d1.prepare("ALTER TABLE posts ADD COLUMN version INTEGER NOT NULL DEFAULT 1").run();
+  }
+  if (!(postColumns.results ?? []).some((column) => column.name === "sort_order")) {
+    await d1.prepare("ALTER TABLE posts ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0").run();
+  }
+  const attachmentColumns = await d1.prepare("PRAGMA table_info(attachments)").all<{ name: string }>();
+  if (!(attachmentColumns.results ?? []).some((column) => column.name === "unbound_at")) {
+    await d1.prepare("ALTER TABLE attachments ADD COLUMN unbound_at TEXT").run();
+  }
+  await d1.prepare("UPDATE attachments SET unbound_at = created_at WHERE post_id IS NULL AND unbound_at IS NULL").run();
+  if (!(postColumns.results ?? []).some((column) => column.name === "author_id")) {
+    await d1.prepare("ALTER TABLE posts ADD COLUMN author_id INTEGER").run();
+  }
+  if (!(postColumns.results ?? []).some((column) => column.name === "created_by")) {
+    await d1.prepare("ALTER TABLE posts ADD COLUMN created_by INTEGER").run();
+  }
+  if (!(postColumns.results ?? []).some((column) => column.name === "updated_by")) {
+    await d1.prepare("ALTER TABLE posts ADD COLUMN updated_by INTEGER").run();
+  }
   const postsWithoutPublicId = await d1.prepare("SELECT id FROM posts WHERE public_id IS NULL OR public_id = ''").all<{ id: number }>();
   if (postsWithoutPublicId.results?.length) {
     await d1.batch(postsWithoutPublicId.results.map((post) => d1.prepare("UPDATE posts SET public_id = ? WHERE id = ?").bind(createPostPublicId(), post.id)));
   }
   await d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS posts_public_id_uidx ON posts(public_id)").run();
   await d1.prepare("CREATE INDEX IF NOT EXISTS posts_space_updated_idx ON posts(space_id, updated_at DESC, id DESC)").run();
+  await d1.prepare("CREATE INDEX IF NOT EXISTS posts_space_sort_idx ON posts(space_id, sort_order ASC, id ASC)").run();
   await d1.prepare("CREATE INDEX IF NOT EXISTS posts_space_status_updated_idx ON posts(space_id, status, updated_at DESC, id DESC)").run();
   await d1.prepare("CREATE INDEX IF NOT EXISTS posts_space_published_idx ON posts(space_id, published_at DESC, id DESC)").run();
   await d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS post_slug_history_slug_uidx ON post_slug_history(slug)").run();
@@ -290,6 +540,9 @@ async function initialize() {
   const connect = DEFAULT_CONNECT_PAGE;
   await d1.batch([
     d1.prepare("INSERT OR IGNORE INTO categories (id, name, slug, color) VALUES (1, '随笔', 'notes', '#8E8E93')"),
+    d1.prepare("INSERT OR IGNORE INTO users (id, display_name, status) VALUES (1, '星屿管理员', 'active')"),
+    d1.prepare("INSERT OR IGNORE INTO user_identities (user_id, provider, subject, name) VALUES (1, 'local', 'owner', '星屿管理员')"),
+    d1.prepare("INSERT OR IGNORE INTO site_memberships (user_id, role) VALUES (1, 'owner')"),
     d1.prepare(`UPDATE categories
       SET name = '随笔', slug = 'notes', color = '#8E8E93'
       WHERE slug = 'uncategorized'
@@ -331,5 +584,7 @@ async function initialize() {
     await d1.prepare("INSERT INTO posts_fts(posts_fts) VALUES ('rebuild')").run();
     await d1.prepare("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('posts_fts_version', '2')").run();
   }
+  // Historical merge: every pre-identity article belongs to the site owner.
+  await d1.prepare("UPDATE posts SET author_id = 1, created_by = 1, updated_by = 1 WHERE author_id IS NULL").run();
   await d1.prepare("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('schema_version', ?)").bind(schemaVersion).run();
 }

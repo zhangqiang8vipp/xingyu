@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { getNextAdminPost, getNextPublishedPost, getPreviousAdminPost, getPreviousPublishedPost, getSiteSettings, type AdminReaderPost, type getPostByPublicId } from "@/db/queries";
-import SiteNavigation from "@/features/navigation/SiteNavigation";
-import IslandSearch from "@/features/navigation/IslandSearch";
+import SiteNavigation from "../navigation/SiteNavigation";
+import IslandSearch from "../navigation/IslandSearch";
 import AdminPreviewBridge from "@/app/AdminPreviewBridge";
 import ArticleEndMark from "./ArticleEndMark";
 import ModalPostLink from "./ModalPostLink";
@@ -11,7 +11,7 @@ import PostReadingChrome from "./PostReadingChrome";
 import PostTableOfContents from "./PostTableOfContents";
 import PostSideNavigation from "./PostSideNavigation";
 import PostViewTracker from "./PostViewTracker";
-import MarkdownRenderer from "@/features/markdown/MarkdownRenderer";
+import MarkdownRenderer from "../markdown/MarkdownRenderer";
 import { adminReaderReturnHref, normalizeAdminReaderContext, type AdminReaderContext } from "@/domain/reader/admin-reader-context";
 
 type PublicPost = NonNullable<Awaited<ReturnType<typeof getPostByPublicId>>>;

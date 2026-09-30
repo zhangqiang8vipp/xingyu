@@ -1,5 +1,5 @@
-import { isAdminRequest, unauthorized } from "../admin-auth";
-import { createSpace, getSpaceRootStats, listSpaceChildren, searchSpaces, SpaceWriteError } from "../../../db/spaces";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
+import { createSpace, getSpaceRootStats, listSpaceChildren, searchSpaces, SpaceWriteError } from "@/db/spaces";
 
 export async function GET(request:Request){
   if(!(await isAdminRequest(request)))return unauthorized();
@@ -25,7 +25,7 @@ export async function POST(request:Request){
       name:String(payload.name??""),
       slug:payload.slug?String(payload.slug):undefined,
       parentId:Number(payload.parentId)>0?Number(payload.parentId):null,
-      sortOrder:Number(payload.sortOrder)||0,
+      sortOrder:payload.sortOrder===undefined?0:Number(payload.sortOrder),
     });
     return Response.json({space},{status:201});
   }catch(error){

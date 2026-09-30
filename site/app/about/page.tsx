@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
-import { getCategories, getContentPage, getSiteSettings } from "../../db/queries";
+import { getCategories, getContentPage, getSiteSettings } from "@/db/queries";
 import type { PageSearchParams } from "../content-utils";
 import { copyrightText } from "@/domain/site/config";
 import NavTitleChrome from "@/features/navigation/NavTitleChrome";

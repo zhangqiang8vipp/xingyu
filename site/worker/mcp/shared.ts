@@ -1,11 +1,11 @@
 import { eq, or } from "drizzle-orm";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { getDb } from "../../db";
-import { ensureDatabase } from "../../db/bootstrap";
-import { listMcpActivity, recordMcpActivity, recordMcpPageActivity, recordMcpSpaceActivity, type McpActivityAction } from "../../db/mcp-activity";
-import { getWritablePost, PostWriteError } from "../../db/post-write";
-import { categories } from "../../db/schema";
+import { getDb } from "@/db";
+import { ensureDatabase } from "@/db/bootstrap";
+import { listMcpActivity, type McpActivityAction } from "@/db/mcp-activity";
+import { getWritablePost, PostWriteError } from "@/db/post-write";
+import { categories } from "@/db/schema";
 import { scopeFailure, type McpAuth } from "../mcp-auth";
 
 export const IDENTIFIER_SCHEMA = z.string().trim().min(1).max(180)
@@ -69,48 +69,6 @@ export function publicPostUrl(origin: string, post: { publicId: string; slug: st
   return `${origin}/posts/${post.publicId}/${post.slug}`;
 }
 
-export async function recordActivitySafely(input: Parameters<typeof recordMcpActivity>[0]) {
-  try {
-    return await recordMcpActivity(input);
-  } catch (error) {
-    console.error(JSON.stringify({
-      event: "mcp_activity_write_failed",
-      action: input.action,
-      publicId: input.post.publicId,
-      error: error instanceof Error ? error.message : String(error),
-    }));
-    return null;
-  }
-}
-
-export async function recordPageActivitySafely(input: Parameters<typeof recordMcpPageActivity>[0]) {
-  try {
-    return await recordMcpPageActivity(input);
-  } catch (error) {
-    console.error(JSON.stringify({
-      event: "mcp_page_activity_write_failed",
-      action: "update_page",
-      slug: input.slug,
-      error: error instanceof Error ? error.message : String(error),
-    }));
-    return null;
-  }
-}
-
-export async function recordSpaceActivitySafely(input: Parameters<typeof recordMcpSpaceActivity>[0]) {
-  try {
-    return await recordMcpSpaceActivity(input);
-  } catch (error) {
-    console.error(JSON.stringify({
-      event: "mcp_space_activity_write_failed",
-      action: input.action,
-      spaceId: input.space.id,
-      error: error instanceof Error ? error.message : String(error),
-    }));
-    return null;
-  }
-}
-
 export function changedPostFields(
   current: Awaited<ReturnType<typeof hydratePost>>,
   next: {
@@ -120,6 +78,7 @@ export function changedPostFields(
     content: string;
     categoryId: number;
     spaceId: number | null;
+    sortOrder?: number;
     featured: boolean;
   },
 ) {
@@ -130,13 +89,14 @@ export function changedPostFields(
     current.content !== next.content ? "content_markdown" : null,
     current.categoryId !== next.categoryId ? "category" : null,
     current.spaceId !== next.spaceId ? "space" : null,
+    next.sortOrder !== undefined && current.sortOrder !== next.sortOrder ? "sort_order" : null,
     current.featured !== next.featured ? "featured" : null,
   ].filter((field): field is string => field !== null);
 }
 
 export function activityReceipt(
   action: McpActivityAction,
-  activity: Awaited<ReturnType<typeof recordActivitySafely>>,
+  activity: { id: number; createdAt: string } | null | undefined,
   summary: string,
   changedFields: string[],
 ) {

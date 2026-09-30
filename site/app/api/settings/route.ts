@@ -1,6 +1,6 @@
-import { getSiteSettings } from "../../../db/queries";
-import { isAdminRequest, unauthorized } from "../admin-auth";
-import { updateSiteSettings } from "@/server/services/site-content";
+import { getSiteSettings } from "@/db/queries";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
+import { updateSiteSettings } from "@/db/site-content";
 
 export async function GET(request: Request) {
   if (!(await isAdminRequest(request))) return unauthorized();

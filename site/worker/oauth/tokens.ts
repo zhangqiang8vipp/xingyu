@@ -1,4 +1,4 @@
-import { bytesToBase64Url } from "../../db/admin-session";
+import { bytesToBase64Url } from "@/db/admin-session";
 
 export function randomToken(prefix: string, bytes = 32) {
   return `${prefix}${bytesToBase64Url(crypto.getRandomValues(new Uint8Array(bytes)))}`;

@@ -1,7 +1,7 @@
-import { ensureDatabase } from "../../db/bootstrap";
-import { findAccessToken, findRefreshToken, getOAuthClient, hashSecret, revokeRefreshFamily } from "../../db/oauth";
-import { getDb } from "../../db";
-import { oauthAccessTokens } from "../../db/schema";
+import { ensureDatabase } from "@/db/bootstrap";
+import { findAccessToken, findRefreshToken, getOAuthClient, hashSecret, revokeRefreshFamily } from "@/db/oauth";
+import { getDb } from "@/db";
+import { oauthAccessTokens } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { OAuthError, oauthLog } from "./errors";
 

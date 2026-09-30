@@ -5,6 +5,7 @@ export type PostPayload = {
   content: string;
   categoryId: number;
   spaceId: number | null;
+  sortOrder?: number;
   status: "draft" | "published";
   featured: boolean;
   publishedAt: string | null;
@@ -20,6 +21,7 @@ export function parsePostPayload(payload: Record<string, unknown>): PostPayload 
     content: String(payload.content ?? ""),
     categoryId: Number(payload.categoryId) || 1,
     spaceId,
+    sortOrder:payload.sortOrder===undefined?undefined:Number(payload.sortOrder),
     status: payload.status === "published" ? "published" : "draft",
     featured: spaceId===null&&Boolean(payload.featured),
     publishedAt: normalizeDate(payload.publishedAt),

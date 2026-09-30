@@ -1,10 +1,11 @@
 # 星屿博客：下一位 AI 开发交接说明
 
-> 最后整理：2026-07-24  
+> 最后整理：2026-09-30
 > 仓库根目录：`E:\ProjectMyNew\boke`  
 > 应用目录：`E:\ProjectMyNew\boke\site`  
 > 线上地址：[https://zhangwansen.click/](https://zhangwansen.click/)  
-> 最近线上 Worker 版本：`892708e2-2312-4b96-adb7-770b91a59cae`
+> 最近线上 Worker 版本：`cae07732-de11-4920-b31f-a360b59d6c26`（100% 流量；本候选尚未部署）
+> 生产 D1：`xingyu-production-v2`（schema 15，14 条迁移，`migration-only`；旧 `xingyu-production` 仅为历史快照，禁止切回）
 
 这是一个可长期运营的个人博客，而不是展示用静态页面。它的核心目标是：用精致的“苹果感”阅读体验承载真实文章；管理员可以在后台用 Markdown 写作、预览和发布；外部 AI 可以通过 MCP 在有审批语义的前提下协助写作。
 
@@ -61,22 +62,30 @@ site/
 │  ├─ about/ / connect/            可编辑的独立页面
 │  ├─ admin/                       管理后台、写作工作台、真实前台预览
 │  ├─ api/                         文章、分类、设置、媒体、统计、阅读 API
-│  ├─ SiteNavigation.tsx           全站顶部“岛”导航
-│  ├─ IslandSearch.tsx             顶部搜索与结果预览
-│  ├─ MarkdownRenderer.tsx         唯一的 Markdown 渲染入口
-│  ├─ MarkdownMermaid.tsx          本地按需 Mermaid 图表渲染
-│  ├─ RouteTransition.tsx          可选翻页/静态切换动效
 │  └─ globals.css                  前台、后台、Markdown 的共享主题变量与样式
+├─ features/
+│  ├─ navigation/                  全站顶部“岛”导航与搜索
+│  ├─ markdown/                    唯一 Markdown 渲染入口、本地按需 Mermaid 图表与主题
+│  └─ admin/                       后台文章面板、写作工作台、Vditor 封装
 ├─ db/
 │  ├─ schema.ts                    Drizzle 表定义
-│  ├─ bootstrap.ts                 D1 首次初始化、兼容迁移、FTS 与环境隔离
+│  ├─ bootstrap.ts                 migration-only 启动校验、环境隔离与旧路径护栏
 │  ├─ queries.ts                   首页/归档/后台的读取与 cursor 分页
-│  └─ post-write.ts                文章写入、stable ID、Slug 历史
+│  ├─ post-write.ts                文章写入、删除、stable ID、Slug 历史与乐观并发
+│  ├─ categories.ts / site-content.ts  分类与站点设置/独立页写入
+│  ├─ health.ts                    运维健康探测（16 项关系审计、队列、owner、计数）
+│  └─ …                            附件写入与清理补偿、约束错误、空间路径辅助模块
+├─ server/
+│  └─ auth/admin-auth.ts           管理员会话鉴权与登录限流（共享库，非路由）
 ├─ worker/
 │  ├─ index.ts                     Worker 入口、缓存、安全响应头、MCP 路由
-│  └─ blog-mcp.ts                  MCP 工具、Token 校验、写入审计
+│  ├─ blog-mcp.ts                  MCP 工具接线、Token 校验、写入审计
+│  ├─ mcp/                         各工具实现、scope 策略与读取授权
+│  ├─ oauth/                       PKCE、授权码、令牌与撤销流程
+│  └─ public-document-cache.ts     公开 HTML 的版本化边缘缓存
 ├─ public/vditor/                  编辑器本地静态资源，不能移到前台全局加载
 ├─ tests/rendered-html.test.mjs    源码级回归测试
+├─ tests/integration/              请求级契约、迁移与写入完整性集成测试
 ├─ wrangler.production.jsonc       线上 Worker / D1 / 域名配置
 ├─ vite.config.ts                  本地开发环境绑定与环境选择
 ├─ package.json                    本地、测试、生产部署脚本
@@ -165,15 +174,17 @@ site/
 
 | 环境 | 启动方式 | 数据 | 使用场景 |
 | --- | --- | --- | --- |
-| 本地开发 | `npm run dev` | 项目内持久化 development D1/R2 | 日常真实写作与开发 |
-| 本地正式预览 | `npm run dev:production` | 独立的本地 production-preview D1/R2 | 检查空库/生产外观 |
-| 线上正式 | `npm run deploy:production` | Cloudflare D1 `xingyu-production` 与线上 R2 | 对公众可见 |
+| 本地开发 | `npm run dev` | 项目内持久化 development D1/R2（schema 18） | 日常真实写作与开发 |
+| 本地正式预览 | `npm run dev:production` | 独立的本地 production-preview D1/R2（schema 18） | 检查空库/生产外观 |
+| 线上正式 | `npm run deploy:production` | Cloudflare D1 `xingyu-production-v2`（`migration-only`）与线上 R2 | 对公众可见 |
 
-`db/bootstrap.ts` 会写入 `app_environment`。若同一个数据库被误接到另一环境，应用会拒绝启动；**不要为了“先跑起来”而删除此保护。**
+`db/bootstrap.ts` 会校验 `app_environment` / `app_meta.schema_version` 与必需表、索引、触发器和 FTS 结构；环境身份不匹配或结构不满足当前 schema 契约（代码内 `schemaVersion`，现为 **19**）时 fail fast，**绝不在请求期建表或改结构**。若同一个数据库被误接到另一环境，应用同样拒绝启动；**不要为了“先跑起来”而删除这些保护。**
+
+旧 Blue 库 `xingyu-production` 与旧 Worker 版本只是切换前的历史快照；切换后 Green 已产生新写入，**禁止直接切回旧库、旧导出或以旧版本代码对接 Green，否则会丢失切换后的文章、令牌与审计**。任何换库都必须从届时最新 Green 重新导出、逐表核对并在隔离库验证（详见 `docs/plans/` 两份路线图记录）。
 
 ### 后台登录
 
-- 线上和本地密码登录的基础逻辑在 `app/api/admin-auth.ts` 与 `/api/admin/login`。
+- 线上和本地密码登录的基础逻辑在 `server/auth/admin-auth.ts` 与 `/api/admin/login`。
 - 本地/Worker Secret 至少需要：`ADMIN_PASSWORD`、`ADMIN_SESSION_SECRET`、`MCP_WRITE_TOKEN`。
 - 密码尝试受 D1 限流，登录与后台页面设置为 `no-store`，并设置 `noindex`。
 - `app/chatgpt-auth.ts` 保留 ChatGPT 平台头部身份集成代码，但公网管理应以已部署的密码会话为可用路径。改动鉴权前先通读 `admin-auth.ts`、`app/admin/login`、`worker/index.ts`。
@@ -247,7 +258,20 @@ npm audit --omit=dev --registry=https://registry.npmjs.org
 
 ## 10. 最近完成的安全与交付修复
 
-提交 `73ad42c`（`fix: harden production delivery and markdown assets`）已完成：
+### 2026-09 生产 D1 切换与写入加固（详见 `docs/plans/` 两份路线图记录）
+
+1. 生产 D1 已从 bootstrap 建出的旧 Blue 库切至 migration-first 的 Green 库 `xingyu-production-v2`：schema 14、13 条编号迁移、`DB_SCHEMA_MODE=migration-only`；17 张业务表逐行核对，FTS、缓存 revision 与 13 项关系审计通过。
+2. 文章/附件/空间/分类写入改为 D1 原子批处理 + `expected_version` 乐观并发；MCP 审计与内容写入同批次提交，审计失败则内容回滚。
+3. 首页对无效 Server Action 的 `POST /` 返回 405（版本 `1336a528`，100% 流量）。
+4. 旧 Blue 库与旧 Worker 版本仅为历史快照，不是无损回退目标；回退演练与远端新库恢复仍待生产维护窗口（见 [切换后跟进清单](../docs/plans/2026-09-29-post-switch-followup-checklist.md)）。
+5. `feat/attachment-expiry` 在队列基础上补了未绑定附件过期回收：`attachments.unbound_at` 计时列（迁移 `drizzle/0014_hot_the_stranger.sql`，解绑重置、历史回填 `created_at`）；30 天保留期（`UNBOUND_ATTACHMENT_RETENTION_DAYS`，可调）；每日 03:17 UTC Cron 扫描把过期未绑定附件以 `expired_unbound` 入队，管理员核对 R2 对象已删后 resolve——**任何环节都不自动删除 R2 对象**。生产 Green 仍是 schema 14，详见 [切换后跟进清单](../docs/plans/2026-09-29-post-switch-followup-checklist.md)。
+6. `feat/pr04-identity-base` 落地身份底座（迁移 `drizzle/0015_amused_donald_blake.sql`，schema 契约升至 **17**）：`users` / `user_identities`（`provider`+`subject` 唯一，为国内/国际 OAuth 登录预留）/ `site_memberships` 三表，`posts` 增加可空的 `author_id`/`created_by`/`updated_by`。唯一站点 owner（`local`/`owner` 身份，id 1）由迁移和幂等种子建立，历史文章全部归并 owner；后台与 MCP 写入由 `db/site-identity.ts` 在服务端解析归属并写进同一原子批处理，客户端伪造的 identity 字段被入口解析丢弃。**仍保持单管理员密码登录，无多人 UI**；多账号 OAuth 登录与角色授权是下一阶段，接入时只需为 provider 增加身份行与回调路由，不改 schema。
+7. `feat/pr05-views-governance` 重做公网浏览计数（迁移 `drizzle/0016_bouncy_luckman.sql`，schema 契约升至 **18**）：`db/view-tracking.ts` 以 `VIEWS_IDENTITY_SECRET` 对服务端来源做键控 HMAC（不存任何明文 IP/客户端标识，`visitor` 请求体忽略）；事件与 `view_count` 同批次原子提交；`view_request_limits` 限流（60 秒 240 次/来源，超限 429+封锁 5 分钟）；草稿/私密/不存在统一 204；每日 Cron 清理 90 天前的 `post_views` 原始事件。**生产必须在部署窗口设置 `VIEWS_IDENTITY_SECRET` 云密钥，否则退化为本地固定密钥**（见 [Runbook](../docs/plans/2026-09-29-production-migration-runbook.md)）。
+8. `feat/pr06-csp` 落地 CSP 第一阶段（无 schema 变更）：`domain/security/csp.ts` 三档模式构造器，生产 `CSP_MODE=report-only`；公开 HTML（含边缘缓存命中分支）统一带 `Content-Security-Policy-Report-Only`（严格草案：`script-src 'self'`，无 unsafe-eval/`*`；`style-src` 暂留 `'unsafe-inline'` 供 Mermaid/KaTeX/Vditor 动态样式）；违规上报 `/.well-known/csp-report` 只记结构化日志、204 且 `no-store`。**强制（enforce）前必须依据线上违规报告先修合法资源（如内联脚本哈希化）**，绝不整体放宽。开发环境默认 off。
+9. `feat/pr07-ops-gates` 落地运维门禁（无 schema 变更，契约保持 **18**）：`db/health.ts` 的 `collectSiteHealth(db, schemaVersion)` 用单语句只读查询汇总 schema 版本/环境标记、`d1_migrations` 应用数、与 `drizzle/verify-core-relations.sql` 键名一致的 16 项核心关系审计、附件清理队列待处理数、owner 存在性与关键行计数；管理员端点 `GET /api/admin/diagnostics`（`isAdminRequest` + `no-store`）一次核对全量健康。每日 Cron 在附件过期扫描后追加健康门禁：任一审计项非 0 或 owner 缺失即输出 `site_health_anomaly` 事件（含异常计数，不打断清理流程；探测自身失败输出 `site_health_check_failed`）。`db/bootstrap.ts` 的 `schemaVersion` 改为模块导出供健康检查引用。
+10. `feat/pr08-consistency-cleanup` 落地 P2 一致性清理（纯重构，无行为与 schema 变更）：删除了半吊子的 `server/services/` 分层——分类写入并入新模块 `db/categories.ts`、站点设置与独立页并入 `db/site-content.ts`、文章管理读取并入 `db/queries.ts`（`getAdminPost`）、删除并入 `db/post-write.ts`（`deleteAdminPost`）；共享鉴权库从 `app/api/admin-auth.ts` 迁至 `server/auth/admin-auth.ts`；跨 feature/domain/server/db 边界的相对导入统一为 `@/` alias，features/worker/app 内部保持相对路径；删除根目录静态原型 `index.html`、`article.html`。导入约定的回归由源码断言守护。
+
+### 提交 `73ad42c`（`fix: harden production delivery and markdown assets`）
 
 1. Next 升至 `16.2.11`，React 升至 `19.2.8`。
 2. 通过 `package.json#overrides` 锁定 `postcss@8.5.22`、`sharp@0.35.3`、`@hono/node-server@2.0.11`，生产依赖审计为 **0 漏洞**。
@@ -270,14 +294,13 @@ GitHub Actions 在此之前从未通过过，两次 `npm ci` 失败都源于本�
 
 - Mermaid 全量支持会产生较大的按需资源包。当前 Worker startup 约 70ms，普通无图文章不下载 Mermaid；若用户大量使用复杂图表，应继续做 bundle 分析和按图类型拆分。
 - `npm test` 目前是类型检查、生产构建和源码级回归断言；它不能替代真实移动端触摸、弹窗阅读、动效帧率和登录流程的浏览器验收。
-- `README.md` 中仍存在早期“Sites”措辞；当前线上真实交付路径以 `wrangler.production.jsonc` + Worker 为准。后续可在不改变部署机制的前提下同步 README 表述。
 
 ### 建议下一步
 
 1. 在真实 iOS/Android 尺寸上逐页验收：顶部岛、搜索图标位置、移动导航、弹窗目录、上一篇/下一篇预览。
-2. 用浏览器性能工具测量首页、普通文章、Mermaid 文章的 LCP/INP；确认 Mermaid 分包是否需要进一步裁剪。
-3. 给核心交互补浏览器级 E2E：密码登录、草稿实时预览、Slug 重定向、MCP 写入审计、弹窗/跳转阅读模式切换。
-4. 将 `wrangler` 升级至当前稳定 v4 后做一次单独验证提交；不要与视觉大改混在同一次发布。
+2. 用浏览器性能工具测量首页、普通文章、Mermaid 文章的 LCP/INP；确认 Mermaid 分包是否需要进一步裁剪。（本机 dev 口径已由 `scripts/browser-vitals.mjs` 测过：暖加载 FCP 约 200-270ms、CLS 全 0，Mermaid 家族分包是含图文章首次访问的主要开销，暂不建议裁剪；生产 LCP/INP 需部署后实测。）
+3. 给核心交互补浏览器级 E2E：密码登录、草稿实时预览、Slug 重定向、MCP 写入审计、弹窗/跳转阅读模式切换。（`scripts/browser-e2e.mjs` 已提供 13 项本机验收，含登录、旧 Slug 重定向、阅读切换与草稿即时预览；真机仍待人工逐页验收。）
+4. `wrangler` 已处于 4.130.0；后续大版本升级仍需单独验证提交，不与视觉大改混在同一次发布。
 5. 如果要改数据结构：先升级 `schemaVersion`，编写兼容 `ALTER/CREATE INDEX/回填`，然后在本地和生产备份上验证；不要只改 `schema.ts`。
 
 ## 12. 接手检查清单

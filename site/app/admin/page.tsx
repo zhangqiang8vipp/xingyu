@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { getAdminIdentity } from "../api/admin-auth";
-import { listMcpConnections } from "../../db/integrations";
-import { getAdminStats, getCategories, getContentPage, getSiteSettings } from "../../db/queries";
+import { getAdminIdentity } from "@/server/auth/admin-auth";
+import { listMcpConnections } from "@/db/integrations";
+import { getAdminStats, getCategories, getContentPage, getSiteSettings } from "@/db/queries";
 import AdminClient from "@/features/admin/AdminClient";
-import { getAdminPost } from "@/server/services/admin-posts";
+import { getAdminPost } from "@/db/queries";
 import { parseAdminLocation } from "@/domain/admin/location";
 
 export const dynamic = "force-dynamic";

@@ -1,5 +1,5 @@
-import { createPostPreviewToken, listPostPreviewTokens, PreviewTokenError, revokePostPreviewToken } from "../../../../../db/post-preview-tokens";
-import { isAdminRequest, unauthorized } from "../../../admin-auth";
+import { createPostPreviewToken, listPostPreviewTokens, PreviewTokenError, revokePostPreviewToken } from "@/db/post-preview-tokens";
+import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 
 const ALLOWED_LIFETIMES = new Set([24 * 60 * 60, 7 * 24 * 60 * 60, 30 * 24 * 60 * 60]);
 

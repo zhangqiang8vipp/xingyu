@@ -4,8 +4,8 @@ import {
   requestHasAdminSession,
   signAdminPayload,
   validSessionSecret,
-} from "../../db/admin-session";
-import { ensureDatabase } from "../../db/bootstrap";
+} from "@/db/admin-session";
+import { ensureDatabase } from "@/db/bootstrap";
 import {
   ALL_SCOPES,
   consumeRateLimit,
@@ -18,7 +18,7 @@ import {
   scopeListText,
   upsertConsent,
   hashSecret,
-} from "../../db/oauth";
+} from "@/db/oauth";
 import { isAuthorizationCodeResponse, readAuthorizeParams } from "./authorize-params";
 import { shouldAcceptRedirect } from "./redirect-policy";
 import { OAuthError, oauthLog } from "./errors";
@@ -312,4 +312,3 @@ export function safeOAuthReturnTo(value?: string | null) {
     return "";
   }
 }
-
