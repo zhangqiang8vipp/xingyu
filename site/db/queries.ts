@@ -1,13 +1,14 @@
-import { and, asc, desc, eq, gt, isNull, like, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, like, or, sql } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { cache } from "react";
 import { getDb } from ".";
 import { ensureDatabase } from "./bootstrap";
-import { categories, contentPages, postSlugHistory, posts, siteSettings } from "./schema";
+import { categories, contentPages, posts, siteSettings } from "./schema";
 import { getSpacePath } from "./spaces";
 import { spacePathSql } from "./space-path-sql";
 import { CONTENT_LIMITS, DEFAULT_ABOUT_PAGE, DEFAULT_CONNECT_PAGE, DEFAULT_SITE_SETTINGS } from "@/domain/site/config";
 import { adminReaderSqlFilter, type AdminReaderContext } from "@/domain/reader/admin-reader-context";
+import { createPublicReadSession, type PublicReadSession } from "./read-session";
 
 export type PostFilters = {
   page?: number;
@@ -115,51 +116,105 @@ export async function getAdminPost(postId: number) {
   return { ...rows[0], spacePath: path.map((item) => item.name).join(" / ") };
 }
 
-export async function getPostBySlug(slug: string) {
+export type PublicPost = {
+  id: number;
+  publicId: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  publishedAt: string | null;
+  viewCount: number;
+  categoryName: string | null;
+  categorySlug: string | null;
+  categoryColor: string | null;
+};
+
+const publicPostSelection = `SELECT
+  p.id,
+  p.public_id AS publicId,
+  p.title,
+  p.slug,
+  p.excerpt,
+  p.content,
+  p.published_at AS publishedAt,
+  p.view_count AS viewCount,
+  c.name AS categoryName,
+  c.slug AS categorySlug,
+  c.color AS categoryColor
+  FROM posts p
+  LEFT JOIN categories c ON p.category_id = c.id`;
+
+async function getPublicReadSession(session?: PublicReadSession) {
+  if (session) return session;
   await ensureDatabase();
-  const rows = await getDb().select({
-    id: posts.id, publicId: posts.publicId, title: posts.title, slug: posts.slug, excerpt: posts.excerpt,
-    content: posts.content, publishedAt: posts.publishedAt, viewCount: posts.viewCount,
-    categoryName: categories.name, categorySlug: categories.slug, categoryColor: categories.color,
-  }).from(posts).leftJoin(categories, eq(posts.categoryId, categories.id))
-    .where(and(eq(posts.slug, slug), eq(posts.status, "published"),isNull(posts.spaceId))).limit(1);
-  return rows[0] ?? null;
+  return createPublicReadSession();
 }
 
-export async function getPostByPublicId(publicId: string) {
-  await ensureDatabase();
-  const rows = await getDb().select({
-    id: posts.id, publicId: posts.publicId, title: posts.title, slug: posts.slug, excerpt: posts.excerpt,
-    content: posts.content, publishedAt: posts.publishedAt, viewCount: posts.viewCount,
-    categoryName: categories.name, categorySlug: categories.slug, categoryColor: categories.color,
-  }).from(posts).leftJoin(categories, eq(posts.categoryId, categories.id))
-    .where(and(eq(posts.publicId, publicId), eq(posts.status, "published"),isNull(posts.spaceId))).limit(1);
-  return rows[0] ?? null;
+async function readPublicPostBySlug(session: PublicReadSession, slug: string) {
+  return session.first<PublicPost>(
+    `${publicPostSelection}
+      WHERE p.slug = ? AND p.status = 'published' AND p.space_id IS NULL
+      LIMIT 1`,
+    [slug],
+  );
+}
+
+async function readPublicPostByPublicId(session: PublicReadSession, publicId: string) {
+  return session.first<PublicPost>(
+    `${publicPostSelection}
+      WHERE p.public_id = ? AND p.status = 'published' AND p.space_id IS NULL
+      LIMIT 1`,
+    [publicId],
+  );
+}
+
+async function readPublicPostById(session: PublicReadSession, id: number) {
+  return session.first<PublicPost>(
+    `${publicPostSelection}
+      WHERE p.id = ? AND p.status = 'published' AND p.space_id IS NULL
+      LIMIT 1`,
+    [id],
+  );
+}
+
+export async function getPostBySlug(slug: string, session?: PublicReadSession) {
+  return readPublicPostBySlug(await getPublicReadSession(session), slug);
+}
+
+export async function getPostByPublicId(publicId: string, session?: PublicReadSession) {
+  return readPublicPostByPublicId(await getPublicReadSession(session), publicId);
 }
 
 /** Resolves current slugs, historical slugs, and bare public IDs for legacy links. */
-export async function resolvePublicPost(identifier: string) {
-  const direct = await getPostByPublicId(identifier) ?? await getPostBySlug(identifier);
+export async function resolvePublicPost(identifier: string, session?: PublicReadSession) {
+  const reader = await getPublicReadSession(session);
+  const direct = await readPublicPostByPublicId(reader, identifier)
+    ?? await readPublicPostBySlug(reader, identifier);
   if (direct) return direct;
-  await ensureDatabase();
-  const history = await getDb().select({ postId: postSlugHistory.postId })
-    .from(postSlugHistory).where(eq(postSlugHistory.slug, identifier)).limit(1);
-  if (!history[0]) return null;
-  const rows = await getDb().select({
-    id: posts.id, publicId: posts.publicId, title: posts.title, slug: posts.slug, excerpt: posts.excerpt,
-    content: posts.content, publishedAt: posts.publishedAt, viewCount: posts.viewCount,
-    categoryName: categories.name, categorySlug: categories.slug, categoryColor: categories.color,
-  }).from(posts).leftJoin(categories, eq(posts.categoryId, categories.id))
-    .where(and(eq(posts.id, history[0].postId), eq(posts.status, "published"),isNull(posts.spaceId))).limit(1);
-  return rows[0] ?? null;
+
+  const history = await reader.first<{ postId: number }>(
+    "SELECT post_id AS postId FROM post_slug_history WHERE slug = ? LIMIT 1",
+    [identifier],
+  );
+  if (!history) return null;
+  return readPublicPostById(reader, history.postId);
 }
 
-export async function getNextPublishedPost(publishedAt: string | null, id: number) {
-  return getAdjacentPublishedPost(publishedAt, id, "older");
+export async function getNextPublishedPost(
+  publishedAt: string | null,
+  id: number,
+  session?: PublicReadSession,
+) {
+  return getAdjacentPublishedPost(publishedAt, id, "older", session);
 }
 
-export async function getPreviousPublishedPost(publishedAt: string | null, id: number) {
-  return getAdjacentPublishedPost(publishedAt, id, "newer");
+export async function getPreviousPublishedPost(
+  publishedAt: string | null,
+  id: number,
+  session?: PublicReadSession,
+) {
+  return getAdjacentPublishedPost(publishedAt, id, "newer", session);
 }
 
 export type AdminReaderPost={
@@ -240,36 +295,50 @@ async function getAdjacentAdminPost(updatedAt:string,id:number,direction:"older"
     .bind(updatedAt,updatedAt,id,...filter.bindings).first<AdminReaderPost>();
 }
 
-const adjacentPostSelection = {
-  id: posts.id,
-  publicId: posts.publicId,
-  title: posts.title,
-  slug: posts.slug,
-  excerpt: posts.excerpt,
-  publishedAt: posts.publishedAt,
-  categoryName: categories.name,
-  categoryColor: categories.color,
+export type PublicAdjacentPost = {
+  id: number;
+  publicId: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  publishedAt: string | null;
+  categoryName: string | null;
+  categoryColor: string | null;
 };
 
+const adjacentPublicPostSelection = `SELECT
+  p.id,
+  p.public_id AS publicId,
+  p.title,
+  p.slug,
+  p.excerpt,
+  p.published_at AS publishedAt,
+  c.name AS categoryName,
+  c.color AS categoryColor
+  FROM posts p
+  LEFT JOIN categories c ON p.category_id = c.id`;
+
 /** A single cursor query powers both directions so their ordering rules cannot drift apart. */
-async function getAdjacentPublishedPost(publishedAt: string | null, id: number, direction: "older" | "newer") {
+async function getAdjacentPublishedPost(
+  publishedAt: string | null,
+  id: number,
+  direction: "older" | "newer",
+  session?: PublicReadSession,
+) {
   if (!publishedAt) return null;
-  await ensureDatabase();
+  const reader = await getPublicReadSession(session);
   const older = direction === "older";
-  const dateComparison = older ? lt(posts.publishedAt, publishedAt) : gt(posts.publishedAt, publishedAt);
-  const idComparison = older ? lt(posts.id, id) : gt(posts.id, id);
-  const query = getDb().select(adjacentPostSelection)
-    .from(posts)
-    .leftJoin(categories, eq(posts.categoryId, categories.id))
-    .where(and(
-      eq(posts.status, "published"),
-      isNull(posts.spaceId),
-      or(dateComparison, and(eq(posts.publishedAt, publishedAt), idComparison)),
-    ));
-  const rows = older
-    ? await query.orderBy(desc(posts.publishedAt), desc(posts.id)).limit(1)
-    : await query.orderBy(asc(posts.publishedAt), asc(posts.id)).limit(1);
-  return rows[0] ?? null;
+  const operator = older ? "<" : ">";
+  const order = older ? "DESC" : "ASC";
+  return reader.first<PublicAdjacentPost>(
+    `${adjacentPublicPostSelection}
+      WHERE p.status = 'published'
+        AND p.space_id IS NULL
+        AND (p.published_at ${operator} ? OR (p.published_at = ? AND p.id ${operator} ?))
+      ORDER BY p.published_at ${order}, p.id ${order}
+      LIMIT 1`,
+    [publishedAt, publishedAt, id],
+  );
 }
 
 export type CursorPost = {
