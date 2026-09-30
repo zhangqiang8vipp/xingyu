@@ -1,9 +1,7 @@
 import { env } from "cloudflare:workers";
 import { ensureDatabase } from "@/db/bootstrap";
 import {
-  checkViewRateLimit,
-  readerIdentityHashes,
-  trackPostView,
+  trackPostViewRequest,
   VIEWS_IDENTITY_SECRET_FALLBACK,
 } from "@/db/view-tracking";
 
@@ -15,23 +13,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     return Response.json({ counted: false }, { status: 503, headers: noStore });
   }
 
-  const { rateKey, viewerHash } = await readerIdentityHashes(
+  await ensureDatabase();
+  const result = await trackPostViewRequest(
+    env.DB,
+    env.VIEW_RATE_LIMITER,
     configuredSecret || VIEWS_IDENTITY_SECRET_FALLBACK,
     request,
+    slug,
+    env.APP_ENV,
   );
-  const rateLimit = await checkViewRateLimit(env.VIEW_RATE_LIMITER, rateKey, env.APP_ENV);
-  if (rateLimit === "limited") {
+  if (result === "limited") {
     return Response.json(
       { counted: false },
       { status: 429, headers: { ...noStore, "Retry-After": "60" } },
     );
   }
-  if (rateLimit === "unavailable") {
+  if (result === "unavailable") {
     return Response.json({ counted: false }, { status: 503, headers: noStore });
   }
-
-  await ensureDatabase();
-  const result = await trackPostView(env.DB, viewerHash, slug);
   if (result === "unknown") {
     // Drafts, private-space articles and missing identifiers share one
     // response so the endpoint never leaks whether content exists.
