@@ -77,10 +77,12 @@ export async function trackPostViewRequest(
   request: Request,
   slug: string,
   appEnvironment: string | undefined,
+  ensureReady?: () => Promise<void>,
 ): Promise<ViewRequestResult> {
   const { rateKey, viewerHash } = await readerIdentityHashes(secret, request);
   const rateLimit = await checkViewRateLimit(limiter, rateKey, appEnvironment);
   if (rateLimit !== "allowed") return rateLimit;
+  await ensureReady?.();
   return trackPostView(db, viewerHash, slug);
 }
 
