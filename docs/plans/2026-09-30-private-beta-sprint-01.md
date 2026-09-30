@@ -2,7 +2,7 @@
 
 > Task / work repository: `zhangqiang8vipp/xingyu`
 > Upstream source repository: `zhangqiang8vip/xingyu`
-> Status: BLOCKED until the upstream baseline is frozen and the fork is synced to that exact SHA.
+> Status: READY — see `docs/agent-tasks/README.md` for frozen baseline SHAs and execution gate.
 
 ## Goal
 
@@ -14,9 +14,9 @@ This sprint is not a multi-tenant SaaS conversion.
 
 ## Repository contract
 
-- GitHub Issues, agent branches, reports and integration work live in `zhangqiang8vipp/xingyu`.
+- Agent task files, branches, reports and integration work live in `zhangqiang8vipp/xingyu`.
 - `zhangqiang8vip/xingyu` is the upstream source of truth for the frozen baseline.
-- Before agents start, the control issue must record:
+- Before agents start, `docs/agent-tasks/README.md` must record:
   - `UPSTREAM_BASELINE_SHA`
   - `FORK_BASELINE_SHA`
   - proof that fork baseline contains the upstream baseline
