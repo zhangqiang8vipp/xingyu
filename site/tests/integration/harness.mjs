@@ -110,7 +110,7 @@ export const TEST_TITLES = {
 export async function openTestHarness({ r2DeleteFault = false, vars = {} } = {}) {
   const appWorker = {
     configPath: "./wrangler.production.jsonc",
-    vars: { APP_ENV: "development", DB_SCHEMA_MODE: "legacy-bootstrap", ...vars },
+    vars: { APP_ENV: "development", DB_SCHEMA_MODE: "legacy-bootstrap", INSTANCE_ID: "development:integration", ...vars },
     secrets: {
       ADMIN_PASSWORD: TEST_ADMIN_PASSWORD,
       ADMIN_SESSION_SECRET: TEST_ADMIN_SESSION_SECRET,
