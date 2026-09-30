@@ -41,7 +41,7 @@ export async function getBetaActivationSignal(connections: McpConnection[]): Pro
       createdAt: mcpActivity.createdAt,
       spaceId: posts.spaceId,
     }).from(mcpActivity)
-      .leftJoin(posts, eq(posts.id, mcpActivity.postId))
+      .innerJoin(posts, eq(posts.id, mcpActivity.postId))
       .where(inArray(mcpActivity.action, ["create_draft", "update_post"]))
       .orderBy(desc(mcpActivity.createdAt), desc(mcpActivity.id))
       .limit(100),

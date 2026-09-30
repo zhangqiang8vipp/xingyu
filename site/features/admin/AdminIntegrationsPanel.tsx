@@ -93,9 +93,9 @@ export default function AdminIntegrationsPanel({
           />
           <ActivationStep
             index={2}
-            done={activation.connected}
-            title="AI 已连接"
-            detail={activation.connected ? "当前已连接：" + activation.connectionNames.join("、") : "还没有可用连接。"}
+            done={activation.connected || Boolean(write)}
+            title={activation.connected ? "AI 已连接" : write ? "AI 已连接过" : "AI 已连接"}
+            detail={activation.connected ? "当前已连接：" + activation.connectionNames.join("、") : write ? "当前没有有效连接，但首次写入记录仍保留。" : "还没有可用连接。"}
           />
           <ActivationStep
             index={3}
@@ -114,7 +114,9 @@ export default function AdminIntegrationsPanel({
               ? <Link href="/admin?section=connect">打开接入</Link>
               : activation.stage === "connected-only"
                 ? <code>把这段真实内容保存到星屿，作为草稿，不要发布。</code>
-                : null}
+                : activation.stage === "activated" && !activation.connected
+                  ? <Link href="/admin?section=connect">重新连接 AI</Link>
+                  : null}
         </div>
 
         {write ? <article className="activation-proof">
@@ -192,7 +194,9 @@ function stageTitle(activation: BetaActivationSignal) {
 
 function stageDescription(activation: BetaActivationSignal) {
   if (activation.stage === "connected-only") return "现在只是“连上了”，还不能算激活。完成一次私有草稿创建或私有内容更新后，星屿会留下可核对的变更证明。";
-  if (activation.stage === "activated") return "星屿已经观察到真实私有写入，并保留了执行者、时间、内容和变更范围。";
+  if (activation.stage === "activated") return activation.connected
+    ? "星屿已经观察到真实私有写入，并保留了执行者、时间、内容和变更范围。"
+    : "首次私有写入已经完成并留有证明；当前没有有效连接，需要继续协作时可以重新连接。";
   if (activation.stage === "needs-connection") return "已有真实内容，但还没有可用的 AI 连接。";
   return "激活从真实内容开始，而不是从一条空连接开始。";
 }
@@ -201,6 +205,7 @@ function nextStepCopy(activation: BetaActivationSignal) {
   if (activation.stage === "needs-knowledge") return "先在“文章”或“知识空间”放入一篇真实内容。不要为了过流程创建无意义的测试空壳。";
   if (activation.stage === "needs-connection") return "打开“接入”，按页面提示把星屿加到你常用的 AI。连接成功后回到这里刷新状态。";
   if (activation.stage === "connected-only") return "回到刚连接的 AI，给它一段你愿意长期保存在星屿里的真实内容，并明确要求保存为草稿、不要发布。";
+  if (!activation.connected) return "先核对下面的历史变更证明；需要继续让 AI 协作时，再重新连接。";
   return "核对下面的变更证明是否符合你的意图；如果不符合，回到对应内容继续修正，而不是直接发布。";
 }
 
