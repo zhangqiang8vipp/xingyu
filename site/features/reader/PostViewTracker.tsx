@@ -1,22 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import { trackPublicArticleView } from "./public-view-tracking";
 
 export default function PostViewTracker({ publicId }: { publicId: string }) {
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const storageKey = "xingyu-reader-id";
-      let visitor = localStorage.getItem(storageKey);
-      if (!visitor) {
-        visitor = crypto.randomUUID();
-        localStorage.setItem(storageKey, visitor);
-      }
-      void fetch(`/api/views/${encodeURIComponent(publicId)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitor }),
-        keepalive: true,
-      });
+      trackPublicArticleView(publicId);
     }, 1800);
     return () => window.clearTimeout(timer);
   }, [publicId]);

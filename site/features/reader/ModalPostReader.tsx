@@ -6,6 +6,7 @@ import ArticleEndMark from "./ArticleEndMark";
 import IslandSearch from "../navigation/IslandSearch";
 import { formatLongDate, isEditableTarget } from "@/app/content-utils";
 import MarkdownRenderer from "../markdown/MarkdownRenderer";
+import { trackPublicArticleView } from "./public-view-tracking";
 import { adminReaderHref, adminReaderSearchParams, DEFAULT_ADMIN_READER_CONTEXT, normalizeAdminReaderContext, type AdminReaderContext, type AdminReaderReturnTarget } from "@/domain/reader/admin-reader-context";
 
 type ReaderPost = {
@@ -149,18 +150,7 @@ export default function ModalPostReader({ initialPublicId, readerScope="public",
   useEffect(() => {
     if (!post || readerScope==="admin") return;
     const timer = window.setTimeout(() => {
-      const storageKey = "xingyu-reader-id";
-      let visitor = localStorage.getItem(storageKey);
-      if (!visitor) {
-        visitor = crypto.randomUUID();
-        localStorage.setItem(storageKey, visitor);
-      }
-      void fetch(`/api/views/${encodeURIComponent(post.publicId)}`, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body:JSON.stringify({ visitor }),
-        keepalive:true,
-      });
+      trackPublicArticleView(post.publicId);
     }, 1800);
     return () => window.clearTimeout(timer);
   }, [post, readerScope]);
