@@ -50,8 +50,11 @@ export function parseApplicationSchemaVersion(source) {
     throw new Error(matches.length ? "found multiple exported const schemaVersion declarations" : "could not find an exported const schemaVersion declaration");
   }
   const start = matches[0].index + matches[0][0].length;
-  const tail = source.slice(start);
-  const literal = /^\s*(?:"(\d+)"|'(\d+)'|(\d+))(?=\s|;|$)/.exec(tail);
+  const maskedTail = masked.slice(start);
+  const literalOffset = maskedTail.search(/\S/);
+  if (literalOffset < 0) throw new Error("schemaVersion has no initializer");
+  const tail = source.slice(start + literalOffset);
+  const literal = /^(?:"(\d+)"|'(\d+)'|(\d+))(?=\s|;|$)/.exec(tail);
   if (!literal) throw new Error("schemaVersion must be a decimal string or integer literal");
   const value = Number(literal[1] ?? literal[2] ?? literal[3]);
   if (!Number.isSafeInteger(value) || value < 1) throw new Error("schemaVersion must be a positive safe integer");
