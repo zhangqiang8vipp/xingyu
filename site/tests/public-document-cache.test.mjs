@@ -3,6 +3,7 @@ import test from "node:test";
 import {DatabaseSync} from "node:sqlite";
 import {hasRequestIdentity,isHtmlDocumentRequest,isPublicDocumentRequest,publicDocumentCacheControl,publicDocumentCacheKey,publicDocumentCategory,publicDocumentStorageCacheControl,readPublicContentRevision,responseAllowsPublicStorage} from "../worker/public-document-cache.ts";
 import {PUBLIC_CACHE_SCHEMA_STATEMENTS} from "../db/public-cache-schema.ts";
+import {createPublicRevisionCache,PUBLIC_REVISION_POINTER_TTL_MS} from "../worker/public-revision-cache.ts";
 import {attachmentCacheControl,attachmentEtagMatches} from "../domain/attachments/http-cache.ts";
 import {removeAttachmentReference} from "../domain/attachments/markdown-reference.ts";
 
@@ -46,6 +47,8 @@ test("cache revision lookup fails closed",async()=>{
   assert.equal(missing,null);
   const failed=await readPublicContentRevision({prepare:()=>({first:async()=>{throw new Error("D1 unavailable")}})});
   assert.equal(failed,null);
+  const malformed=await readPublicContentRevision({prepare:()=>({first:async()=>({revision:"broken"})})});
+  assert.equal(malformed,null);
   assert.equal(publicDocumentCacheControl(missing),"no-store");
   assert.equal(publicDocumentCacheControl(found),"public, max-age=0, must-revalidate");
   assert.match(publicDocumentStorageCacheControl(),/^public, max-age=\d+$/);
@@ -65,6 +68,54 @@ test("category cache revision exists only for a stored category",async()=>{
     first:async()=>null,
   })},"missing");
   assert.equal(missing,null);
+});
+
+
+test("revision pointer caches the first lookup across a hot burst",async()=>{
+  let now=1_000;
+  let reads=0;
+  const cache=createPublicRevisionCache({now:()=>now});
+  const reader=async()=>{reads+=1;return "10";};
+  assert.equal(await cache.read(undefined,reader),"10");
+  assert.equal(reads,1);
+  for(let i=0;i<100;i+=1)assert.equal(await cache.read(undefined,reader),"10");
+  assert.equal(reads,1);
+  now+=PUBLIC_REVISION_POINTER_TTL_MS;
+  assert.equal(await cache.read(undefined,reader),"10");
+  assert.equal(reads,2);
+});
+
+test("revision pointer adopts a newer revision only after TTL refresh",async()=>{
+  let now=5_000;
+  let revision="10";
+  const cache=createPublicRevisionCache({now:()=>now});
+  const reader=async()=>revision;
+  assert.equal(await cache.read(undefined,reader),"10");
+  revision="11";
+  now+=PUBLIC_REVISION_POINTER_TTL_MS-1;
+  assert.equal(await cache.read(undefined,reader),"10");
+  now+=1;
+  assert.equal(await cache.read(undefined,reader),"11");
+});
+
+test("revision pointer refresh failures fail closed without stale fallback",async()=>{
+  let now=10_000;
+  const cache=createPublicRevisionCache({now:()=>now});
+  assert.equal(await cache.read(undefined,async()=>"10"),"10");
+  now+=PUBLIC_REVISION_POINTER_TTL_MS;
+  assert.equal(await cache.read(undefined,async()=>{throw new Error("D1 unavailable");}),null);
+  assert.equal(await cache.read(undefined,async()=>"broken"),null);
+  assert.equal(await cache.read(undefined,async()=>"11"),"11");
+});
+
+test("revision pointer keeps category validation scopes isolated",async()=>{
+  let reads=0;
+  const cache=createPublicRevisionCache();
+  const reader=async(category)=>{reads+=1;return category==="notes"?"12":"13";};
+  assert.equal(await cache.read("notes",reader),"12");
+  assert.equal(await cache.read("notes",reader),"12");
+  assert.equal(await cache.read("development",reader),"13");
+  assert.equal(reads,2);
 });
 
 test("attachment caching revalidates visibility before reusing bytes",()=>{

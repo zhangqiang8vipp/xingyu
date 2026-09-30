@@ -11,6 +11,11 @@ type RevisionDatabase={
   prepare:(query:string)=>RevisionStatement;
 };
 
+function normalizePublicContentRevision(revision:unknown):string|null{
+  if(typeof revision==="number")return Number.isSafeInteger(revision)&&revision>0?String(revision):null;
+  return typeof revision==="string"&&/^[1-9]\d*$/.test(revision)?revision:null;
+}
+
 export function hasRequestIdentity(request:Request):boolean{
   return request.headers.has("Authorization")||request.headers.has("Cookie");
 }
@@ -49,8 +54,8 @@ export async function readPublicContentRevision(db:RevisionDatabase,category?:st
       :"SELECT state.revision FROM public_cache_state AS state WHERE state.id=1 AND EXISTS (SELECT 1 FROM categories WHERE slug=? LIMIT 1)");
     const bound=category===undefined?statement:statement.bind?.(category);
     if(!bound)return null;
-    const row=await bound.first<{revision:number|string}>();
-    return row?String(row.revision):null;
+    const row=await bound.first<{revision:unknown}>();
+    return row?normalizePublicContentRevision(row.revision):null;
   }catch{
     // A missing migration or transient D1 failure must bypass cache instead of
     // serving an older public document under a guessed revision.

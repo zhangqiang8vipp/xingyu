@@ -9,6 +9,7 @@ import { schemaVersion } from "@/db/bootstrap";
 import { collectSiteHealth } from "@/db/health";
 import { cspHeaderFor, cspModeLabel, summarizeCspReport, CSP_REPORT_PATH } from "@/domain/security/csp";
 import { hasRequestIdentity, isHtmlDocumentRequest, isPublicDocumentRequest, publicDocumentCacheControl, publicDocumentCacheKey, publicDocumentCategory, publicDocumentStorageCacheControl, readPublicContentRevision, responseAllowsPublicStorage } from "./public-document-cache";
+import { readCachedPublicContentRevision } from "./public-revision-cache";
 import { normalizeImageOutputFormat } from "@/domain/media/image-transform";
 
 const edgeCache = (caches as CacheStorage & { default: Cache }).default;
@@ -95,8 +96,10 @@ const worker = {
     const htmlDocument=isHtmlDocumentRequest(request);
     const cacheable = isPublicDocumentRequest(request, url);
     const revisionStartedAt=performance.now();
-    const category=cacheable?publicDocumentCategory(url):undefined;
-    const revision=cacheable?await readPublicContentRevision(env.DB,category??undefined):null;
+    const category=cacheable?publicDocumentCategory(url):null;
+    const revision=cacheable&&category!==null
+      ?await readCachedPublicContentRevision(category,(requestedCategory)=>readPublicContentRevision(env.DB,requestedCategory))
+      :null;
     const revisionDuration=performance.now()-revisionStartedAt;
     const cacheKey=cacheable&&revision!==null?publicDocumentCacheKey(url,revision):null;
 
