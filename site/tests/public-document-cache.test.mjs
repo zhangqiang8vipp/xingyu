@@ -70,7 +70,6 @@ test("category cache revision exists only for a stored category",async()=>{
   assert.equal(missing,null);
 });
 
-
 test("revision pointer caches the first lookup across a hot burst",async()=>{
   let now=1_000;
   let reads=0;
