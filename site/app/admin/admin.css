@@ -550,3 +550,46 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
 .knowledge-import-report li span{color:#c9363e;font-size:9px;line-height:1.5}
 .knowledge-import-report .knowledge-import-ok{margin-top:13px;padding:9px 10px;color:#177243;border:1px solid color-mix(in srgb,#27a667 25%,var(--admin-line));border-radius:10px;background:color-mix(in srgb,#27a667 7%,var(--admin-panel));font-size:9px}
 @media(max-width:700px){.knowledge-import{flex:1}.knowledge-import>button{width:100%}.knowledge-import-report{top:10px;right:14px;left:14px;width:auto;max-height:82dvh}}
+
+
+/* Private Beta activation: reuse connection + mcp_activity signals without changing write boundaries. */
+.activation-config{display:grid;gap:18px}
+.activation-overview{display:grid;gap:22px}
+.activation-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:22px}
+.activation-hero>div{display:grid;gap:7px;min-width:0}
+.activation-hero small{color:var(--admin-accent);font-size:9px;font-weight:800;letter-spacing:.13em}
+.activation-hero h2{margin:0;color:var(--admin-ink);font-size:25px;letter-spacing:-.035em}
+.activation-hero p{max-width:720px;margin:0;color:var(--admin-copy);font-size:13px;line-height:1.65}
+.activation-refresh{min-height:36px;padding:0 14px;flex:none;border:1px solid var(--admin-line-strong);border-radius:999px;color:var(--admin-copy);background:var(--admin-control);font-size:11px;font-weight:700}
+.activation-refresh:disabled{opacity:.55;cursor:wait}
+.activation-steps{margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;list-style:none}
+.activation-steps li{min-width:0;padding:15px;display:flex;align-items:flex-start;gap:11px;border:1px solid var(--admin-line);border-radius:15px;background:var(--admin-control)}
+.activation-steps li>i{width:25px;height:25px;display:grid;place-items:center;flex:none;border:1px solid var(--admin-line-strong);border-radius:50%;color:var(--admin-muted);font-size:10px;font-style:normal;font-weight:800}
+.activation-steps li.done>i{color:#fff;border-color:#238a5a;background:#238a5a}
+.activation-steps li>div{display:grid;gap:4px;min-width:0}
+.activation-steps b{color:var(--admin-ink);font-size:12px}
+.activation-steps span{color:var(--admin-muted);font-size:11px;line-height:1.5}
+.activation-next{padding:16px 17px;display:grid;gap:7px;border:1px dashed var(--admin-line-strong);border-radius:15px;background:color-mix(in srgb,var(--admin-accent) 4%,var(--admin-control))}
+.activation-next strong{color:var(--admin-ink);font-size:12px}
+.activation-next p{margin:0;color:var(--admin-copy);font-size:12px;line-height:1.65}
+.activation-next a,.activation-next button{width:max-content;color:var(--admin-accent);font-size:12px;font-weight:750}
+.activation-next button{padding:0;border:0;background:none;cursor:pointer}
+.activation-next code{width:max-content;max-width:100%;padding:8px 10px;overflow-wrap:anywhere;white-space:normal;border:1px solid var(--admin-line);border-radius:9px;color:var(--admin-ink);background:var(--admin-panel);font-family:inherit;font-size:11px}
+.activation-proof{padding:17px;display:grid;gap:10px;border:1px solid color-mix(in srgb,#238a5a 35%,var(--admin-line));border-radius:16px;background:color-mix(in srgb,#238a5a 6%,var(--admin-control))}
+.activation-proof header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.activation-proof header>div{display:grid;gap:4px}
+.activation-proof small{color:#238a5a;font-size:9px;font-weight:800;letter-spacing:.1em}
+.activation-proof strong{color:var(--admin-ink);font-size:14px;line-height:1.45}
+.activation-proof time{flex:none;color:var(--admin-muted);font-size:10px}
+.activation-proof p{margin:0;color:var(--admin-copy);font-size:12px;line-height:1.6}
+.activation-proof>span{color:var(--admin-muted);font-size:11px}
+.activation-proof>div{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-top:4px}
+.activation-proof a{color:var(--admin-accent);font-size:12px;font-weight:750}
+.activation-proof em{color:var(--admin-muted);font-size:10px;font-style:normal;text-align:right}
+@media(max-width:800px){
+  .activation-hero{display:grid}
+  .activation-refresh{width:max-content}
+  .activation-steps{grid-template-columns:1fr}
+  .activation-proof header,.activation-proof>div{display:grid}
+  .activation-proof em{text-align:left}
+}
