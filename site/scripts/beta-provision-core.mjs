@@ -106,7 +106,7 @@ export function buildWranglerConfig(plan, databaseId = null) {
     compatibility_date: "2026-07-23",
     compatibility_flags: ["nodejs_compat"],
     no_bundle: true,
-    workers_dev: true,
+    workers_dev: false,
     triggers: { crons: ["17 3 * * *"] },
     vars: {
       APP_ENV: "beta",
