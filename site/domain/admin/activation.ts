@@ -38,14 +38,18 @@ export function betaActivationStage(input: {
   return "needs-connection";
 }
 
-export function isPrivateActivationWrite(input: {
-  action: string;
-  afterStatus: string | null;
+export function isKnowledgeSpacePost(input: {
   spaceId: number | null | undefined;
 }) {
-  if (input.action === "create_draft") return true;
-  return input.action === "update_post"
-    && (input.afterStatus === "draft" || input.spaceId != null);
+  return input.spaceId != null;
+}
+
+export function isPrivateActivationWrite(input: {
+  action: string;
+  spaceId: number | null | undefined;
+}) {
+  return (input.action === "create_draft" || input.action === "update_post")
+    && isKnowledgeSpacePost(input);
 }
 
 export type ActivationConnectionIdentity = {

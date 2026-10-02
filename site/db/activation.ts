@@ -1,4 +1,4 @@
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { getDb } from ".";
 import { ensureDatabase } from "./bootstrap";
 import type { McpConnection } from "./integrations";
@@ -27,14 +27,14 @@ export async function getBetaActivationSignal(connections: McpConnection[]): Pro
   await ensureDatabase();
   const db = getDb();
   const [knowledgeRows, activityRows] = await Promise.all([
-    db.select({ value: sql<number>`count(*)` }).from(posts),
+    db.select({ value: sql<number>`count(*)` }).from(posts)
+      .where(isNotNull(posts.spaceId)),
     db.select({
       id: mcpActivity.id,
       action: mcpActivity.action,
       postId: mcpActivity.postId,
       publicId: mcpActivity.publicId,
       title: mcpActivity.title,
-      afterStatus: mcpActivity.afterStatus,
       changedFields: mcpActivity.changedFields,
       summary: mcpActivity.summary,
       clientLabel: mcpActivity.clientLabel,
@@ -42,14 +42,16 @@ export async function getBetaActivationSignal(connections: McpConnection[]): Pro
       spaceId: posts.spaceId,
     }).from(mcpActivity)
       .innerJoin(posts, eq(posts.id, mcpActivity.postId))
-      .where(inArray(mcpActivity.action, ["create_draft", "update_post"]))
+      .where(and(
+        inArray(mcpActivity.action, ["create_draft", "update_post"]),
+        isNotNull(posts.spaceId),
+      ))
       .orderBy(desc(mcpActivity.createdAt), desc(mcpActivity.id))
       .limit(100),
   ]);
 
   const privateRow = activityRows.find((row) => isPrivateActivationWrite({
     action: row.action,
-    afterStatus: row.afterStatus,
     spaceId: row.spaceId,
   }));
   const connectionNames = [...new Set(

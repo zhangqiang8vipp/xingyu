@@ -79,7 +79,7 @@ export default function AdminIntegrationsPanel({
       <div>
         <p>AI 协作</p>
         <h1>连接与首次写入</h1>
-        <span>不用看技术日志：这里直接告诉你是否已连上、是否真的写入过，以及最近一次私有变更是谁做的。</span>
+        <span>不用看技术日志：这里直接告诉你是否已连上、是否真的写进知识空间，以及最近一次知识空间变更是谁做的。</span>
       </div>
     </header>
 
@@ -100,8 +100,8 @@ export default function AdminIntegrationsPanel({
           <ActivationStep
             index={1}
             done={activation.knowledgeCount > 0}
-            title="星屿里有真实内容"
-            detail={activation.knowledgeCount > 0 ? "当前已有 " + activation.knowledgeCount + " 篇内容可用于协作。" : "先放入一篇你真正会继续使用的内容。"}
+            title="知识空间里有真实知识"
+            detail={activation.knowledgeCount > 0 ? "当前已有 " + activation.knowledgeCount + " 篇知识空间内容可用于协作。" : "先把一篇你真正会继续使用的知识放进知识空间。"}
           />
           <ActivationStep
             index={2}
@@ -112,8 +112,8 @@ export default function AdminIntegrationsPanel({
           <ActivationStep
             index={3}
             done={Boolean(write)}
-            title="AI 完成一次私有写入"
-            detail={write ? write.actor + " 已经留下真实写入记录。" : activation.connected ? "已连接，但还没有发生真实写入。" : "连接后，让 AI 保存或更新一篇私有内容。"}
+            title="AI 完成一次知识空间写入"
+            detail={write ? write.actor + " 已经留下知识空间写入记录。" : activation.connected ? "已连接，但还没有发生知识空间写入。" : "连接后，让 AI 保存或更新一篇知识空间内容。"}
           />
         </ol>
 
@@ -125,7 +125,7 @@ export default function AdminIntegrationsPanel({
             : activation.stage === "needs-connection"
               ? <button type="button" onClick={() => void copyConnectionAddress()}>复制 AI 连接地址</button>
               : activation.stage === "connected-only"
-                ? <code>把这段真实内容保存到星屿，作为草稿，不要发布。</code>
+                ? <code>把这段真实内容保存到知识空间，作为草稿，不要发布。</code>
                 : activation.stage === "activated" && !activation.connected
                   ? <button type="button" onClick={() => void copyConnectionAddress()}>复制 AI 连接地址</button>
                   : null}
@@ -134,7 +134,7 @@ export default function AdminIntegrationsPanel({
         {write ? <article className="activation-proof">
           <header>
             <div>
-              <small>最近一次私有写入</small>
+              <small>最近一次知识空间写入</small>
               <strong>{write.actor} {privateWriteActionLabel(write.action)}《{write.title}》</strong>
             </div>
             <time dateTime={write.createdAt}>{formatTime(write.createdAt) || "时间未知"}</time>
@@ -143,7 +143,7 @@ export default function AdminIntegrationsPanel({
           <span>变更：{changed.length ? changed.join(" · ") : "内容已更新"}</span>
           <div>
             <Link href={"/admin?section=articles&edit=" + write.postId}>查看这篇内容</Link>
-            <em>这条记录只说明私有内容写入成功；公开发布仍需单独操作。</em>
+            <em>这条记录来自知识空间写入；知识空间内容仍受私有边界保护。</em>
           </div>
         </article> : null}
       </section>
@@ -175,7 +175,7 @@ export default function AdminIntegrationsPanel({
           </article>
         ))}
       </section>
-      <footer className="config-footer"><span>{message || "连接成功不等于激活；只有发生真实私有写入后，才会出现上方变更证明。"}</span></footer>
+      <footer className="config-footer"><span>{message || "连接成功不等于激活；只有发生真实知识空间写入后，才会出现上方变更证明。"}</span></footer>
     </div>
   </section>;
 }
@@ -198,25 +198,25 @@ function ActivationStep({
 }
 
 function stageTitle(activation: BetaActivationSignal) {
-  if (activation.stage === "needs-knowledge") return "先放入一篇真实内容";
+  if (activation.stage === "needs-knowledge") return "先把真实知识放进知识空间";
   if (activation.stage === "needs-connection") return "内容已经就绪，下一步连接 AI";
   if (activation.stage === "connected-only") return "已连接，还差一次真实写入";
   return "首次价值路径已完成";
 }
 
 function stageDescription(activation: BetaActivationSignal) {
-  if (activation.stage === "connected-only") return "现在只是“连上了”，还不能算激活。完成一次私有草稿创建或私有内容更新后，星屿会留下可核对的变更证明。";
+  if (activation.stage === "connected-only") return "现在只是“连上了”，还不能算激活。只有在知识空间里完成一次创建或更新后，星屿才会留下可核对的激活证明。";
   if (activation.stage === "activated") return activation.connected
     ? "星屿已经观察到真实私有写入，并保留了执行者、时间、内容和变更范围。"
     : "首次私有写入已经完成并留有证明；当前没有有效连接，需要继续协作时可以重新连接。";
-  if (activation.stage === "needs-connection") return "已有真实内容，但还没有可用的 AI 连接。";
-  return "激活从真实内容开始，而不是从一条空连接开始。";
+  if (activation.stage === "needs-connection") return "知识空间已有真实内容，但还没有可用的 AI 连接。";
+  return "激活从知识空间里的真实知识开始，而不是从公开博客文章或一条空连接开始。";
 }
 
 function nextStepCopy(activation: BetaActivationSignal) {
-  if (activation.stage === "needs-knowledge") return "先在“文章”或“知识空间”放入一篇真实内容。不要为了过流程创建无意义的测试空壳。";
+  if (activation.stage === "needs-knowledge") return "先在“知识空间”放入一篇真实内容。普通公开博客文章不计入本次激活，也不要为了过流程创建无意义的测试空壳。";
   if (activation.stage === "needs-connection") return "在你常用 AI 的“连接”或“工具”设置里新增星屿，粘贴下面复制的地址；出现星屿授权页时确认访问，然后回这里刷新。";
-  if (activation.stage === "connected-only") return "回到刚连接的 AI，给它一段你愿意长期保存在星屿里的真实内容，并明确要求保存为草稿、不要发布。";
+  if (activation.stage === "connected-only") return "回到刚连接的 AI，给它一段你愿意长期保存的真实内容，并明确要求保存到知识空间、作为草稿、不要发布。";
   if (!activation.connected) return "先核对下面的历史变更证明；需要继续让 AI 协作时，再重新连接。";
   return "核对下面的变更证明是否符合你的意图；如果不符合，回到对应内容继续修正，而不是直接发布。";
 }
