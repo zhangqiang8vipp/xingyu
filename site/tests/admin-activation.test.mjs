@@ -75,8 +75,8 @@ test("connected-only remains distinct from activated", () => {
 });
 
 test("activation copy translates internal field names into user language", () => {
-  assert.equal(privateWriteActionLabel("create_draft"), "创建了私有草稿");
-  assert.equal(privateWriteActionLabel("update_post"), "更新了私有内容");
+  assert.equal(privateWriteActionLabel("create_draft"), "创建了知识空间草稿");
+  assert.equal(privateWriteActionLabel("update_post"), "更新了知识空间内容");
   assert.deepEqual(activationFieldLabels(["content_markdown", "space", "unknown_internal_field"]), ["正文", "知识空间", "其他内容"]);
 });
 
@@ -110,6 +110,7 @@ test("activation panel keeps Knowledge Space semantics user-facing", async () =>
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(new URL("../features/admin/AdminIntegrationsPanel.tsx", import.meta.url), "utf8");
   assert.match(source, /知识空间里有真实知识/);
+  assert.match(source, /已连接，还差一次知识空间写入/);
   assert.match(source, /保存到知识空间，作为草稿，不要发布/);
   assert.match(source, /最近一次知识空间写入/);
   assert.match(source, /普通公开博客文章不计入本次激活/);

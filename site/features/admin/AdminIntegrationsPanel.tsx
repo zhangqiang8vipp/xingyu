@@ -199,16 +199,16 @@ function ActivationStep({
 
 function stageTitle(activation: BetaActivationSignal) {
   if (activation.stage === "needs-knowledge") return "先把真实知识放进知识空间";
-  if (activation.stage === "needs-connection") return "内容已经就绪，下一步连接 AI";
-  if (activation.stage === "connected-only") return "已连接，还差一次真实写入";
+  if (activation.stage === "needs-connection") return "知识已经就绪，下一步连接 AI";
+  if (activation.stage === "connected-only") return "已连接，还差一次知识空间写入";
   return "首次价值路径已完成";
 }
 
 function stageDescription(activation: BetaActivationSignal) {
   if (activation.stage === "connected-only") return "现在只是“连上了”，还不能算激活。只有在知识空间里完成一次创建或更新后，星屿才会留下可核对的激活证明。";
   if (activation.stage === "activated") return activation.connected
-    ? "星屿已经观察到真实私有写入，并保留了执行者、时间、内容和变更范围。"
-    : "首次私有写入已经完成并留有证明；当前没有有效连接，需要继续协作时可以重新连接。";
+    ? "星屿已经观察到真实知识空间写入，并保留了执行者、时间、内容和变更范围。"
+    : "首次知识空间写入已经完成并留有证明；当前没有有效连接，需要继续协作时可以重新连接。";
   if (activation.stage === "needs-connection") return "知识空间已有真实内容，但还没有可用的 AI 连接。";
   return "激活从知识空间里的真实知识开始，而不是从公开博客文章或一条空连接开始。";
 }

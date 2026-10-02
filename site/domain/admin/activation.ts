@@ -88,7 +88,7 @@ export function activityActorLabel(clientLabel: string, connections: ActivationC
 }
 
 export function privateWriteActionLabel(action: BetaActivationWriteAction) {
-  return action === "create_draft" ? "创建了私有草稿" : "更新了私有内容";
+  return action === "create_draft" ? "创建了知识空间草稿" : "更新了知识空间内容";
 }
 
 const FIELD_LABELS: Record<string, string> = {
