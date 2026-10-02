@@ -53,7 +53,8 @@ Do not add `--execute` until the generated names and identity are approved.
 
 ## 2. Apply
 
-Authorized beta-only execution:
+Authorized beta-only execution **only from an integration checkout that already contains A2 instance safety**. The CLI checks for A2's `db/instance-identity.ts` beta/INSTANCE_ID contract before any remote mutation and fails before creating resources when it is absent.
+
 
 ```bash
 npm run beta:apply -- --instance alice --execute
