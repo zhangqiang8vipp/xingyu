@@ -135,4 +135,8 @@ test("inventory normalization accepts Wrangler-style shapes", () => {
     [{ name: plan.resources.d1, uuid: d1Id }],
     { buckets: [{ name: plan.resources.r2 }] },
   ), inventory());
+  assert.deepEqual(normalizeInventory(
+    [{ name: plan.resources.d1, uuid: d1Id }],
+    { name: plan.resources.r2 },
+  ), inventory());
 });
