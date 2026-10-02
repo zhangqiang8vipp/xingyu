@@ -167,8 +167,24 @@ export function assertIdentityRows(rows, plan) {
 }
 
 export function normalizeInventory(d1Payload, r2Payload) {
-  const d1List = Array.isArray(d1Payload) ? d1Payload : (d1Payload?.result ?? d1Payload?.databases ?? []);
-  const r2List = Array.isArray(r2Payload) ? r2Payload : (r2Payload?.result ?? r2Payload?.buckets ?? []);
+  const d1List = Array.isArray(d1Payload)
+    ? d1Payload
+    : Array.isArray(d1Payload?.result)
+      ? d1Payload.result
+      : Array.isArray(d1Payload?.databases)
+        ? d1Payload.databases
+        : Array.isArray(d1Payload?.result?.databases)
+          ? d1Payload.result.databases
+          : [];
+  const r2List = Array.isArray(r2Payload)
+    ? r2Payload
+    : Array.isArray(r2Payload?.result)
+      ? r2Payload.result
+      : Array.isArray(r2Payload?.buckets)
+        ? r2Payload.buckets
+        : Array.isArray(r2Payload?.result?.buckets)
+          ? r2Payload.result.buckets
+          : [];
   return {
     d1: d1List.map((item) => ({
       name: String(item.name ?? item.database_name ?? ""),
