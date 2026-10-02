@@ -184,7 +184,11 @@ export function normalizeInventory(d1Payload, r2Payload) {
         ? r2Payload.buckets
         : Array.isArray(r2Payload?.result?.buckets)
           ? r2Payload.result.buckets
-          : [];
+          : r2Payload?.name || r2Payload?.bucket_name
+            ? [r2Payload]
+            : r2Payload?.result?.name || r2Payload?.result?.bucket_name
+              ? [r2Payload.result]
+              : [];
   return {
     d1: d1List.map((item) => ({
       name: String(item.name ?? item.database_name ?? ""),
