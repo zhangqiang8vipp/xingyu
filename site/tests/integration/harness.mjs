@@ -10,10 +10,21 @@ const FAULT_R2_NAME = "xingyu-integration-faulting-r2";
 const productionConfig = JSON.parse(readFileSync(new URL("../../wrangler.production.jsonc", import.meta.url), "utf8"));
 
 export function createTestHarness(options) {
+  const appWorkers = options.workers.map((worker) => {
+    if (worker.configPath !== "./wrangler.production.jsonc") return worker;
+    const appEnvironment = String(worker.vars?.APP_ENV ?? productionConfig.vars?.APP_ENV ?? "production");
+    return {
+      ...worker,
+      vars: {
+        ...worker.vars,
+        INSTANCE_ID: worker.vars?.INSTANCE_ID ?? `${appEnvironment}:integration`,
+      },
+    };
+  });
   const server = createWranglerTestHarness({
     ...options,
     workers: [
-      ...options.workers,
+      ...appWorkers,
       {
         config: {
           name: BRIDGE_NAME,
@@ -110,7 +121,7 @@ export const TEST_TITLES = {
 export async function openTestHarness({ r2DeleteFault = false, vars = {} } = {}) {
   const appWorker = {
     configPath: "./wrangler.production.jsonc",
-    vars: { APP_ENV: "development", DB_SCHEMA_MODE: "legacy-bootstrap", ...vars },
+    vars: { APP_ENV: "development", DB_SCHEMA_MODE: "legacy-bootstrap", INSTANCE_ID: "development:integration", ...vars },
     secrets: {
       ADMIN_PASSWORD: TEST_ADMIN_PASSWORD,
       ADMIN_SESSION_SECRET: TEST_ADMIN_SESSION_SECRET,
