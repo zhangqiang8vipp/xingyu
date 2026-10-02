@@ -171,6 +171,7 @@ function workerExists(workerName) {
     if (Array.isArray(payload)) return payload.length > 0;
     if (Array.isArray(payload?.versions)) return payload.versions.length > 0;
     if (Array.isArray(payload?.result)) return payload.result.length > 0;
+    if (Array.isArray(payload?.items)) return payload.items.length > 0;
     return true;
   } catch (error) {
     if (isNotFoundError(error)) return false;
@@ -256,7 +257,7 @@ function apply(plan, execute) {
     createdFreshPair = true;
   }
 
-  const afterCreate = readInventory();
+  const afterCreate = readInventory(plan);
   const resolved = reconcileInventory(plan, afterCreate);
   if (resolved.mode !== "reuse" || !resolved.databaseId) {
     throw new Error("beta resource pair was not resolved after creation");
@@ -348,8 +349,7 @@ function decommission(plan, execute, confirm) {
   try {
     runWrangler(["delete", "--name", plan.resources.worker, "--force"]);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!/not found|does not exist|404/i.test(message)) throw error;
+    if (!isNotFoundError(error)) throw error;
   }
   if (r2Present) {
     runWrangler(["r2", "bucket", "delete", plan.resources.r2]);
