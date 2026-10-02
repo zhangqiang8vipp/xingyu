@@ -23,7 +23,12 @@
     "types:worker": "wrangler types cloudflare-env.d.ts --config wrangler.production.jsonc --env-file .env.example --include-runtime=false --strict-vars=false",
     "types:worker:check": "npm run types:worker -- --check",
     "db:generate": "drizzle-kit generate",
-    "test:provisioning": "node --test tests/beta-provisioning.test.mjs"
+    "test:provisioning": "node --test tests/beta-provisioning.test.mjs",
+    "beta:prepare": "node scripts/beta-provision.mjs prepare",
+    "beta:apply": "node scripts/beta-provision.mjs apply",
+    "beta:verify": "node scripts/beta-provision.mjs verify",
+    "beta:smoke": "node scripts/beta-provision.mjs smoke",
+    "beta:decommission": "node scripts/beta-provision.mjs decommission"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
