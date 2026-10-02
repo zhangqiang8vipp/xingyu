@@ -102,14 +102,6 @@ function writeArtifacts(plan, databaseId = null) {
   return { paths, manifest, config };
 }
 
-function npmBin() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
-}
-
-function npxBin() {
-  return process.platform === "win32" ? "npx.cmd" : "npx";
-}
-
 function run(command, args, { capture = true } = {}) {
   const result = execFileSync(command, args, {
     cwd: SITE_ROOT,
@@ -121,7 +113,7 @@ function run(command, args, { capture = true } = {}) {
 }
 
 function runWrangler(args, options) {
-  return run(npxBin(), ["wrangler", ...args], options);
+  return run(process.execPath, [path.join(SITE_ROOT, "node_modules", "wrangler", "bin", "wrangler.js"), ...args], options);
 }
 
 function parseJsonOutput(text, label) {
@@ -141,7 +133,7 @@ function errorText(error) {
 }
 
 function isNotFoundError(error) {
-  return /not found|does not exist|404|10090|10092/i.test(errorText(error));
+  return /not found|does not exist|404|10006|10090|10092/i.test(errorText(error));
 }
 
 function readR2Bucket(plan) {
@@ -278,7 +270,11 @@ function apply(plan, execute) {
   }
 
   verifyResolvedPair(plan, readInventory(plan), artifacts, { requireWorker: false });
-  run(npmBin(), ["run", "build"], { capture: false });
+  if (process.platform === "win32") {
+    run(process.execPath, [process.env.npm_execpath, "run", "build"], { capture: false });
+  } else {
+    run("npm", ["run", "build"], { capture: false });
+  }
   runWrangler(["deploy", "--config", artifacts.paths.config], { capture: false });
   verifyResolvedPair(plan, readInventory(plan), artifacts, { requireWorker: true });
 
