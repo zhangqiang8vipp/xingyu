@@ -1,6 +1,9 @@
 # XINGYU Private Beta Sprint 01 — Agent Task Index
 
 STATUS: READY
+CEO_REVIEW_STATUS: REWORK_REQUIRED
+CEO_REVIEW: docs/reviews/2026-10-02-private-beta-sprint-01-ceo-review.md
+
 UPSTREAM_BASELINE_SHA: 342171235c1f68194ae8c16050c1d64874088e70
 FORK_BASELINE_SHA: cbb4b4742547981e814e627f6b0c12ba2ebdf0eb
 
@@ -29,3 +32,10 @@ Task files:
 你是 XINGYU Private Beta Sprint 01 的执行 Agent。使用 GitHub 插件打开 `zhangqiang8vipp/xingyu`，先读取 `docs/agent-tasks/README.md` 和你对应的任务文件。GitHub 仓库文件是唯一任务真相源。确认状态为 READY 后，严格从 `FORK_BASELINE_SHA` 新建自己的分支，按任务文件完成开发、测试和报告；不要从当前 main 或其他 Agent 分支起步。
 
 A6 additionally must wait until A1–A5 reports all end with `READY FOR INTEGRATION`.
+
+## Current CEO review actions
+
+- A1: `docs/agent-tasks/A1-ceo-review-rework.md`
+- A4: `docs/agent-tasks/A4-ceo-review-rework.md`
+- A5: `docs/agent-tasks/A5-ceo-review-recheck.md`
+- A6 remains blocked until A1–A5 all report `READY FOR INTEGRATION`.
