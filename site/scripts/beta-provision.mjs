@@ -68,6 +68,17 @@ function readProductionIdentifiers() {
   ].filter(Boolean);
 }
 
+function assertInstanceSafetyIntegrated() {
+  const identityPath = path.join(SITE_ROOT, "db", "instance-identity.ts");
+  if (!fs.existsSync(identityPath)) {
+    throw new Error("A2 instance-safety contract is not integrated; refusing remote beta mutation");
+  }
+  const source = fs.readFileSync(identityPath, "utf8");
+  if (!source.includes("APP_ENVIRONMENTS") || !source.includes('"beta"') || !source.includes("INSTANCE_ID")) {
+    throw new Error("A2 instance-safety contract is incomplete; refusing remote beta mutation");
+  }
+}
+
 function outputDirFor(plan) {
   return path.join(OUTPUT_ROOT, plan.instance);
 }
@@ -190,6 +201,7 @@ function apply(plan, execute) {
     return;
   }
 
+  assertInstanceSafetyIntegrated();
   const before = readInventory();
   const reconciliation = reconcileInventory(plan, before);
   let createdFreshPair = false;
@@ -255,6 +267,7 @@ function verify(plan) {
 
 async function smoke(plan, url) {
   if (!url) throw new Error("smoke requires --url");
+  assertInstanceSafetyIntegrated();
   verify(plan);
   const base = new URL(url);
   if (base.protocol !== "https:") throw new Error("smoke URL must use https");
