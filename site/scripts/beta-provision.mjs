@@ -301,10 +301,6 @@ function decommission(plan, execute, confirm) {
   const inventory = readInventory();
   const d1Present = inventory.d1.some((item) => item.name === plan.resources.d1);
   const r2Present = inventory.r2.includes(plan.resources.r2);
-  if (!d1Present && !r2Present) {
-    console.log(JSON.stringify({ status: "ALREADY_ABSENT", instanceId: plan.instanceId }, null, 2));
-    return;
-  }
   try {
     runWrangler(["delete", "--name", plan.resources.worker, "--force"]);
   } catch (error) {
@@ -317,7 +313,10 @@ function decommission(plan, execute, confirm) {
   if (d1Present) {
     runWrangler(["d1", "delete", plan.resources.d1, "--skip-confirmation"]);
   }
-  console.log(JSON.stringify({ status: "DECOMMISSIONED", instanceId: plan.instanceId }, null, 2));
+  console.log(JSON.stringify({
+    status: d1Present || r2Present ? "DECOMMISSIONED" : "WORKER_CLEANUP_ATTEMPTED",
+    instanceId: plan.instanceId,
+  }, null, 2));
 }
 
 export async function main(argv = process.argv.slice(2)) {
