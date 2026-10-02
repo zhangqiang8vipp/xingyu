@@ -132,10 +132,50 @@ function parseJsonOutput(text, label) {
   }
 }
 
-function readInventory() {
+function errorText(error) {
+  if (!error || typeof error !== "object") return String(error ?? "");
+  return [error.message, error.stderr, error.stdout]
+    .filter(Boolean)
+    .map((value) => String(value))
+    .join("\n");
+}
+
+function isNotFoundError(error) {
+  return /not found|does not exist|404|10090|10092/i.test(errorText(error));
+}
+
+function readR2Bucket(plan) {
+  try {
+    return parseJsonOutput(
+      runWrangler(["r2", "bucket", "info", plan.resources.r2, "--json"]),
+      "wrangler r2 bucket info",
+    );
+  } catch (error) {
+    if (isNotFoundError(error)) return [];
+    throw error;
+  }
+}
+
+function readInventory(plan) {
   const d1 = parseJsonOutput(runWrangler(["d1", "list", "--json"]), "wrangler d1 list");
-  const r2 = parseJsonOutput(runWrangler(["r2", "bucket", "list", "--json"]), "wrangler r2 bucket list");
+  const r2 = readR2Bucket(plan);
   return normalizeInventory(d1, r2);
+}
+
+function workerExists(workerName) {
+  try {
+    const payload = parseJsonOutput(
+      runWrangler(["versions", "list", "--name", workerName, "--json"]),
+      "wrangler versions list",
+    );
+    if (Array.isArray(payload)) return payload.length > 0;
+    if (Array.isArray(payload?.versions)) return payload.versions.length > 0;
+    if (Array.isArray(payload?.result)) return payload.result.length > 0;
+    return true;
+  } catch (error) {
+    if (isNotFoundError(error)) return false;
+    throw error;
+  }
 }
 
 function markerRows(configPath) {
@@ -182,8 +222,8 @@ function verifyResolvedPair(plan, inventory, artifacts, { requireWorker = false 
   if (actualMigrations !== expectedMigrations) {
     throw new Error(`D1 migration count mismatch: expected ${expectedMigrations}, found ${actualMigrations}`);
   }
-  if (requireWorker) {
-    runWrangler(["versions", "list", "--config", artifacts.paths.config]);
+  if (requireWorker && !workerExists(plan.resources.worker)) {
+    throw new Error(`Worker ${plan.resources.worker} does not exist`);
   }
 }
 
@@ -202,9 +242,13 @@ function apply(plan, execute) {
   }
 
   assertInstanceSafetyIntegrated();
-  const before = readInventory();
+  const before = readInventory(plan);
   const reconciliation = reconcileInventory(plan, before);
   let createdFreshPair = false;
+
+  if (reconciliation.mode === "create" && workerExists(plan.resources.worker)) {
+    throw new Error("deterministic beta Worker already exists without its D1/R2 pair; refusing to overwrite it");
+  }
 
   if (reconciliation.mode === "create") {
     runWrangler(["d1", "create", plan.resources.d1]);
@@ -232,10 +276,10 @@ function apply(plan, execute) {
     runWrangler(["d1", "execute", "DB", "--remote", "--config", artifacts.paths.config, "--command", statement]);
   }
 
-  verifyResolvedPair(plan, readInventory(), artifacts, { requireWorker: false });
+  verifyResolvedPair(plan, readInventory(plan), artifacts, { requireWorker: false });
   run(npmBin(), ["run", "build"], { capture: false });
   runWrangler(["deploy", "--config", artifacts.paths.config], { capture: false });
-  verifyResolvedPair(plan, readInventory(), artifacts, { requireWorker: true });
+  verifyResolvedPair(plan, readInventory(plan), artifacts, { requireWorker: true });
 
   console.log(JSON.stringify({
     status: "APPLIED",
@@ -248,7 +292,7 @@ function apply(plan, execute) {
 }
 
 function verify(plan) {
-  const inventory = readInventory();
+  const inventory = readInventory(plan);
   const reconciliation = reconcileInventory(plan, inventory);
   if (reconciliation.mode !== "reuse" || !reconciliation.databaseId) {
     throw new Error("beta resource pair does not exist");
@@ -298,7 +342,7 @@ function decommission(plan, execute, confirm) {
     console.log(JSON.stringify({ mode: "dry-run", command: "decommission", instanceId: plan.instanceId, steps }, null, 2));
     return;
   }
-  const inventory = readInventory();
+  const inventory = readInventory(plan);
   const d1Present = inventory.d1.some((item) => item.name === plan.resources.d1);
   const r2Present = inventory.r2.includes(plan.resources.r2);
   try {
