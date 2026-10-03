@@ -100,9 +100,9 @@ export function buildManifest(plan, databaseId = null) {
 
 export function buildWranglerConfig(plan, databaseId = null) {
   return {
-    $schema: "./node_modules/wrangler/config-schema.json",
+    $schema: "../../../node_modules/wrangler/config-schema.json",
     name: plan.resources.worker,
-    main: "./dist/server/index.js",
+    main: "../../../dist/server/index.js",
     compatibility_date: "2026-07-23",
     compatibility_flags: ["nodejs_compat"],
     no_bundle: true,
@@ -118,11 +118,11 @@ export function buildWranglerConfig(plan, databaseId = null) {
       binding: "DB",
       database_name: plan.resources.d1,
       database_id: databaseId || PLACEHOLDER_D1_ID,
-      migrations_dir: "drizzle",
-      migrations_pattern: "drizzle/[0-9][0-9][0-9][0-9]_*.sql",
+      migrations_dir: "../../../drizzle",
+      migrations_pattern: "../../../drizzle/[0-9][0-9][0-9][0-9]_*.sql",
     }],
     r2_buckets: [{ binding: "MEDIA", bucket_name: plan.resources.r2 }],
-    assets: { binding: "ASSETS", directory: "./dist/client" },
+    assets: { binding: "ASSETS", directory: "../../../dist/client" },
     images: { binding: "IMAGES" },
     cache: { enabled: true },
     observability: { enabled: true },

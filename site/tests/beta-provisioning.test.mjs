@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   BETA_D1_PLACEHOLDER,
   assertIdentityRows,
@@ -77,6 +80,16 @@ test("reviewable manifest/config contain beta identity and no secret values", ()
   assert.equal(config.r2_buckets[0].bucket_name, plan.resources.r2);
   assertManifestHasNoSecretValues(manifest, ["top-secret-token", "private-password"]);
   assert.equal(JSON.stringify(manifest).includes("top-secret-token"), false);
+});
+
+test("generated config resolves migration files from its nested output directory", () => {
+  const config = buildWranglerConfig(plan);
+  const outputDir = fileURLToPath(new URL("../outputs/beta/alice/", import.meta.url));
+  const migrationsDir = path.resolve(outputDir, config.d1_databases[0].migrations_dir);
+  assert.ok(fs.readdirSync(migrationsDir).some((name) => /^\d{4}_.+\.sql$/.test(name)));
+  assert.ok(config.d1_databases[0].migrations_pattern.startsWith(config.d1_databases[0].migrations_dir));
+  assert.equal(path.resolve(outputDir, config.main), fileURLToPath(new URL("../dist/server/index.js", import.meta.url)));
+  assert.equal(path.resolve(outputDir, config.assets.directory), fileURLToPath(new URL("../dist/client", import.meta.url)));
 });
 
 test("same complete resource pair is reused without creating unrelated resources", () => {
