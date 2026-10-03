@@ -19,7 +19,7 @@ test("client-supplied forwarding headers cannot mint a new reader identity", () 
 });
 
 test("production view tracking refuses a missing identity secret without writing", async () => {
-  const harness = await openTestHarness({ vars: { APP_ENV: "production", DB_SCHEMA_MODE: "local-preview-bootstrap" } });
+  const harness = await openTestHarness({ vars: { APP_ENV: "production", INSTANCE_ID: "production:integration", DB_SCHEMA_MODE: "local-preview-bootstrap" } });
   try {
     await harness.db.prepare(`INSERT INTO posts
       (public_id, title, slug, content, category_id, space_id, status, published_at)
