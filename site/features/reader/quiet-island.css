@@ -1,0 +1,141 @@
+/* Quiet Island v1 — public and immersive article reading only.
+   Deliberately leaves editor previews, admin controls, and global navigation untouched. */
+.post-page .prose.markdown-body,
+.reader-prose.markdown-body {
+  --qi-ink: #26302f;
+  --qi-muted: #697572;
+  --qi-accent: #507f78;
+  --qi-surface: #f7f8f5;
+  --qi-stroke: #e4e8e3;
+  color: var(--qi-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.9;
+  letter-spacing: .012em;
+  -webkit-font-smoothing: antialiased;
+}
+.post-page .prose.markdown-body { width: min(720px, calc(100% - 40px)); }
+.reader-prose.markdown-body { width: min(720px, calc(100% - 48px)); }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(p, li) {
+  color: var(--qi-ink);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 400;
+  line-height: 1.9;
+  letter-spacing: inherit;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) p { margin-bottom: 1.45em; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) > p:first-child::first-letter {
+  float: none;
+  margin: 0;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--qi-ink);
+  font-family: inherit;
+  font-weight: 680;
+  line-height: 1.35;
+  letter-spacing: -.025em;
+  scroll-margin-top: 118px;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) h1 { font-size: clamp(29px, 4vw, 36px); margin: 2em 0 .8em; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) h2 { font-size: clamp(25px, 3.2vw, 30px); margin: 2.15em 0 .8em; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) h3 { font-size: clamp(21px, 2.7vw, 23px); margin: 1.95em 0 .7em; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(h4, h5, h6) { font-size: 1.03em; margin: 1.7em 0 .7em; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(ul, ol) { margin: 0 0 1.55em; padding-left: 1.55em; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) li { margin: .3em 0; padding-left: .12em; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) li::marker { color: var(--qi-accent); }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) a:not(.md-attachment-card) {
+  color: var(--qi-accent);
+  text-decoration-color: color-mix(in srgb, var(--qi-accent) 48%, transparent);
+  text-underline-offset: .22em;
+  text-decoration-thickness: 1px;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) a:not(.md-attachment-card):hover { text-decoration-color: currentColor; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) a:focus-visible { outline: 2px solid var(--qi-accent); outline-offset: 3px; border-radius: 2px; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) blockquote {
+  margin: 2em 0;
+  padding: .9em 1.25em;
+  color: var(--qi-muted);
+  border: 0;
+  border-left: 3px solid var(--qi-accent);
+  border-radius: 0 10px 10px 0;
+  background: var(--qi-surface);
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) blockquote p { color: inherit; font-size: .97em; margin-bottom: .6em; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) blockquote p:last-child { margin-bottom: 0; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :not(pre) > code {
+  color: #386860; background: #eaf0ed; border-radius: 5px; padding: .17em .36em;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-code-block { margin: 2em 0; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-code-block pre {
+  color: #293b39; background: #f4f6f3; border: 1px solid var(--qi-stroke);
+  border-radius: 12px; box-shadow: none;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-code-block .md-code-copy {
+  opacity: 1; transform: none; color: var(--qi-ink); background: #fff; box-shadow: none;
+  border: 1px solid var(--qi-stroke);
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  font-size: .85em; line-height: 1.55;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(th, td) {
+  padding: .85em 1em; border: 0; border-bottom: 1px solid var(--qi-stroke); text-align: left;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) th {
+  color: var(--qi-ink); background: var(--qi-surface); font-weight: 650;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) img {
+  max-width: 100%; height: auto; border-radius: 11px;
+  box-shadow: none;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) hr {
+  margin: 3em auto; max-width: 180px; border: 0; border-top: 1px solid var(--qi-stroke);
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-callout {
+  border-radius: 11px; box-shadow: inset 3px 0 0 var(--qi-accent);
+  border-color: var(--qi-stroke); background: var(--qi-surface);
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-callout:not(.md-callout-warning) > strong { color: var(--qi-accent); }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-details {
+  border-color: var(--qi-stroke); border-radius: 11px; background: var(--qi-surface);
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-attachment-card {
+  box-shadow: none; border-color: var(--qi-stroke); background: var(--qi-surface);
+}
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) {
+  --qi-ink: #e1e8e4;
+  --qi-muted: #b4bfb9;
+  --qi-accent: #91bdb0;
+  --qi-surface: #202a28;
+  --qi-stroke: #35433e;
+  color: var(--qi-ink);
+}
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :not(pre) > code {
+  color: #b6ddd0; background: #2c3d36;
+}
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-code-block pre {
+  color: #dcece5; background: #1a2522; border-color: var(--qi-stroke); box-shadow: none;
+}
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-code-block .md-code-copy {
+  color: var(--qi-ink); background: #26332e; border-color: var(--qi-stroke);
+}
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) th {
+  color: var(--qi-ink); background: var(--qi-surface);
+}
+@media (max-width: 700px) {
+  .post-page .prose.markdown-body, .reader-prose.markdown-body { width: calc(100% - 34px); font-size: 16px; line-height: 1.85; }
+  :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(p, li) { line-height: 1.85; }
+  :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) blockquote { padding: .8em 1em; }
+  :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) table { display: block; max-width: 100%; overflow-x: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) a { transition: none; }
+}
