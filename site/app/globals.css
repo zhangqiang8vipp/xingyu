@@ -2326,6 +2326,10 @@ html[data-theme="dark"] .mermaid-dialog-toolbar span{color:#a1abba}
 .reader-open-once .reader-panel {
   animation: none;
 }
+/* Keep long fallback code inside the reader, rather than sizing the modal's
+ * implicit grid track to the code's unbroken min-content width. */
+.reader-open-once .reader-modal { grid-template-columns: minmax(0, 1fr); }
+.reader-open-once .reader-layout { min-width: 0; }
 @media (prefers-reduced-motion: reduce) {
   .reader-open-once { animation: none; }
 }

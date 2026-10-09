@@ -183,7 +183,7 @@ test("MCP v1.1 four document blocks round-trip privately through the official cl
   const harness = await openTestHarness({ vars: { APP_ENV: "beta", INSTANCE_ID: "beta:document-integration" } });
   try {
     const guide = readFileSync(new URL("../../../docs/guides/ai-document-blocks-mcp.md", import.meta.url), "utf8");
-    const samples = [...guide.matchAll(/```xingyu-block\n([\s\S]*?)\n```/g)].map((match) => match[1]);
+    const samples = [...guide.matchAll(/```xingyu-block\r?\n([\s\S]*?)\r?\n```/g)].map((match) => match[1]);
     assert.equal(samples.length, 4);
     const types = samples.map((sample) => JSON.parse(sample).type);
     assert.deepEqual(types, ["quiz_result", "metric_grid", "status_list", "timeline"]);
