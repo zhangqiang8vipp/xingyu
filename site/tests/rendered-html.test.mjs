@@ -3,6 +3,16 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import test from "node:test";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+test("Mermaid fits wide and tall diagrams and preserves centered zoom anchors", async () => {
+  const { fitDiagramZoom, diagramZoomScroll } = await import("../features/markdown/mermaid-viewport.ts");
+  assert.equal(fitDiagramZoom(2000, 200, 400, 800), 352 / 2000);
+  assert.equal(fitDiagramZoom(200, 2000, 400, 800), 752 / 2000);
+  assert.equal(fitDiagramZoom(200, 100, 1000, 800), 1);
+  assert.equal(diagramZoomScroll(200, 1000, 0, 500, 1, 2), 0);
+  assert.equal(diagramZoomScroll(2000, 1000, 0, 500, 0.4, 1), 524);
+  assert.equal(diagramZoomScroll(2000, 1000, 524, 500, 1, 0.4), 0);
+});
 const clientManifest = async () => JSON.parse(await source("dist/client/.vite/manifest.json"));
 const clientStyles = async () => {
   const candidates = ["dist/client/assets/", "dist/client/_next/static/css/"];

@@ -6,6 +6,20 @@ import { XINGYU_DOCUMENT_BLOCK_CATALOG, getXingyuBlockShortList, xingyuBlockMcpI
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
+test("XINGYU writing showcase has valid copyable examples for every registered block", async () => {
+  const guide = await source("../docs/guides/xingyu-writing-showcase.md");
+  const examples = [...guide.matchAll(/```xingyu-block\r?\n([\s\S]*?)```/g)];
+  assert.equal(examples.length, 18, "nine rendered examples and nine copyable examples");
+  const types = new Set();
+  for (const [, json] of examples) {
+    const block = parseXingyuBlock(json);
+    assert.ok(block, "published example must satisfy the real block schema");
+    types.add(block.type);
+  }
+  assert.deepEqual([...types].sort(), XINGYU_DOCUMENT_BLOCK_CATALOG.map(block => block.type).sort());
+  assert.match(guide, /演示数据/);
+});
+
 const quiz = {
   version: 1,
   type: "quiz_result",
