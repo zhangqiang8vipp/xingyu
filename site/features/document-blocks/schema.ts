@@ -19,7 +19,23 @@ export type MetricGridBlock = {
   items: Array<{ label: string; value: string; note?: string }>;
 };
 
-export type XingyuBlock = QuizResultBlock | MetricGridBlock;
+export type ProgressStatus = "done" | "active" | "pending" | "blocked";
+
+export type StatusListBlock = {
+  version: 1;
+  type: "status_list";
+  title?: string;
+  items: Array<{ title: string; status: ProgressStatus; detail?: string }>;
+};
+
+export type TimelineBlock = {
+  version: 1;
+  type: "timeline";
+  title?: string;
+  items: Array<{ label: string; title: string; detail?: string }>;
+};
+
+export type XingyuBlock = QuizResultBlock | MetricGridBlock | StatusListBlock | TimelineBlock;
 
 const MAX_SOURCE_LENGTH = 16_384;
 const textControlCharacters = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
@@ -95,6 +111,52 @@ export function parseXingyuBlock(source: string): XingyuBlock | null {
       });
     }
     return { version: 1, type: "metric_grid",
+      ...("title" in data ? { title: data.title as string } : {}), items };
+  }
+
+
+  if (data.type === "status_list") {
+    if (!exactKeys(data, ["version", "type", "title", "items"])
+      || !Array.isArray(data.items)
+      || data.items.length < 1 || data.items.length > 40) return null;
+
+    const items: StatusListBlock["items"] = [];
+    for (const entry of data.items) {
+      if (!record(entry)
+        || !exactKeys(entry, ["title", "status", "detail"])
+        || !text(entry.title, 120)
+        || (entry.status !== "done" && entry.status !== "active"
+          && entry.status !== "pending" && entry.status !== "blocked")
+        || !optionalText(entry, "detail", 320)) return null;
+      items.push({
+        title: entry.title,
+        status: entry.status,
+        ...("detail" in entry ? { detail: entry.detail as string } : {}),
+      });
+    }
+    return { version: 1, type: "status_list",
+      ...("title" in data ? { title: data.title as string } : {}), items };
+  }
+
+  if (data.type === "timeline") {
+    if (!exactKeys(data, ["version", "type", "title", "items"])
+      || !Array.isArray(data.items)
+      || data.items.length < 1 || data.items.length > 30) return null;
+
+    const items: TimelineBlock["items"] = [];
+    for (const entry of data.items) {
+      if (!record(entry)
+        || !exactKeys(entry, ["label", "title", "detail"])
+        || !text(entry.label, 80)
+        || !text(entry.title, 120)
+        || !optionalText(entry, "detail", 320)) return null;
+      items.push({
+        label: entry.label,
+        title: entry.title,
+        ...("detail" in entry ? { detail: entry.detail as string } : {}),
+      });
+    }
+    return { version: 1, type: "timeline",
       ...("title" in data ? { title: data.title as string } : {}), items };
   }
 
