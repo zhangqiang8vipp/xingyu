@@ -125,7 +125,7 @@ test("status list block uses explicit progress states without inferred status", 
     ...input, items: [{ title: "流程", status: "done", onclick: "alert(1)" }],
   })), null);
   assert.equal(parseXingyuBlock(JSON.stringify({
-    ...input, items: Array.from({ length: 41 }, () => ({ title: "进度", status: "done" }))],
+    ...input, items: Array.from({ length: 41 }, () => ({ title: "进度", status: "done" })),
   })), null);
 });
 
@@ -145,7 +145,7 @@ test("timeline block preserves explicit labels but rejects unknown properties", 
     ...input, items: [{ label: "明天", title: "新节点", detail: "x".repeat(321) }],
   })), null);
   assert.equal(parseXingyuBlock(JSON.stringify({
-    ...input, items: Array.from({ length: 31 }, () => ({ label: "日期", title: "节点" }))],
+    ...input, items: Array.from({ length: 31 }, () => ({ label: "日期", title: "节点" })),
   })), null);
 });
 
