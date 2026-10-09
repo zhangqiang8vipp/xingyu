@@ -42,6 +42,41 @@ The 2 / 2 / 1 summary is computed by the renderer from `items`; it must never be
 }
 ```
 
+
+## Example 3: status list
+
+```xingyu-block
+{
+  "version": 1,
+  "type": "status_list",
+  "title": "学习计划进度",
+  "items": [
+    {"title": "泛型基础", "status": "done", "detail": "完成练习与复盘"},
+    {"title": "通配符", "status": "active", "detail": "正在整理笔记"},
+    {"title": "类型擦除", "status": "pending"},
+    {"title": "环境故障", "status": "blocked", "detail": "需要修复构建工具"}
+  ]
+}
+```
+
+Allowed `status`: `done`, `active`, `pending`, `blocked`. The author must not infer a task status from unrelated wording. At most 40 entries; optional `detail` is plain text.
+
+## Example 4: timeline
+
+```xingyu-block
+{
+  "version": 1,
+  "type": "timeline",
+  "title": "研发记录",
+  "items": [
+    {"label": "10 月 8 日", "title": "确定文档设计方向"},
+    {"label": "10 月 9 日", "title": "完成结构化组件原型", "detail": "内容仍存为 Markdown"}
+  ]
+}
+```
+
+The label is authored chronological text, **not** a parser-invented date; order is preserved. At most 30 items. Optional detail is plain text. Both new types use existing XINGYU Web UI tokens and only render inside existing Markdown documents.
+
 ## Authoring and preservation rules
 
 1. Keep paragraphs, headings, existing Markdown tables, attachment links, KaTeX, Mermaid and all ordinary fences untouched.
@@ -49,7 +84,7 @@ The 2 / 2 / 1 summary is computed by the renderer from `items`; it must never be
 3. Store the literal block in the existing Markdown content field; it round-trips through editor/MCP/Knowledge Space import without a database migration.
 4. No raw HTML, dynamic React code, URLs, links, JavaScript, function calls or external lookups are permitted inside block values. Strings are displayed as escaped text.
 5. The reader is deterministic and offline; no model invocation occurs at view time. It never affects publish/unpublish, draft status, or private Knowledge Space ACL.
-6. Every object is versioned (`version:1`), strict-keyed, capped in source length (16,384 code units) and item count (quiz 1–60; metrics 1–12). Unknown versions, unknown types and malformed shapes fall back to visible ordinary code fences.
+6. Every object is versioned (`version:1`), strict-keyed, capped in source length (16,384 code units) and item count (quiz 1–60; metrics 1–12; status 1–40; timeline 1–30). Unknown versions, unknown types and malformed shapes fall back to visible ordinary code fences.
 7. Keep authored content editable and reversible. Avoid rewriting legacy Markdown or existing published documents without explicit approval.
 8. Render `xingyu-block` on the existing `MarkdownRenderer` pipeline **after** Markdown sanitization, mapping only validated data to known component types.
 
@@ -71,4 +106,4 @@ The 2 / 2 / 1 summary is computed by the renderer from `items`; it must never be
 
 ## Next phase (not in v1)
 
-An opt-in **AI Document Composer** can analyze supplied Markdown at create/update/import time, suggest blocks with source excerpts, and let the user accept/reject the transformation. It must preserve content, cite provenance, and use the same versioned block schema. Later candidates: comparison, timeline, progress, chart from explicit numeric series, interactive concept cards. Avoid trying to convert every paragraph into a widget.
+An opt-in **AI Document Composer** can analyze supplied Markdown at create/update/import time, suggest blocks with source excerpts, and let the user accept/reject the transformation. It must preserve content, cite provenance, and use the same versioned block schema. Later candidates: comparison, chart from explicit numeric series, interactive concept cards. Avoid trying to convert every paragraph into a widget.
