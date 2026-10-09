@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { mermaidAppearance } from "./mermaid-theme";
+import { clampDiagramZoom, diagramZoomScroll, DIAGRAM_PADDING, fitDiagramZoom, MIN_DIAGRAM_ZOOM } from "./mermaid-viewport";
 
-type RenderedDiagram = { key: string; svg: string; width: number; error: boolean };
+type RenderedDiagram = { key: string; svg: string; width: number; height: number; error: boolean };
 type DragState = { element: HTMLDivElement; pointerId: number; x: number; y: number; left: number; top: number };
-
-const clampZoom = (value: number) => Math.min(3, Math.max(0.5, Math.round(value * 100) / 100));
 
 export default function MarkdownMermaid({ chart }: { chart: string }) {
   const id = useId().replace(/[:]/g, "");
-  const [rendered, setRendered] = useState<RenderedDiagram>({ key: "", svg: "", width: 0, error: false });
+  const [rendered, setRendered] = useState<RenderedDiagram>({ key: "", svg: "", width: 0, height: 0, error: false });
   const [themeVersion, setThemeVersion] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -36,10 +35,13 @@ export default function MarkdownMermaid({ chart }: { chart: string }) {
         ...mermaidAppearance(document.documentElement.dataset.theme === "dark"),
       });
       const result = await mermaid.render(`xingyu-mermaid-${id}`, chart);
-      const viewBox = result.svg.match(/viewBox="[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+[\d.]+"/i);
-      if (active) setRendered({ key: renderKey, svg: result.svg, width: Number(viewBox?.[1]) || 960, error: false });
+      const svg = new DOMParser().parseFromString(result.svg, "image/svg+xml").documentElement;
+      const viewBox = svg.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number);
+      const width = viewBox?.[2] || parseFloat(svg.getAttribute("width") || "") || 960;
+      const height = viewBox?.[3] || parseFloat(svg.getAttribute("height") || "") || 480;
+      if (active) setRendered({ key: renderKey, svg: result.svg, width, height, error: false });
     }).catch(() => {
-      if (active) setRendered({ key: renderKey, svg: "", width: 0, error: true });
+      if (active) setRendered({ key: renderKey, svg: "", width: 0, height: 0, error: true });
     });
     return () => { active = false; };
   }, [chart, id, renderKey]);
@@ -58,13 +60,26 @@ export default function MarkdownMermaid({ chart }: { chart: string }) {
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (expanded && !dialog.open) {
-      dialog.showModal();
-      const canvas = dialog.querySelector<HTMLElement>(".mermaid-dialog-canvas");
-      if (canvas) canvas.scrollLeft = Math.max(0, (canvas.scrollWidth - canvas.clientWidth) / 2);
+    if (!expanded) {
+      if (dialog.open) dialog.close();
+      return;
     }
-    if (!expanded && dialog.open) dialog.close();
-  }, [expanded]);
+    if (!dialog.open) dialog.showModal();
+    const canvas = dialog.querySelector<HTMLElement>(".mermaid-dialog-canvas");
+    if (!canvas) return;
+    // The observer fires after the dialog has a real viewport, and on rotation.
+    const observer = new ResizeObserver(() => {
+      const next = fitDiagramZoom(rendered.width, rendered.height, canvas.clientWidth, canvas.clientHeight);
+      zoomRef.current = next;
+      setZoom(next);
+      canvas.scrollLeft = 0;
+      canvas.scrollTop = 0;
+    });
+    // Observe the fixed dialog, not canvas content: zoom-induced scrollbars
+    // must not be mistaken for a viewport resize and reset manual zoom.
+    observer.observe(dialog, { box: "border-box" });
+    return () => observer.disconnect();
+  }, [expanded, rendered.width, rendered.height]);
 
   useEffect(() => {
     const container = inlineRef.current;
@@ -78,23 +93,23 @@ export default function MarkdownMermaid({ chart }: { chart: string }) {
     return () => container.removeEventListener("wheel", wheel);
   }, [expanded, rendered.key]);
 
-  const changeZoom = (value: number, clientX?: number, clientY?: number) => {
+  const changeZoom = useCallback((value: number, clientX?: number, clientY?: number) => {
     const canvas = dialogRef.current?.querySelector<HTMLDivElement>(".mermaid-dialog-canvas");
-    const next = clampZoom(value);
+    const next = clampDiagramZoom(value);
     const previous = zoomRef.current;
     if (!canvas || next === previous) return;
     const rect = canvas.getBoundingClientRect();
     const x = (clientX ?? rect.left + rect.width / 2) - rect.left;
     const y = (clientY ?? rect.top + rect.height / 2) - rect.top;
-    const contentX = canvas.scrollLeft + x;
-    const contentY = canvas.scrollTop + y;
+    const left = diagramZoomScroll(rendered.width, canvas.clientWidth, canvas.scrollLeft, x, previous, next);
+    const top = diagramZoomScroll(rendered.height, canvas.clientHeight, canvas.scrollTop, y, previous, next);
     zoomRef.current = next;
     setZoom(next);
     requestAnimationFrame(() => {
-      canvas.scrollLeft = contentX * next / previous - x;
-      canvas.scrollTop = contentY * next / previous - y;
+      canvas.scrollLeft = left;
+      canvas.scrollTop = top;
     });
-  };
+  }, [rendered.width, rendered.height]);
 
   useEffect(() => {
     const canvas = dialogRef.current?.querySelector<HTMLDivElement>(".mermaid-dialog-canvas");
@@ -105,7 +120,15 @@ export default function MarkdownMermaid({ chart }: { chart: string }) {
     };
     canvas.addEventListener("wheel", wheel, { passive: false });
     return () => canvas.removeEventListener("wheel", wheel);
-  }, [expanded]);
+  }, [expanded, changeZoom]);
+
+  const fitToWindow = () => {
+    const canvas = dialogRef.current?.querySelector<HTMLDivElement>(".mermaid-dialog-canvas");
+    if (!canvas) return;
+    changeZoom(fitDiagramZoom(rendered.width, rendered.height, canvas.clientWidth, canvas.clientHeight));
+    canvas.scrollLeft = 0;
+    canvas.scrollTop = 0;
+  };
 
   const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
@@ -138,20 +161,26 @@ export default function MarkdownMermaid({ chart }: { chart: string }) {
       <button type="button" onClick={() => { zoomRef.current = 1; setZoom(1); setExpanded(true); }} aria-label="放大查看图表">↗ <span>放大查看</span></button>
     </div>
     <div ref={inlineRef} className={`mermaid-diagram${overflowing ? " is-pannable" : ""}`} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={endDrag}>
-      {!expanded && <div dangerouslySetInnerHTML={{ __html: rendered.svg }} />}
+      <div style={{ width: `min(100%, ${rendered.width}px)`, aspectRatio: `${rendered.width} / ${rendered.height}` }}>
+        {!expanded && <div dangerouslySetInnerHTML={{ __html: rendered.svg }} />}
+      </div>
     </div>
     <dialog ref={dialogRef} className="mermaid-dialog" aria-label="放大查看图表" onClose={() => setExpanded(false)} onKeyDown={(event) => { if (event.key === "Escape") event.stopPropagation(); }}>
       <div className="mermaid-dialog-toolbar">
         <strong>图表查看 <small>滚轮缩放 · 拖动移动</small></strong>
         <div>
-          <button type="button" onClick={() => changeZoom(zoomRef.current - 0.25)} disabled={zoom <= 0.5} aria-label="缩小图表">−</button>
+          <button type="button" onClick={fitToWindow}>适应窗口</button>
+          <button type="button" onClick={() => changeZoom(1)}>原始大小</button>
+          <button type="button" onClick={() => changeZoom(zoomRef.current / 1.25)} disabled={zoom <= MIN_DIAGRAM_ZOOM} aria-label="缩小图表">−</button>
           <span aria-live="polite">{Math.round(zoom * 100)}%</span>
-          <button type="button" onClick={() => changeZoom(zoomRef.current + 0.25)} disabled={zoom >= 3} aria-label="放大图表">＋</button>
+          <button type="button" onClick={() => changeZoom(zoomRef.current * 1.25)} disabled={zoom >= 3} aria-label="放大图表">＋</button>
           <button type="button" onClick={() => setExpanded(false)} aria-label="关闭图表">关闭</button>
         </div>
       </div>
       <div className="mermaid-dialog-canvas" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={endDrag}>
-        {expanded && <div style={{ width: `${Math.ceil(rendered.width * zoom)}px` }} dangerouslySetInnerHTML={{ __html: rendered.svg }} />}
+        <div className="mermaid-dialog-stage" style={{ width: `max(100%, ${rendered.width * zoom + 2 * DIAGRAM_PADDING}px)`, height: `max(100%, ${rendered.height * zoom + 2 * DIAGRAM_PADDING}px)` }}>
+          {expanded && <div style={{ width: `${rendered.width * zoom}px`, height: `${rendered.height * zoom}px` }} dangerouslySetInnerHTML={{ __html: rendered.svg }} />}
+        </div>
       </div>
     </dialog>
   </figure>;
