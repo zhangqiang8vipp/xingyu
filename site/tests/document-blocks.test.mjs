@@ -79,3 +79,23 @@ test("Markdown Plus routes only valid fences into the new renderer", async () =>
   assert.match(mcp, /xingyu-block JSON/);
   assert.match(pkg, /tests\/document-blocks\.test\.mjs/);
 });
+
+
+test("AI blocks inherit the existing XINGYU design without restyling the website", async () => {
+  const [css, globals, layout, component] = await Promise.all([
+    source("features/document-blocks/blocks.css"),
+    source("app/globals.css"),
+    source("app/layout.tsx"),
+    source("features/document-blocks/XingyuBlockView.tsx"),
+  ]);
+  for (const token of ["--ink", "--muted", "--blue", "--soft", "--line"]) {
+    assert.ok(css.includes("var(" + token), "native site token missing: " + token);
+    assert.ok(globals.includes(token + ":"), "token not defined by current site: " + token);
+  }
+  assert.match(css, /\.markdown-body \.xy-block/);
+  assert.match(css, /html\[data-theme="dark"\] \.markdown-body \.xy-block/);
+  assert.doesNotMatch(css, /(?:^|\n)\s*(?::root|body|html|main|button|h1|p)\s*\{/);
+  assert.doesNotMatch(layout, /document-blocks|quiet-island|apps-sdk-ui/);
+  assert.match(component, /import "\.\/blocks\.css"/);
+  assert.doesNotMatch(css, /#fbfaf7|#26302f|#4a7870/);
+});
