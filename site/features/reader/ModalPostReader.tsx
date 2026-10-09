@@ -1,5 +1,6 @@
 "use client";
 
+import "./quiet-island.css";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ArticleEndMark from "./ArticleEndMark";
