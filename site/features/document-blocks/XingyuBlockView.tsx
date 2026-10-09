@@ -1,4 +1,4 @@
-import type { QuizStatus, XingyuBlock } from "./schema";
+import type { ProgressStatus, QuizStatus, XingyuBlock } from "./schema";
 import { summarizeQuiz } from "./schema";
 import "./blocks.css";
 
@@ -6,6 +6,13 @@ const statusLabel: Record<QuizStatus, string> = {
   correct: "正确",
   partial: "部分正确",
   incorrect: "需要纠正",
+};
+
+const progressStatusLabel: Record<ProgressStatus, string> = {
+  done: "已完成",
+  active: "进行中",
+  pending: "待开始",
+  blocked: "受阻",
 };
 
 /** Pure, accessible UI. No evaluated HTML, URL, script, or client-side AI. */
@@ -26,6 +33,53 @@ export default function XingyuBlockView({ block }: { block: XingyuBlock }) {
             </div>
           ))}
         </div>
+      </section>
+    );
+  }
+
+  if (block.type === "status_list") {
+    return (
+      <section className="xy-block xy-block-status" aria-label={block.title || "进度清单"}>
+        <header className="xy-block-heading">
+          <span className="xy-block-eyebrow">进度清单</span>
+          {block.title && <strong className="xy-block-title">{block.title}</strong>}
+        </header>
+        <ul className="xy-status-items">
+          {block.items.map((item, index) => (
+            <li key={index}>
+              <div className="xy-status-row">
+                <span className="xy-status-title">{item.title}</span>
+                <span className={`xy-status-pill xy-status-pill-${item.status}`}>
+                  {progressStatusLabel[item.status]}
+                </span>
+              </div>
+              {item.detail && <p className="xy-status-detail">{item.detail}</p>}
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
+
+  if (block.type === "timeline") {
+    return (
+      <section className="xy-block xy-block-timeline" aria-label={block.title || "时间线"}>
+        <header className="xy-block-heading">
+          <span className="xy-block-eyebrow">时间线</span>
+          {block.title && <strong className="xy-block-title">{block.title}</strong>}
+        </header>
+        <ol className="xy-timeline-items">
+          {block.items.map((item, index) => (
+            <li className="xy-timeline-item" key={index}>
+              <span className="xy-timeline-dot" aria-hidden="true" />
+              <div className="xy-timeline-content">
+                <span className="xy-timeline-label">{item.label}</span>
+                <strong className="xy-timeline-title">{item.title}</strong>
+                {item.detail && <p className="xy-timeline-detail">{item.detail}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
       </section>
     );
   }
