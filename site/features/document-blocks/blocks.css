@@ -209,3 +209,114 @@ html[data-theme="dark"] .markdown-body .xy-quiz-status-incorrect { color: #ffc3c
 @media (max-width: 330px) {
   .markdown-body .xy-metric-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Status lists and timelines only affect approved document blocks. */
+.markdown-body .xy-block ul.xy-status-items,
+.markdown-body .xy-block ol.xy-timeline-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.markdown-body .xy-block .xy-status-items > li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--xyb-line);
+}
+.markdown-body .xy-status-row {
+  min-height: 45px;
+  padding: 11px 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.markdown-body .xy-status-title {
+  min-width: 0;
+  color: var(--xyb-text);
+  font-size: 13px;
+  line-height: 1.6;
+  font-weight: 540;
+}
+.markdown-body .xy-status-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--xyb-muted);
+  background: var(--xyb-soft);
+  font-size: 11px;
+  font-weight: 640;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.markdown-body .xy-status-pill-done { color: #187342; background: #def5e7; }
+.markdown-body .xy-status-pill-active { color: #145fbb; background: #e3f0ff; }
+.markdown-body .xy-status-pill-blocked { color: #a83342; background: #fde8eb; }
+.markdown-body .xy-block .xy-status-detail {
+  margin: -2px 0 11px;
+  color: var(--xyb-muted);
+  font-size: 12px;
+  line-height: 1.75;
+  font-family: inherit;
+}
+.markdown-body .xy-block .xy-timeline-items {
+  margin: 0 0 8px;
+  padding-left: 8px;
+}
+.markdown-body .xy-block .xy-timeline-item {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 23px 23px;
+  border-left: 1px solid var(--xyb-line);
+}
+.markdown-body .xy-block .xy-timeline-item:last-child {
+  padding-bottom: 5px;
+  border-left-color: transparent;
+}
+.markdown-body .xy-timeline-dot {
+  position: absolute;
+  top: 7px;
+  left: -5px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--xyb-surface);
+  border-radius: 50%;
+  background: var(--xyb-accent);
+  box-shadow: 0 0 0 1px var(--xyb-accent);
+}
+.markdown-body .xy-timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.markdown-body .xy-timeline-label {
+  color: var(--xyb-muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.markdown-body .xy-timeline-title {
+  color: var(--xyb-text);
+  font-size: 14px;
+  font-weight: 670;
+  line-height: 1.55;
+}
+.markdown-body .xy-block .xy-timeline-detail {
+  margin: 0;
+  color: var(--xyb-muted);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.7;
+}
+html[data-theme="dark"] .markdown-body .xy-status-pill-done { color: #a0edc6; background: #244334; }
+html[data-theme="dark"] .markdown-body .xy-status-pill-active { color: #b3d5ff; background: #253e5a; }
+html[data-theme="dark"] .markdown-body .xy-status-pill-blocked { color: #ffc3ca; background: #4e2b34; }
+@media (max-width: 520px) {
+  .markdown-body .xy-status-row { align-items: flex-start; }
+  .markdown-body .xy-status-title { font-size: 12px; }
+  .markdown-body .xy-block .xy-timeline-item { padding-bottom: 20px; }
+}
