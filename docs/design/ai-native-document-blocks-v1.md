@@ -1,6 +1,6 @@
 # XINGYU AI Document · 结构化文档区块 v1
 
-> STATUS: EXPERIMENTAL / DRAFT PR, not approved to deploy. This capability is independent of Quiet Island's reading-style PR #8.
+> STATUS: EXPERIMENTAL / DRAFT PR, not approved to deploy. **Component-only upgrade**: retain the current XINGYU website, article layout, typography and administration UI. PR #8's reading restyle is not a dependency.
 
 ## Product contract
 
@@ -52,6 +52,14 @@ The 2 / 2 / 1 summary is computed by the renderer from `items`; it must never be
 6. Every object is versioned (`version:1`), strict-keyed, capped in source length (16,384 code units) and item count (quiz 1–60; metrics 1–12). Unknown versions, unknown types and malformed shapes fall back to visible ordinary code fences.
 7. Keep authored content editable and reversible. Avoid rewriting legacy Markdown or existing published documents without explicit approval.
 8. Render `xingyu-block` on the existing `MarkdownRenderer` pipeline **after** Markdown sanitization, mapping only validated data to known component types.
+
+## Native visual integration — no full-site redesign
+
+- Rich blocks follow the **current XINGYU product palette** (`--ink`, `--muted`, `--blue`, `--soft`, `--line`) and the existing `html[data-theme="dark"]` theme switch.
+- Scope all styles to `.markdown-body .xy-block`, so the home page, nav, article heading, modal shell, archive, Knowledge Space management and editor layout retain their existing appearance.
+- Correct/partially correct/incorrect states retain semantic green/amber/red labels, but the component surface and actions use XINGYU's existing neutral/blue style.
+- Do **not** globally import OpenAI Apps SDK UI CSS or Tailwind reset; optional external component patterns must be adapted inside the block boundary. V1 uses existing React and CSS; it does not install the official OpenAI package.
+- No connection to, merging of, or dependency on Quiet Island PR #8. Keep AI Blocks as the only visual change inside documents.
 
 ## Safety and QA gates
 
