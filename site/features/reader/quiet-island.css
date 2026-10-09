@@ -234,3 +234,18 @@ html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markd
   .post-page .post-hero h1 { font-size: clamp(34px, 8.8vw, 47px); }
   .reader-panel .reader-hero h1 { font-size: clamp(32px, 7.5vw, 43px); }
 }
+
+/* Avoid orphaned single-character title lines in narrow readers. */
+.post-page .post-hero h1,
+.reader-panel .reader-hero h1 { text-wrap: balance; }
+
+@media (max-width: 700px) {
+  /* GFM tables should scroll instead of crushing Chinese column labels. */
+  :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) table :is(th, td) {
+    white-space: nowrap;
+  }
+  :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) table {
+    scrollbar-width: thin;
+    scrollbar-color: var(--qi-stroke) transparent;
+  }
+}
