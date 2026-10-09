@@ -38,6 +38,8 @@ test("Quiet Island has responsive focus and independently legible light/dark sur
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(css, /focus-visible/);
   assert.match(css, /overflow-x: auto/);
+  assert.match(css, /white-space: nowrap/);
+  assert.match(css, /text-wrap: balance/);
   assert.match(css, /html\[data-theme="dark"\]/);
   assert.match(css, /--qi-accent: #4a7870/);
   assert.match(css, /--qi-accent: #91bdb0/);
