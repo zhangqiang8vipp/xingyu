@@ -99,3 +99,61 @@ test("AI blocks inherit the existing XINGYU design without restyling the website
   assert.match(component, /import "\.\/blocks\.css"/);
   assert.doesNotMatch(css, /#fbfaf7|#26302f|#4a7870/);
 });
+
+
+test("status list block uses explicit progress states without inferred status", () => {
+  const input = {
+    version: 1, type: "status_list", title: "开发计划",
+    items: [
+      { title: "解析器实现", status: "done", detail: "现有结构化 Markdown 可以识别" },
+      { title: "视觉验收", status: "active" },
+      { title: "全量上线", status: "pending" },
+      { title: "外部依赖", status: "blocked" },
+    ],
+  };
+  assert.deepEqual(parseXingyuBlock(JSON.stringify(input)), input);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: [{ title: "流程", status: "success" }],
+  })), null);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: [{ title: "流程", status: "done", onclick: "alert(1)" }],
+  })), null);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: Array.from({ length: 41 }, () => ({ title: "进度", status: "done" }))],
+  })), null);
+});
+
+test("timeline block preserves explicit labels but rejects unknown properties", () => {
+  const input = {
+    version: 1, type: "timeline", title: "项目记录",
+    items: [
+      { label: "2026-10-08", title: "明确界面方向", detail: "保留原有星屿视觉。" },
+      { label: "2026-10-09", title: "添加 AI 内容组件" },
+    ],
+  };
+  assert.deepEqual(parseXingyuBlock(JSON.stringify(input)), input);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: [{ label: "明天", title: "新节点", script: "alert(1)" }],
+  })), null);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: [{ label: "明天", title: "新节点", detail: "x".repeat(321) }],
+  })), null);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: Array.from({ length: 31 }, () => ({ label: "日期", title: "节点" }))],
+  })), null);
+});
+
+test("status and timeline reuse scoped existing-theme styles and stay pure text", async () => {
+  const [view, css] = await Promise.all([
+    source("features/document-blocks/XingyuBlockView.tsx"),
+    source("features/document-blocks/blocks.css"),
+  ]);
+  assert.match(view, /block\.type === "status_list"/);
+  assert.match(view, /block\.type === "timeline"/);
+  assert.match(view, /xy-status-pill-/);
+  assert.match(view, /xy-timeline-items/);
+  assert.doesNotMatch(view, /dangerouslySetInnerHTML|eval\(|new Function\(/);
+  assert.match(css, /\.markdown-body \.xy-block ul\.xy-status-items/);
+  assert.match(css, /\.markdown-body \.xy-block ol\.xy-timeline-items/);
+  assert.match(css, /html\[data-theme="dark"\] \.markdown-body \.xy-status-pill-done/);
+});
