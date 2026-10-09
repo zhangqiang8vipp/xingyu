@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { parseXingyuBlock, summarizeQuiz } from "../features/document-blocks/schema.ts";
+import { XINGYU_DOCUMENT_BLOCK_CATALOG, getXingyuBlockShortList, xingyuBlockMcpInstructions } from "../features/document-blocks/catalog.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -77,9 +78,7 @@ test("Markdown Plus routes only valid fences into the new renderer", async () =>
   assert.match(markdown, /Malformed\/unknown blocks remain visible/);
   assert.match(markdown, /previewAuthorizedUrl/);
   assert.match(mcp, /xingyu-block JSON/);
-  assert.match(mcp, /comparison/);
-  assert.match(mcp, /flashcards/);
-  assert.match(mcp, /sources/);
+  assert.match(mcp, /xingyuBlockMcpInstructions/);
   assert.match(mcp, /version: "1\.2\.0"/);
   const toolDescriptions = await source("worker/mcp/draft-tools.ts");
   assert.match(toolDescriptions, /可选的 xingyu-block/);
@@ -292,4 +291,23 @@ test("plus renderer remains XINGYU-scoped, interactive flashcards are isolated",
     const data = JSON.parse(example[1]);
     assert.deepEqual(parseXingyuBlock(example[1]), data, "documented example must validate");
   }
+});
+
+test("typed capability catalog drives MCP discovery without business-code type lists", async () => {
+  const types = XINGYU_DOCUMENT_BLOCK_CATALOG.map((entry) => entry.type);
+  assert.deepEqual(types, [
+    "quiz_result", "metric_grid", "status_list", "timeline",
+    "comparison", "flashcards", "chart", "steps", "sources",
+  ]);
+  assert.equal(new Set(types).size, types.length);
+  for (const type of types) {
+    assert.match(xingyuBlockMcpInstructions(), new RegExp(type));
+    assert.match(getXingyuBlockShortList(), new RegExp(type));
+  }
+  const [workerSource, toolSource] = await Promise.all([
+    source("worker/blog-mcp.ts"), source("worker/mcp/draft-tools.ts"),
+  ]);
+  assert.match(workerSource, /xingyuBlockMcpInstructions\(\)/);
+  assert.match(toolSource, /getXingyuBlockShortList\(\)/);
+  assert.match(workerSource, /创建私有知识必须显式传入 space/);
 });
