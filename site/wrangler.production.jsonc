@@ -10,6 +10,7 @@
   },
   "vars": {
     "APP_ENV": "production",
+    "INSTANCE_ID": "production:xingyu-blog",
     "DB_SCHEMA_MODE": "migration-only",
     "CSP_MODE": "report-only"
   },
