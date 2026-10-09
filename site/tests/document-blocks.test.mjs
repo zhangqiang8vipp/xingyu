@@ -77,7 +77,7 @@ test("Markdown Plus routes only valid fences into the new renderer", async () =>
   assert.match(markdown, /Malformed\/unknown blocks remain visible/);
   assert.match(markdown, /previewAuthorizedUrl/);
   assert.match(mcp, /xingyu-block JSON/);
-  assert.match(mcp, /version: "1\\.1\\.0"/);
+  assert.match(mcp, /version: "1\.1\.0"/);
   const toolDescriptions = await source("worker/mcp/draft-tools.ts");
   assert.match(toolDescriptions, /可选的 xingyu-block/);
   assert.match(toolDescriptions, /以 xingyu-block 为语言标记/);
