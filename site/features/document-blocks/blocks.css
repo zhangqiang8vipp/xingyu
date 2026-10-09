@@ -324,13 +324,12 @@ html[data-theme="dark"] .markdown-body .xy-status-pill-blocked { color: #ffc3ca;
 /* Five document-only presentation variants; inherit all existing XINGYU tokens. */
 .markdown-body .xy-comparison-scroll,.markdown-body .xy-chart-viewport{max-width:100%;overflow-x:auto}
 .markdown-body .xy-comparison-scroll:focus-visible{outline:2px solid var(--xyb-accent);outline-offset:2px}
-.markdown-body .xy-comparison-table{min-width:520px;width:100%;table-layout:fixed;border-collapse:collapse;white-space:normal}
+.markdown-body .xy-comparison-table{min-width:520px;width:100%;table-layout:fixed;border-collapse:collapse}
 .markdown-body .xy-comparison-table :is(th,td){
-  width:auto;padding:11px;border-bottom:1px solid var(--xyb-line);background:transparent;
+  padding:11px;border-bottom:1px solid var(--xyb-line);background:transparent;
   color:var(--xyb-text);font-size:12px;line-height:1.65;text-align:left;vertical-align:top;
   white-space:normal;overflow-wrap:anywhere
 }
-.markdown-body .xy-comparison-table th{font-weight:650}
 .markdown-body .xy-comparison-table thead th{background:var(--xyb-soft)}
 .markdown-body .xy-comparison-table thead th small{display:block;color:var(--xyb-muted);font-size:11px;font-weight:400}
 .markdown-body .xy-block .xy-comparison-takeaway{margin:13px 0 5px;padding:12px;border-left:3px solid var(--xyb-accent);background:var(--xyb-soft);font-size:12px;line-height:1.7}
@@ -343,7 +342,7 @@ html[data-theme="dark"] .markdown-body .xy-status-pill-blocked { color: #ffc3ca;
 .markdown-body :is(.xy-flash-reveal,.xy-flash-nav button){padding:9px 14px;border:1px solid var(--xyb-line);border-radius:9px;background:var(--xyb-surface);color:var(--xyb-accent);font-size:12px;line-height:1.5;font-weight:650;cursor:pointer}
 .markdown-body :is(.xy-flash-reveal,.xy-flash-nav button):focus-visible{outline:2px solid var(--xyb-accent);outline-offset:2px}
 .markdown-body .xy-flash-nav{margin-top:13px}
-.markdown-body .xy-flash-nav button:disabled{opacity:.4;cursor:not-allowed}
+.markdown-body .xy-flash-nav button:disabled{opacity:.4}
 .markdown-body .xy-flash-answer{align-self:stretch;padding:12px;border:1px solid var(--xyb-line);border-radius:9px;background:var(--xyb-surface)}
 .markdown-body .xy-flash-answer[hidden]{display:none}
 .markdown-body .xy-flash-answer>span{color:var(--xyb-muted);font-size:11px}
@@ -366,9 +365,7 @@ html[data-theme="dark"] .markdown-body .xy-status-pill-blocked { color: #ffc3ca;
 .markdown-body .xy-chart-legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin:10px 0;padding:0;list-style:none}
 .markdown-body .xy-block .xy-chart-legend>li{display:flex;align-items:center;gap:8px;margin:0;padding:0;list-style:none;font-size:12px}
 .markdown-body .xy-chart-legend-swatch{display:inline-block;width:10px;height:10px;flex:none;border-radius:3px}
-.markdown-body .xy-chart-legend strong{margin-left:auto}
 .markdown-body .xy-chart-raw{margin-top:12px;color:var(--xyb-accent);font-size:12px}
-.markdown-body .xy-chart-raw summary{cursor:pointer}
 .markdown-body .xy-chart-raw table{width:100%;margin-top:9px;white-space:normal}
 .markdown-body .xy-chart-raw :is(th,td){padding:8px;border-bottom:1px solid var(--xyb-line);color:var(--xyb-text);font-size:12px}
 .markdown-body .xy-block .xy-chart-note{margin:11px 0 4px;color:var(--xyb-muted);font-size:11px}
@@ -387,6 +384,4 @@ html[data-theme="dark"] .markdown-body .xy-status-pill-blocked { color: #ffc3ca;
 @media(max-width:520px){
   .markdown-body .xy-flash-stage{padding:14px}
   .markdown-body .xy-flash-question{font-size:16px}
-  .markdown-body .xy-comparison-table{min-width:500px}
-  .markdown-body .xy-chart-svg{min-width:510px}
 }
