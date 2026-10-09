@@ -1,10 +1,10 @@
-/* Quiet Island v1 — public and immersive article reading only.
-   Deliberately leaves editor previews, admin controls, and global navigation untouched. */
+/* Quiet Island v1.1 — warm, restrained typography for article + immersive reading.
+   Keep Markdown parsing, editing controls and document permissions unchanged. */
 .post-page .prose.markdown-body,
 .reader-prose.markdown-body {
   --qi-ink: #26302f;
   --qi-muted: #697572;
-  --qi-accent: #507f78;
+  --qi-accent: #4a7870;
   --qi-surface: #f7f8f5;
   --qi-stroke: #e4e8e3;
   color: var(--qi-ink);
@@ -138,4 +138,99 @@ html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markd
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) a { transition: none; }
+}
+
+/* Warm editorial shell: align the article surface with its quieter content. */
+.post-page {
+  background: #faf9f6;
+}
+.post-page .post-hero {
+  background: radial-gradient(ellipse at 50% 8%, rgba(88, 135, 116, .105), transparent 52%), linear-gradient(#f8faf6, #faf9f6);
+}
+.post-page .post-hero h1 {
+  color: #26302f;
+  font-size: clamp(39px, 5.8vw, 68px);
+  line-height: 1.13;
+  letter-spacing: -.043em;
+}
+.post-page .post-hero > p,
+.post-page .post-byline { color: #697572; }
+.post-page .post-end { background: #f3f5f1; }
+
+.reader-layout .reader-panel {
+  background: #faf9f6;
+}
+.reader-panel .reader-hero {
+  border-bottom-color: #e4e8e3;
+  background: linear-gradient(180deg, #f6f8f3, #faf9f6);
+}
+.reader-panel .reader-hero h1 {
+  color: #26302f;
+  font-size: clamp(36px, 4.8vw, 57px);
+  line-height: 1.12;
+  letter-spacing: -.043em;
+}
+.reader-panel .reader-hero > p { color: #697572; }
+.reader-panel .reader-hero > div { color: #76827b; }
+.reader-panel .reader-toolbar {
+  background: rgba(250, 249, 246, .88);
+  border-bottom-color: #e4e8e3;
+}
+.reader-panel .reader-neighbors { background: #f3f5f1; }
+
+/* Tidy table edges and preserve keyboard-visible links. */
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) table {
+  border-top: 1px solid var(--qi-stroke);
+  border-left: 1px solid var(--qi-stroke);
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(th, td) {
+  border-right: 1px solid var(--qi-stroke);
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(summary, button):focus-visible {
+  outline: 2px solid var(--qi-accent);
+  outline-offset: 3px;
+}
+
+/* Source highlight colors are tuned for the LIGHT code surface rather than a dark editor. */
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-comment, .hljs-quote) { color: #62736c; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-name, .hljs-built_in) { color: #8d3d6e; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-string, .hljs-doctag, .hljs-regexp) { color: #24634c; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-title, .hljs-section, .hljs-selector-id) { color: #315b88; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-attr, .hljs-attribute, .hljs-number, .hljs-symbol, .hljs-variable, .hljs-template-variable, .hljs-link) { color: #805c20; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-params, .hljs-meta) { color: #56655e; }
+
+/* Dark mode should feel like charcoal and moss, not a bright inverted page. */
+html[data-theme="dark"] .post-page { background: #151b1c; }
+html[data-theme="dark"] .post-page .post-hero {
+  background: radial-gradient(ellipse at 50% 8%, rgba(91, 149, 128, .12), transparent 53%), linear-gradient(#1b2522, #151b1c);
+}
+html[data-theme="dark"] .post-page .post-hero h1 { color: #e1e8e4; }
+html[data-theme="dark"] .post-page .post-hero > p,
+html[data-theme="dark"] .post-page .post-byline { color: #b4bfb9; }
+html[data-theme="dark"] .post-page .post-end { background: #1b2422; }
+html[data-theme="dark"] .reader-layout .reader-panel {
+  background: #151b1c;
+}
+html[data-theme="dark"] .reader-panel .reader-hero {
+  background: linear-gradient(180deg, #1d2724, #151b1c);
+  border-bottom-color: #35433e;
+}
+html[data-theme="dark"] .reader-panel .reader-hero h1 { color: #e1e8e4; }
+html[data-theme="dark"] .reader-panel .reader-hero > p,
+html[data-theme="dark"] .reader-panel .reader-hero > div { color: #b4bfb9; }
+html[data-theme="dark"] .reader-panel .reader-toolbar {
+  background: rgba(22, 31, 29, .9);
+  border-bottom-color: #35433e;
+}
+html[data-theme="dark"] .reader-panel .reader-neighbors { background: #1b2422; }
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-comment, .hljs-quote) { color: #a9bdb3; }
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-name, .hljs-built_in) { color: #edb2d0; }
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-string, .hljs-doctag, .hljs-regexp) { color: #b5ddc3; }
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-title, .hljs-section, .hljs-selector-id) { color: #aacdec; }
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-attr, .hljs-attribute, .hljs-number, .hljs-symbol, .hljs-variable, .hljs-template-variable, .hljs-link) { color: #ecd19d; }
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) :is(.hljs-params, .hljs-meta) { color: #c3d5ca; }
+
+@media (max-width: 700px) {
+  .post-page .post-hero h1 { font-size: clamp(34px, 8.8vw, 47px); }
+  .reader-panel .reader-hero h1 { font-size: clamp(32px, 7.5vw, 43px); }
 }
