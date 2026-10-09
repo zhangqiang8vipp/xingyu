@@ -179,26 +179,36 @@ test("recursive private-space deletion requires exact confirmation and rejection
 });
 
 
-test("MCP v1.1 four document blocks round-trip privately through the official client", async () => {
+test("MCP v1.2 all nine document blocks round-trip privately through the official client", async () => {
   const harness = await openTestHarness({ vars: { APP_ENV: "beta", INSTANCE_ID: "beta:document-integration" } });
   try {
-    const guide = readFileSync(new URL("../../../docs/guides/ai-document-blocks-mcp.md", import.meta.url), "utf8");
-    const samples = [...guide.matchAll(/```xingyu-block\r?\n([\s\S]*?)\r?\n```/g)].map((match) => match[1]);
-    assert.equal(samples.length, 4);
+    const guides = [
+      "../../../docs/guides/ai-document-blocks-mcp.md",
+      "../../../docs/guides/ai-document-blocks-plus.md",
+    ].map((path) => readFileSync(new URL(path, import.meta.url), "utf8"));
+    const samples = guides.flatMap((guide) =>
+      [...guide.matchAll(/```xingyu-block\r?\n([\s\S]*?)\r?\n```/g)].map((match) => match[1]));
+    assert.equal(samples.length, 9);
     const types = samples.map((sample) => JSON.parse(sample).type);
-    assert.deepEqual(types, ["quiz_result", "metric_grid", "status_list", "timeline"]);
+    assert.deepEqual(types, [
+      "quiz_result", "metric_grid", "status_list", "timeline",
+      "comparison", "flashcards", "chart", "steps", "sources",
+    ]);
     const content = "# MCP preserved document\n\nOriginal paragraph.\n\n" + samples.map((sample) => "```xingyu-block\n" + sample + "\n```").join("\n\n");
     await withMcpClient(harness, TEST_LEGACY_MCP_TOKEN, async (client) => {
-      assert.equal(client.getServerVersion().version, "1.1.0");
+      assert.equal(client.getServerVersion().version, "1.2.0");
       const instructions = client.getInstructions();
       for (const type of types) assert.ok(instructions.includes(type));
-      assert.ok(instructions.includes("任务状态或事件日期"));
+      assert.ok(instructions.includes("任务状态"));
+      assert.ok(instructions.includes("事件日期"));
       assert.ok(instructions.includes("显式传入 space"));
       const tools = (await client.listTools()).tools;
-      assert.ok(tools.find((tool) => tool.name === "create_draft").description.includes("xingyu-block"));
+      const createDescription = tools.find((tool) => tool.name === "create_draft").description;
+      assert.ok(createDescription.includes("xingyu-block"));
       assert.ok(tools.find((tool) => tool.name === "update_post").description.includes("xingyu-block"));
+      for (const type of types) assert.ok(createDescription.includes(type));
       const space = (await client.callTool({ name: "create_space", arguments: { name: "AI integration private", change_summary: "Create isolated QA space" } })).structuredContent.space;
-      const created = await client.callTool({ name: "create_draft", arguments: { title: "AI block private QA", content_markdown: content, space: String(space.id), change_summary: "Save four factual guide samples" } });
+      const created = await client.callTool({ name: "create_draft", arguments: { title: "AI block private QA", content_markdown: content, space: String(space.id), change_summary: "Save nine documented block samples" } });
       assert.notEqual(created.isError, true);
       const post = created.structuredContent.post;
       assert.equal(post.status, "draft");
