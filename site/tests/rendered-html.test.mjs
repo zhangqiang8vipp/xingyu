@@ -283,6 +283,28 @@ test("admin previews unsaved content through the real public pages", async () =>
   assert.match(vditor, /previewMode="both"/);
 });
 
+test("first modal open uses one stable entrance during lazy chunk replacement", async () => {
+  const [link, reader, css] = await Promise.all([
+    source("features/reader/ModalPostLink.tsx"),
+    source("features/reader/ModalPostReader.tsx"),
+    source("app/globals.css"),
+  ]);
+  // Preserve initial lazy loading and the existing full-featured reader.
+  assert.match(link, /lazy\(\(\) => import\("\.\/ModalPostReader"\)\)/);
+  assert.match(link, /className="reader-open-once"/);
+  assert.match(link, /<Suspense fallback=\{<ReaderChunkFallback/);
+  assert.match(link, /readerScope=\{readerScope\}/);
+  assert.match(link, /key=\{`\$\{activePublicId\}/);
+  assert.match(reader, /className="reader-modal"/);
+  assert.match(reader, /className="reader-panel"/);
+
+  // The Suspense boundary may swap the fallback panel for the real panel,
+  // but entry animation belongs only to the persistent parent.
+  assert.match(css, /\.reader-open-once\s*\{[^}]*animation:\s*reader-backdrop-in/s);
+  assert.match(css, /\.reader-open-once \.reader-modal,\s*\.reader-open-once \.reader-panel\s*\{\s*animation:\s*none/s);
+  assert.match(css, /prefers-reduced-motion: reduce[\s\S]*\.reader-open-once\s*\{\s*animation:\s*none/);
+});
+
 test("Markdown Plus is rendered through one safe, shared pipeline", async () => {
   const [renderer, mermaid, katexStyles, rootLayout, post, modal, bridge, packageJson] = await Promise.all([
     source("features/markdown/MarkdownRenderer.tsx"), source("features/markdown/MarkdownMermaid.tsx"),

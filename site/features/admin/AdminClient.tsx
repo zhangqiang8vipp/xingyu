@@ -21,11 +21,12 @@ import { readApiJson } from "@/app/api-response";
 import ModalPostLink from "../reader/ModalPostLink";
 import type { AdminReaderContext, AdminReaderReturnTarget } from "@/domain/reader/admin-reader-context";
 import { adminLocationHref, parseAdminLocation, type AdminLocation } from "@/domain/admin/location";
+import type { BetaActivationSignal } from "@/domain/admin/activation";
 
 const emptyForm = (categoryId = 1,spaceId:number|null=null,spacePath=""): ArticleForm => ({ title: "", slug: "", excerpt: "", content: "", categoryId, spaceId,sortOrder:0,spacePath,status: "draft", featured: false, publishedAt:null });
 type AdminInitialLocation=AdminLocation;
 
-export default function AdminClient({ categories:initialCategories, settings, connectPage, aboutPage, stats:initialStats, connections, initialArticle, initialLocation, userName, signOutPath }: { categories: AdminCategory[]; settings:SiteSettingsForm; connectPage:EditablePage; aboutPage:EditablePage; stats:AdminStats; connections:AdminMcpConnection[]; initialArticle:ArticleForm|null; initialLocation:AdminInitialLocation; userName: string; signOutPath: string }) {
+export default function AdminClient({ categories:initialCategories, settings, connectPage, aboutPage, stats:initialStats, connections, activation, initialArticle, initialLocation, userName, signOutPath }: { categories: AdminCategory[]; settings:SiteSettingsForm; connectPage:EditablePage; aboutPage:EditablePage; stats:AdminStats; connections:AdminMcpConnection[]; activation:BetaActivationSignal; initialArticle:ArticleForm|null; initialLocation:AdminInitialLocation; userName: string; signOutPath: string }) {
   const articleEditorPreviewRef=useRef<HTMLDivElement>(null);
   const [section,setSection]=useState<AdminSection>(initialLocation.section);
   const [spaceLandingId,setSpaceLandingId]=useState<number|null>(initialLocation.spaceId);
@@ -70,6 +71,12 @@ export default function AdminClient({ categories:initialCategories, settings, co
     const response = await fetch("/api/stats");
     if (response.ok) setStats((await readApiJson<{stats:AdminStats}>(response)).stats);
   }, []);
+
+  useEffect(() => {
+    const refresh = () => { void loadStats(); };
+    window.addEventListener("xingyu:spaces-changed", refresh);
+    return () => window.removeEventListener("xingyu:spaces-changed", refresh);
+  }, [loadStats]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -296,7 +303,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
         <div className="admin-workspace-bar">
           <AdminArticleSearch disabled={Boolean(form||studio)} articleCount={stats.total+stats.privateArticles} onBrowse={(postId)=>void browseById(postId)}/>
         </div>
-      {section==="browse" ? <AdminBrowsePanel settings={settings} categories={categories} stats={stats} category={browseCategory} visibility={browseVisibility} onCategoryChange={changeBrowseCategory} onVisibilityChange={changeBrowseVisibility} onEdit={(postId)=>void editById(postId)} onWrite={()=>openNewArticle()} onOpenArticles={()=>changeSection("articles")} onOpenSpaces={(spaceId)=>openSpaces(spaceId??null)} /> : section==="home" ? <AdminSettingsPanel initial={settings} /> : section==="articles" ? <AdminArticlesPanel brandName={settings.brandName} stats={stats} posts={posts} categories={categories} loading={loading} message={message} query={query} category={category} status={status} batch={cursorStack.length+1} hasPrevious={cursorStack.length>0} hasNext={Boolean(nextCursor)} onQueryChange={changeArticleQuery} onCategoryChange={changeArticleCategory} onStatusChange={changeArticleStatus} onNew={()=>openNewArticle()} onBrowse={(postId)=>void browseById(postId,{range:"all",query,category,status:status as "all"|"draft"|"published",source:"articles"})} onShare={setSharePost} onEdit={(postId)=>void editById(postId)} onRemove={(post)=>void remove(post)} onPrevious={previousBatch} onNext={nextBatch}/> : section==="spaces" ? <AdminSpacesPanel initialSpaceId={spaceLandingId} createOnOpen={createSpaceOnOpen} onLocationChange={changeSpaceLocation} onCreateArticle={(spaceId,spacePath)=>openNewArticle(spaceId,spacePath)} onEditArticle={(postId)=>void editById(postId)} onBrowseArticle={(postId,readerContext)=>void browseById(postId,readerContext)} onShareArticle={setSharePost} /> : section==="connect" ? <AdminPageEditor initial={connectPage} settings={settings} kind="connect" label="接入" /> : section==="integrations" ? <AdminIntegrationsPanel initial={connections} /> : section==="about" ? <AdminPageEditor initial={aboutPage} settings={settings} kind="about" label="关于" /> : <AdminCategoriesPanel initial={categories} onChange={setCategories} />}
+      {section==="browse" ? <AdminBrowsePanel settings={settings} categories={categories} stats={stats} category={browseCategory} visibility={browseVisibility} onCategoryChange={changeBrowseCategory} onVisibilityChange={changeBrowseVisibility} onEdit={(postId)=>void editById(postId)} onWrite={()=>openNewArticle()} onOpenArticles={()=>changeSection("articles")} onOpenSpaces={(spaceId)=>openSpaces(spaceId??null)} /> : section==="home" ? <AdminSettingsPanel initial={settings} /> : section==="articles" ? <AdminArticlesPanel brandName={settings.brandName} stats={stats} posts={posts} categories={categories} loading={loading} message={message} query={query} category={category} status={status} batch={cursorStack.length+1} hasPrevious={cursorStack.length>0} hasNext={Boolean(nextCursor)} onQueryChange={changeArticleQuery} onCategoryChange={changeArticleCategory} onStatusChange={changeArticleStatus} onNew={()=>openNewArticle()} onBrowse={(postId)=>void browseById(postId,{range:"all",query,category,status:status as "all"|"draft"|"published",source:"articles"})} onShare={setSharePost} onEdit={(postId)=>void editById(postId)} onRemove={(post)=>void remove(post)} onPrevious={previousBatch} onNext={nextBatch}/> : section==="spaces" ? <AdminSpacesPanel initialSpaceId={spaceLandingId} createOnOpen={createSpaceOnOpen} onLocationChange={changeSpaceLocation} onCreateArticle={(spaceId,spacePath)=>openNewArticle(spaceId,spacePath)} onEditArticle={(postId)=>void editById(postId)} onBrowseArticle={(postId,readerContext)=>void browseById(postId,readerContext)} onShareArticle={setSharePost} /> : section==="connect" ? <AdminPageEditor initial={connectPage} settings={settings} kind="connect" label="接入" /> : section==="integrations" ? <AdminIntegrationsPanel initial={connections} initialActivation={activation} /> : section==="about" ? <AdminPageEditor initial={aboutPage} settings={settings} kind="about" label="关于" /> : <AdminCategoriesPanel initial={categories} onChange={setCategories} />}
       </div>
 
       {form&&<AdminArticleEditor form={form} category={selectedFormCategory} categories={categories} settings={settings} message={message} previewRef={articleEditorPreviewRef} onChange={setForm} onChangeSpace={changeSpace} onClose={closeEditor} onOpenStudio={setStudio} onSharePreview={form.id?()=>setSharePost({id:form.id!,title:form.title}):undefined} onSave={save}/>}
