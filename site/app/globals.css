@@ -2311,3 +2311,25 @@ html[data-theme="dark"] .mermaid-dialog-toolbar button{border-color:#39414e}
 html[data-theme="dark"] .mermaid-dialog-toolbar button:hover{background:#242a33}
 html[data-theme="dark"] .mermaid-dialog-toolbar span{color:#a1abba}
 @media(max-width:700px){.mermaid-dialog{width:calc(100vw - 12px);height:calc(100dvh - 24px);border-radius:14px}.mermaid-dialog-toolbar{padding:8px 12px}.mermaid-dialog-toolbar small{display:none}.mermaid-dialog-canvas{padding:18px}.mermaid-figure-actions{min-height:40px}}
+
+/* One opening animation for the lazy Suspense shell.  Both fallback and real
+ * reader are replaced inside this persistent wrapper; neither re-enters.
+ * Keep the existing modal appearance, dark theme and close interactions.
+ */
+.reader-open-once {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  animation: reader-backdrop-in .2s ease both;
+}
+.reader-open-once .reader-modal,
+.reader-open-once .reader-panel {
+  animation: none;
+}
+/* Keep long fallback code inside the reader, rather than sizing the modal's
+ * implicit grid track to the code's unbroken min-content width. */
+.reader-open-once .reader-modal { grid-template-columns: minmax(0, 1fr); }
+.reader-open-once .reader-layout { min-width: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .reader-open-once { animation: none; }
+}

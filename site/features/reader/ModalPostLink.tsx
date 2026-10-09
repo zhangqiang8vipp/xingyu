@@ -47,17 +47,19 @@ export default function ModalPostLink({ publicId, slug, readerScope="public", ad
 
   return <>
     {!controllerOnly&&<a {...props} href={readerScope==="admin"?adminReaderHref(publicId,adminReaderContext):postPath({publicId,slug})} onClick={openReader}>{children}</a>}
-    {open&&<Suspense fallback={<ReaderChunkFallback onClose={close}/> }>
-      <ModalPostReader key={`${activePublicId}:${JSON.stringify(activeAdminContext)}`} initialPublicId={activePublicId} readerScope={readerScope} adminReaderContext={activeAdminContext} onEdit={onEdit} onClose={close}/>
-    </Suspense>}
+    {open&&<div className="reader-open-once">
+      <Suspense fallback={<ReaderChunkFallback onClose={close} readerScope={readerScope}/> }>
+        <ModalPostReader key={`${activePublicId}:${JSON.stringify(activeAdminContext)}`} initialPublicId={activePublicId} readerScope={readerScope} adminReaderContext={activeAdminContext} onEdit={onEdit} onClose={close}/>
+      </Suspense>
+    </div>}
   </>;
 }
 
-function ReaderChunkFallback({onClose}:{onClose:()=>void}){
+function ReaderChunkFallback({onClose,readerScope}:{onClose:()=>void;readerScope:"public"|"admin"}){
   return <div className="reader-modal" role="dialog" aria-modal="true" aria-label="正在打开文章" onMouseDown={(event)=>{if(event.target===event.currentTarget)onClose()}}>
     <div className="reader-layout" onMouseDown={(event)=>{if(event.target===event.currentTarget)onClose()}}>
       <section className="reader-panel">
-        <header className="reader-toolbar"><div><i/><span>沉浸阅读</span></div><button className="reader-toolbar-close" type="button" onClick={onClose} aria-label="关闭阅读弹窗">×</button></header>
+        <header className="reader-toolbar"><div><i/><span>{readerScope==="admin"?"管理阅读":"沉浸阅读"}</span></div><button className="reader-toolbar-close" type="button" onClick={onClose} aria-label="关闭阅读弹窗">×</button></header>
         <div className="reader-loading"><i/><i/><i/><span>正在展开文章</span></div>
       </section>
     </div>
