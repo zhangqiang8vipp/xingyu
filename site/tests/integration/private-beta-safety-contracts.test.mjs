@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   callMcpTool,
   closeTestHarness,
   openTestHarness,
+  withMcpClient,
   TEST_LEGACY_MCP_TOKEN,
 } from "./harness.mjs";
 
@@ -171,6 +173,46 @@ test("recursive private-space deletion requires exact confirmation and rejection
       "a rejected destructive action must leave contained private content intact");
     await assertAnonymousPrivate(harness, post,
       "a rejected destructive action must not change the private read boundary");
+  } finally {
+    await closeTestHarness(harness);
+  }
+});
+
+
+test("MCP v1.1 four document blocks round-trip privately through the official client", async () => {
+  const harness = await openTestHarness({ vars: { APP_ENV: "beta", INSTANCE_ID: "beta:document-integration" } });
+  try {
+    const guide = readFileSync(new URL("../../../docs/guides/ai-document-blocks-mcp.md", import.meta.url), "utf8");
+    const samples = [...guide.matchAll(/```xingyu-block\n([\s\S]*?)\n```/g)].map((match) => match[1]);
+    assert.equal(samples.length, 4);
+    const types = samples.map((sample) => JSON.parse(sample).type);
+    assert.deepEqual(types, ["quiz_result", "metric_grid", "status_list", "timeline"]);
+    const content = "# MCP preserved document\n\nOriginal paragraph.\n\n" + samples.map((sample) => "```xingyu-block\n" + sample + "\n```").join("\n\n");
+    await withMcpClient(harness, TEST_LEGACY_MCP_TOKEN, async (client) => {
+      assert.equal(client.getServerVersion().version, "1.1.0");
+      const instructions = client.getInstructions();
+      for (const type of types) assert.ok(instructions.includes(type));
+      assert.ok(instructions.includes("任务状态或事件日期"));
+      assert.ok(instructions.includes("显式传入 space"));
+      const tools = (await client.listTools()).tools;
+      assert.ok(tools.find((tool) => tool.name === "create_draft").description.includes("xingyu-block"));
+      assert.ok(tools.find((tool) => tool.name === "update_post").description.includes("xingyu-block"));
+      const space = (await client.callTool({ name: "create_space", arguments: { name: "AI integration private", change_summary: "Create isolated QA space" } })).structuredContent.space;
+      const created = await client.callTool({ name: "create_draft", arguments: { title: "AI block private QA", content_markdown: content, space: String(space.id), change_summary: "Save four factual guide samples" } });
+      assert.notEqual(created.isError, true);
+      const post = created.structuredContent.post;
+      assert.equal(post.status, "draft");
+      assert.equal(post.visibility, "space");
+      const updatedContent = content + "\n\nExplicit additional paragraph.";
+      const updated = await client.callTool({ name: "update_post", arguments: { identifier: post.public_id, expected_version: post.version, content_markdown: updatedContent, change_summary: "Append paragraph without losing blocks" } });
+      assert.notEqual(updated.isError, true);
+      const stored = await harness.db.prepare("SELECT content,status,space_id,version FROM posts WHERE public_id=?").bind(post.public_id).first();
+      assert.equal(stored.content, updatedContent);
+      assert.equal(stored.status, "draft");
+      assert.equal(stored.space_id, space.id);
+      assert.equal(stored.version, 2);
+      await assertAnonymousPrivate(harness, post, "AI document blocks must not publish private knowledge");
+    });
   } finally {
     await closeTestHarness(harness);
   }
