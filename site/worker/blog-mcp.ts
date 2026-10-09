@@ -11,7 +11,7 @@ const MCP_PATH = "/mcp";
 
 function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth) {
   const server = new McpServer(
-    { name: "xingyu-blog-writer", version: "1.0.0" },
+    { name: "xingyu-blog-writer", version: "1.1.0" },
     {
       instructions: [
         "这是星屿博客的线上写作 MCP。默认先用 create_draft 创建草稿；只有用户明确要求上线时才调用 publish_post。",
