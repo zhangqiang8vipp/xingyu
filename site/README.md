@@ -19,6 +19,10 @@ npm run dev
 - `npm run dev:production` 使用另一套独立的本地正式环境预览库，原有 1 篇文章及关联数据也已迁移至 schema 14 的新本地 D1。两种本地模式均使用 `migration-only`，不会在请求中建库或升级表结构。
 - 正式部署默认使用 `production` 环境，由 `wrangler.production.jsonc` 声明的 Worker + D1/R2 绑定承载。部署只发布代码，不会上传 `.wrangler` 中的开发文章。
 - 两套数据库都会记录自己的环境身份；如果误把同一个数据库绑定到另一环境，应用会拒绝启动，避免串库。
+- 每个运行实例还必须显式提供 `INSTANCE_ID`，格式为 `<APP_ENV>:<instance>`，例如 `development:local`、`beta:alice`、`production:primary`。前缀必须与 `APP_ENV` 一致，因此 beta 与 production 不能复用同一实例身份；缺失、格式错误或环境前缀不一致都会在任何请求访问数据前拒绝启动。
+- D1 的 `app_meta` 必须持久化同一个 `instance_id`。对 `migration-only` 实例，provisioning 必须在开放请求前、确认目标 D1 无误后显式写入 `instance_id`；请求路径不会为已有数据库补写、替换或“认领”实例身份。运行时身份与 D1 不一致（包括 Alice 配置误绑 Bob D1）会 fail closed。
+- 本地 Vite 绑定使用固定的隔离身份；Private Beta provisioning 应为每个用户生成独立的 `beta:<instance>` 值并与该用户的 D1 绑定成对保存。生产部署同样必须显式注入独立的 `production:<instance>`，不能依赖默认值。
+- **R2 残余风险：** 当前 `R2Bucket` 绑定没有暴露可供应用读取并与 `INSTANCE_ID` 比对的稳定 bucket 标识。本轮因此不在请求路径写入 R2 sentinel，也不伪造等价的运行时校验。D1 实例门禁会在 Worker 触碰业务流程和定时清理前执行，但“D1 正确、R2 单独错绑”仍无法由应用内身份校验完全识别；provisioning/验收必须把每个实例的 D1 与 R2 作为一对资源核对，A5/A6 应保留此项为残余风险。
 - 2026-09-29 本地两库已应用 0013（附件清理队列）、0014（附件 `unbound_at`）、0015（身份底座与文章归属三列，schema 17）与 0016（浏览计数限流 `view_request_limits`，schema 18）。生产 Green 仍为 schema 14，需在维护窗口完成迁移后才能部署要求 18 的新代码；部署前还需为生产设置 `VIEWS_IDENTITY_SECRET` 云密钥。
 
 新建本地 D1 时须先执行编号迁移、两份种子、结构和数据校验，再设置 schema 版本与环境标记；不能仅更换数据库 ID 后依赖页面请求建库。线上正式库同样必须先经过显式迁移和校验。文章只有在对应环境的后台发布后才会出现。
