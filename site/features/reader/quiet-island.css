@@ -249,3 +249,23 @@ html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markd
     scrollbar-color: var(--qi-stroke) transparent;
   }
 }
+
+/* Semantic accents: warnings remain amber; attachments/details use island green. */
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-callout-warning {
+  background: #f8f4e9;
+  border-color: #e9dfcb;
+  box-shadow: inset 3px 0 0 #b18a4e;
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-callout-warning > strong { color: #865b24; }
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-attachment-kind {
+  color: var(--qi-accent);
+  background: var(--qi-surface);
+}
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-attachment-action i,
+:is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-details > summary::after { color: var(--qi-accent); }
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-callout-warning {
+  background: #302b20;
+  border-color: #544632;
+  box-shadow: inset 3px 0 0 #d7b47c;
+}
+html[data-theme="dark"] :is(.post-page .prose.markdown-body, .reader-prose.markdown-body) .md-callout-warning > strong { color: #e2b77d; }
