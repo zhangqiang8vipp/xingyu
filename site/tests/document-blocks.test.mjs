@@ -163,3 +163,130 @@ test("status and timeline reuse scoped existing-theme styles and stay pure text"
   assert.match(css, /\.markdown-body \.xy-block ol\.xy-timeline-items/);
   assert.match(css, /html\[data-theme="dark"\] \.markdown-body \.xy-status-pill-done/);
 });
+
+
+test("comparison block validates two-to-three column values and exact row widths", () => {
+  const input = {
+    version: 1, type: "comparison", title: "ArrayList vs LinkedList",
+    columns: [{ name: "ArrayList" }, { name: "LinkedList", note: "双向链表" }],
+    rows: [
+      { label: "随机访问", values: ["通常较快", "通常较慢"] },
+      { label: "中间删除", values: ["可能搬移元素", "已定位节点后修改链接"] },
+    ],
+    takeaway: "根据实际访问模式选择。",
+  };
+  assert.deepEqual(parseXingyuBlock(JSON.stringify(input)), input);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, rows: [{ label: "不匹配", values: ["仅一项"] }],
+  })), null);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, columns: Array.from({ length: 4 }, (_, i) => ({ name: `选项 ${i}` })),
+  })), null);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, rows: [{ label: "测试", values: ["安全", "<script>alert(1)</script>"], html: true }],
+  })), null);
+});
+
+test("flashcards reject missing answers, unknown keys and excessive card counts", () => {
+  const input = { version: 1, type: "flashcards", title: "Java 复习",
+    items: [
+      { question: "什么是类型擦除？", answer: "编译时替换大部分泛型类型参数。" },
+      { question: "泛型何时检查？", answer: "主要在编译期。", hint: "关注编译器。" },
+    ],
+  };
+  assert.deepEqual(parseXingyuBlock(JSON.stringify(input)), input);
+  for (const invalid of [
+    { ...input, items: [{ question: "问题", answer: "" }] },
+    { ...input, items: [{ question: "问题", answer: "答案", script: "alert(1)" }] },
+    { ...input, items: Array.from({ length: 31 }, () => input.items[0]) },
+    { ...input, items: [{ question: "问题", answer: "A".repeat(751) }] },
+  ]) assert.equal(parseXingyuBlock(JSON.stringify(invalid)), null);
+});
+
+test("chart only accepts finite, bounded and labeled non-negative source data", () => {
+  const entries = [{ label: "周一", value: 1.5 }, { label: "周二", value: 2.5 }];
+  for (const kind of ["bar", "line", "pie"]) {
+    const input = { version: 1, type: "chart", kind, title: "学习趋势", unit: "小时", items: entries };
+    assert.deepEqual(parseXingyuBlock(JSON.stringify(input)), input);
+  }
+  const base = { version: 1, type: "chart", kind: "bar", items: entries };
+  for (const invalid of [
+    { ...base, items: [{ label: "x", value: -1 }, entries[1]] },
+    { ...base, items: [{ label: "x", value: 1_000_000_001 }, entries[1]] },
+    { ...base, items: [{ label: "x", value: "3" }, entries[1]] },
+    { ...base, items: [{ label: "重复", value: 2 }, { label: "重复", value: 3 }] },
+    { ...base, kind: "donut" },
+    { ...base, items: Array.from({ length: 13 }, (_, i) => ({ label: String(i), value: i })) },
+    { ...base, items: [{ label: "x", value: NaN }, entries[1]] },
+    { ...base, items: [{ label: "x", value: Infinity }, entries[1]] },
+    { ...base, kind: "pie", items: [{ label: "A", value: 0 }, { label: "B", value: 0 }] },
+    { ...base, kind: "pie", items: Array.from({ length: 9 }, (_, i) => ({ label: String(i), value: i + 1 })) },
+  ]) assert.equal(parseXingyuBlock(JSON.stringify(invalid)), null);
+});
+
+test("steps preserve plain code as data without executable instructions", () => {
+  const input = { version: 1, type: "steps", title: "操作指引", items: [
+    { title: "准备环境", description: "先核实 Node 版本。", command: "node --version" },
+    { title: "运行检查", description: "检查完成后再处理结果。" },
+  ] };
+  assert.deepEqual(parseXingyuBlock(JSON.stringify(input)), input);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: [{ title: "x", description: "", command: "npm ci" }],
+  })), null);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: [{ title: "x", description: "说明", command: "x".repeat(601) }],
+  })), null);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: [{ title: "x", description: "说明", onClick: "alert(1)" }],
+  })), null);
+});
+
+test("sources are HTTPS-only with no user info or extra executable fields", () => {
+  const input = { version: 1, type: "sources", title: "参考资料", items: [
+    { label: "Java 文档", url: "https://docs.oracle.com/en/java/", note: "官方参考" },
+  ] };
+  assert.deepEqual(parseXingyuBlock(JSON.stringify(input)), input);
+  for (const url of [
+    "http://example.com", "javascript:alert(1)", "data:text/html,hi",
+    "/api/attachments/att_0123", "https://user:pass@example.com/",
+    "https://example.com/\nmore", "https://example.com/\\bad",
+    "https://", "https://example.com/ trailing",
+  ]) assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: [{ label: "bad", url }],
+  })), null, url);
+  assert.equal(parseXingyuBlock(JSON.stringify({
+    ...input, items: [{ label: "bad", url: "https://example.com", onclick: "alert(1)" }],
+  })), null);
+});
+
+test("plus renderer remains XINGYU-scoped, interactive flashcards are isolated", async () => {
+  const [view, cards, chart, css, renderer, guide] = await Promise.all([
+    source("features/document-blocks/XingyuBlockView.tsx"),
+    source("features/document-blocks/FlashcardsView.tsx"),
+    source("features/document-blocks/MiniChartView.tsx"),
+    source("features/document-blocks/blocks.css"),
+    source("features/markdown/MarkdownRenderer.tsx"),
+    source("../docs/guides/ai-document-blocks-plus.md"),
+  ]);
+  for (const t of ["comparison", "flashcards", "chart", "steps", "sources"])
+    assert.match(view, new RegExp('block\\.type === "' + t + '"'));
+  assert.match(cards, /^"use client";/);
+  assert.match(cards, /aria-expanded=\{revealed\}/);
+  assert.match(cards, /onClick=\{\(\) => navigate\(index \+ 1\)\}/);
+  assert.match(chart, /role="img"/);
+  assert.match(chart, /<details className="xy-chart-raw">/);
+  assert.match(view, /rel="noopener noreferrer"/);
+  assert.match(view, /referrerPolicy="no-referrer"/);
+  assert.match(renderer, /rehypeSanitize/);
+  assert.match(css, /\.markdown-body \.xy-flash-stage/);
+  assert.match(css, /\.markdown-body \.xy-comparison-table/);
+  assert.match(css, /\.markdown-body \.xy-chart-svg/);
+  assert.doesNotMatch(css, /(?:^|\n)\s*(?::root|body|html|main)\s*\{/);
+  for (const code of [view, cards, chart]) assert.doesNotMatch(code, /dangerouslySetInnerHTML|eval\(|new Function\(/);
+  const examples = [...guide.matchAll(/```xingyu-block\s*\n([\s\S]*?)\n```/g)];
+  assert.equal(examples.length, 5);
+  for (const example of examples) {
+    const data = JSON.parse(example[1]);
+    assert.deepEqual(parseXingyuBlock(example[1]), data, "documented example must validate");
+  }
+});
