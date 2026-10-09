@@ -1,3 +1,4 @@
+import "./quiet-island.css";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { getNextAdminPost, getNextPublishedPost, getPreviousAdminPost, getPreviousPublishedPost, getSiteSettings, type AdminReaderPost, type getPostByPublicId } from "@/db/queries";
