@@ -37,6 +37,7 @@ function timestamp(value: number | null) {
 export default function PersonalTokensPanel() {
   const [items, setItems] = useState<PersonalToken[]>([]);
   const [loading, setLoading] = useState(true);
+  const [snapshotAt, setSnapshotAt] = useState(0);
   const [loginRequired, setLoginRequired] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -53,6 +54,7 @@ export default function PersonalTokensPanel() {
     const data = await response.json().catch(() => ({})) as TokenResponse;
     if (!response.ok) throw new Error(data.error ?? "读取 Token 失败");
     setItems(data.tokens ?? []);
+    setSnapshotAt(Math.floor(Date.now() / 1000));
     setLoginRequired(false);
     setLoading(false);
   }, []);
@@ -117,7 +119,7 @@ export default function PersonalTokensPanel() {
   }
 
   const active = items.filter(token =>
-    token.revokedAt === null && (token.expiresAt === null || token.expiresAt > Date.now() / 1000)).length;
+    token.revokedAt === null && (token.expiresAt === null || token.expiresAt > snapshotAt)).length;
 
   return <section className="editor-section xy-pat-manager" aria-label="个人访问令牌">
     <header className="xy-pat-header">
@@ -175,7 +177,7 @@ export default function PersonalTokensPanel() {
       {loading ? <p className="xy-pat-loading">正在读取你的 Token…</p>
       : items.length === 0 ? <div className="xy-pat-empty">还没有 Token。为第一个客户端创建一条专属密钥。</div>
       : <div className="xy-pat-list">{items.map(item => {
-        const status = item.revokedAt !== null ? "revoked" : item.expiresAt !== null && item.expiresAt <= Date.now() / 1000 ? "expired" : "active";
+        const status = item.revokedAt !== null ? "revoked" : item.expiresAt !== null && item.expiresAt <= snapshotAt ? "expired" : "active";
         return <article className="xy-pat-item" key={item.id}>
           <span className="xy-pat-token-icon" aria-hidden="true">⚿</span>
           <div className="xy-pat-token-info">
