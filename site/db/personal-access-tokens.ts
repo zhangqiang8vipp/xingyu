@@ -46,20 +46,20 @@ export async function createPersonalAccessToken(input: {
   lifetime: PatLifetime; origin: string;
 }) {
   const now = Math.floor(Date.now() / 1000);
-  const count = await env.DB.prepare(
-    "SELECT COUNT(*) AS total FROM personal_access_tokens " +
-    "WHERE user_id=? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?)"
-  ).bind(input.userId, now).first<{ total: number }>();
-  if (Number(count?.total ?? 0) >= MAX_ACTIVE_PATS) return null;
   const token = generatePat();
   const expiresAt = input.lifetime === "never" ? null : now + input.lifetime * 86400;
   const result = await env.DB.prepare(
     "INSERT INTO personal_access_tokens " +
     "(user_id,name,token_hash,token_suffix,resource,scope,expires_at,created_at) " +
-    "VALUES (?,?,?,?,?,?,?,?) RETURNING id"
+    "SELECT ?,?,?,?,?,?,?,? WHERE " +
+    "(SELECT COUNT(*) FROM personal_access_tokens " +
+    "WHERE user_id=? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?)) < ? " +
+    "RETURNING id"
   ).bind(input.userId, input.name, await hashSecret(token), token.slice(-4),
-    mcpResourceFor(input.origin), input.scopes.join(" "), expiresAt, now).first<{ id: number }>();
-  if (!result) throw new Error("Unable to create personal access token");
+    mcpResourceFor(input.origin), input.scopes.join(" "), expiresAt, now,
+    input.userId, now, MAX_ACTIVE_PATS).first<{ id: number }>();
+  // One SQLite INSERT...SELECT makes the quota check atomic even under parallel requests.
+  if (!result) return null;
   return { id: result.id, token, name: input.name, scopes: input.scopes, expiresAt };
 }
 
