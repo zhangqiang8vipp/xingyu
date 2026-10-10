@@ -196,7 +196,7 @@ test("MCP v1.2 all nine document blocks round-trip privately through the officia
     ]);
     const content = "# MCP preserved document\n\nOriginal paragraph.\n\n" + samples.map((sample) => "```xingyu-block\n" + sample + "\n```").join("\n\n");
     await withMcpClient(harness, TEST_LEGACY_MCP_TOKEN, async (client) => {
-      assert.equal(client.getServerVersion().version, "1.2.0");
+      assert.equal(client.getServerVersion().version, "2.0.0");
       const instructions = client.getInstructions();
       for (const type of types) assert.ok(instructions.includes(type));
       assert.ok(instructions.includes("任务状态"));

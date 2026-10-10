@@ -92,7 +92,7 @@ node scripts/browser-e2e.mjs
 
 ## 数据与安全
 
-- 正式环境的后台身份来自 Sign in with ChatGPT，并由服务端执行管理员校验。
+- 正式环境网站使用星屿邮箱账号与独立身份会话：原站点所有者在首次邮箱登录时沿用当前管理员密码，迁移到 `user_id=1` 后旧的仅密码后台入口停用；普通账号注册须完成邮箱验证。MCP OAuth 单独授权且绑定真实用户，不把网站会话作为 MCP 令牌。
 - 本地开发可使用 `.env.local` 中的开发凭据；环境文件不会提交。
 - 文章、分类、站点设置和页面内容保存在 D1，图片保存在 R2。
 - `ensureDatabase()` 在 Worker 实例内复用初始化结果，并在临时连接失败后允许重试。
@@ -119,8 +119,9 @@ https://zhangwansen.click/mcp
 
 它直接复用博客的正式 D1 数据库，提供分类查询、文章搜索、完整 Markdown
 读取、独立页面读取与更新、创建草稿、更新文章、发布、撤回和 AI 写作记录查询工具。MCP 使用独立的
-`MCP_WRITE_TOKEN` Bearer 令牌，不使用后台登录密码。默认工作流是先创建
-草稿，只有显式调用发布工具时文章才会上线。
+用户绑定的 OAuth 2.0 访问令牌，不使用管理员密码或站点级共享 Bearer。生产环境拒绝旧的 `MCP_WRITE_TOKEN` 及历史随机连接主体；升级后需由每位用户重新在 OAuth 客户端授权。每次工具调用均验证用户对指定 `workspace_id` 的成员权限，未指定时进入个人工作区。普通用户的文章和附件默认私有，文章标记“完成”也不会出现在公开博客；只有站点所有者的原博客公开空间可以对外发布。
+
+用户可以在 `/register` 注册、在 `/login` 登录、在 `/workspace` 管理独立工作区和 MCP 授权，也可以通过 `/forgot-password` 找回密码。公开注册只有在运维配置已验证的发信域名、`PUBLIC_SITE_URL`、`RESEND_API_KEY`、`EMAIL_FROM` 并显式设置 `REGISTRATION_ENABLED=true` 后才开放。迁移与上线顺序见 [多用户账号正式上线运行手册](../docs/runbooks/2026-10-10-multiuser-identity-release.md)。
 
 权限采用类似 Notion 的分级方式：
 
@@ -136,7 +137,7 @@ MCP 文章、页面、空间及附件元数据的写入与对应审计记录在�
 
 `update_post`、`publish_post` 和 `unpublish_post` 的并发保护要求先调用 `get_post`（修改和发布前使用 `view=content`），核对正文后把返回的 `post.version` 作为 `expected_version` 传入。旧客户端若省略该参数，写入会失败；更新 MCP 工具定义并按此流程重试即可。收到版本冲突时应重新读取、人工核对并合并，不能把旧正文直接重试覆盖，也不能跳过确认直接发布。
 
-Codex 可以在 `~/.codex/config.toml` 中这样连接：
+支持 OAuth 的 MCP 客户端应直接添加 `https://zhangwansen.click/mcp`，然后使用各自星屿账号完成授权。下面的 Codex 示例仅适用于**已通过个人 OAuth 授权获得有效短期访问令牌**、并自行管理令牌过期与更新的开发场景；`XINGYU_BLOG_MCP_TOKEN` 不再是生产可用的全站共享密码：
 
 ```toml
 [mcp_servers.xingyu_blog]
@@ -186,3 +187,15 @@ approval_mode = "prompt"
 
 令牌只放入本机 `XINGYU_BLOG_MCP_TOKEN` 环境变量，不要写入仓库或
 `config.toml`。
+
+## 多人协作（依赖身份系统 PR #15）
+
+在 `/workspace` 创建共享工作区并按邮箱邀请成员。个人工作区永远保持私有，成员角色与网站和 MCP 的同一套权限实时联动。需要已配置的 Resend 发信服务。迁移及预发验收请参阅 [协作上线说明](../docs/runbooks/2026-10-10-workspace-collaboration.md)。
+
+## 组织与部门（依赖协作 PR #16）
+
+同一星屿用户可加入多个组织，组织 Owner/Admin/Member 与工作区权限相互独立。使用 `/organizations` 管理组织、邮箱邀请和多级部门树；组织成员**不会自动获取任何个人或共享工作区的内容权限**。Schema 22→23 的迁移、验收与回滚见 [组织 V1 运行手册](../docs/runbooks/2026-10-10-organizations-v1.md)。
+
+## 团队授权与受限知识空间（依赖组织 PR #17）
+
+在 `/organizations` 创建跨部门团队、组织工作区，为团队明确授予 Viewer/Editor，再按需给知识空间启用受限 ACL。有效权限始终由工作区角色与所有受限祖先 ACL 共同决定，网站和 MCP 都实时校验。个人工作区永不因加入组织而公开。Schema 23→24 迁移/验收见 [团队与空间 ACL 手册](../docs/runbooks/2026-10-10-team-workspace-space-acl.md)。

@@ -52,19 +52,23 @@ export async function createAttachment(input: {
   contentType: string;
   bytes: Uint8Array;
   postId?: number | null;
+  workspaceId?: number;
+  actorUserId?: number;
   audit?: { summary: string; clientLabel: string };
 }) {
   await ensureDatabase();
   const checked = validateAttachmentInput(input.name, input.contentType, input.bytes.byteLength);
+  const workspaceId = input.workspaceId ?? 1;
+  if (!Number.isSafeInteger(workspaceId) || workspaceId < 1) throw new AttachmentError("工作区无效",404);
   if (input.postId) {
-    const post = await getDb().select({ id: posts.id }).from(posts).where(eq(posts.id, input.postId)).limit(1);
-    if (!post[0]) throw new AttachmentError("要关联的文章不存在", 404);
+    const post = await getDb().select({ id: posts.id, workspaceId: posts.workspaceId }).from(posts).where(eq(posts.id, input.postId)).limit(1);
+    if (!post[0] || post[0].workspaceId !== workspaceId) throw new AttachmentError("要关联的文章不存在", 404);
   }
 
   const publicId = `att_${crypto.randomUUID().replaceAll("-", "")}`;
   const now = new Date();
   const safeName = safeObjectName(checked.name);
-  const objectKey = `attachments/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${publicId}/${safeName}`;
+  const objectKey = `attachments/${workspaceId === 1 ? "" : "ws" + workspaceId + "/"}${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${publicId}/${safeName}`;
   const stableBytes = new Uint8Array(input.bytes);
   const digest = await crypto.subtle.digest("SHA-256", stableBytes);
   const sha256 = bytesToHex(new Uint8Array(digest));
@@ -78,20 +82,23 @@ export async function createAttachment(input: {
   // Same UTC layout as SQLite CURRENT_TIMESTAMP so expiry comparisons stay consistent.
   const unboundAt = postId === null ? new Date().toISOString().slice(0, 19).replace("T", " ") : null;
   const insert = env.DB.prepare(`INSERT INTO attachments
-      (public_id, post_id, object_key, original_name, content_type, size, sha256, unbound_at)
-      SELECT ?, ?, ?, ?, ?, ?, ?, ?
-      WHERE (? IS NULL OR EXISTS (SELECT 1 FROM posts WHERE id = ?))
+      (workspace_id, public_id, post_id, object_key, original_name, content_type, size, sha256, unbound_at)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+      WHERE EXISTS (SELECT 1 FROM workspaces WHERE id = ? AND status = 'active')
+        AND (? IS NULL OR EXISTS (SELECT 1 FROM posts WHERE id = ? AND workspace_id = ?))
+        AND (? IS NULL OR EXISTS (SELECT 1 FROM workspace_effective_grants WHERE workspace_id = ? AND user_id = ? AND role IN ('owner','admin','editor')))
       RETURNING id, public_id AS publicId, post_id AS postId, object_key AS objectKey,
         original_name AS originalName, content_type AS contentType, size, sha256,
         created_at AS createdAt`).bind(
-      publicId, postId, objectKey, checked.name, checked.contentType,
-      input.bytes.byteLength, sha256, unboundAt, postId, postId,
+      workspaceId, publicId, postId, objectKey, checked.name, checked.contentType,
+      input.bytes.byteLength, sha256, unboundAt, workspaceId, postId, postId, workspaceId,
+      input.actorUserId ?? null, workspaceId, input.actorUserId ?? null,
     );
   const statements = [insert];
   if (input.audit) {
     statements.push(env.DB.prepare(`INSERT INTO mcp_activity
-        (action, post_id, public_id, title, before_status, after_status, changed_fields, summary, client_label)
-        SELECT 'upload_attachment', COALESCE(p.id, 0),
+        (workspace_id, action, post_id, public_id, title, before_status, after_status, changed_fields, summary, client_label)
+        SELECT a.workspace_id, 'upload_attachment', COALESCE(p.id, 0),
           CASE WHEN a.post_id IS NULL THEN 'attachment:' || a.public_id ELSE p.public_id END,
           CASE WHEN a.post_id IS NULL THEN a.original_name ELSE p.title END,
           p.status, COALESCE(p.status, 'unbound_private'), '["attachments"]', ?, ?
@@ -123,13 +130,14 @@ export async function createAttachment(input: {
     console.error(JSON.stringify({ event: "attachment_audit_receipt_missing", publicId, objectKey }));
     throw new Error(`附件 ${publicId} 已写入，但审计回执缺失；请联系管理员核查`);
   }
-  return { ...record, activity: auditRow ? { id: auditRow.id!, createdAt: auditRow.created_at! } : undefined };
+  return { ...record, workspaceId, activity: auditRow ? { id: auditRow.id!, createdAt: auditRow.created_at! } : undefined };
 }
 
 export async function getAttachment(publicId: string) {
   await ensureDatabase();
   const rows = await getDb().select({
     id: attachments.id,
+    workspaceId: attachments.workspaceId,
     publicId: attachments.publicId,
     postId: attachments.postId,
     objectKey: attachments.objectKey,
@@ -162,7 +170,7 @@ export async function listAttachmentOrphanCandidates(cursor?: string) {
   return {
     candidates: page.objects.filter((object) => !recorded.has(object.key)).map((object) => ({
       objectKey: object.key,
-      attachmentId: object.key.match(/^attachments\/\d{4}\/\d{2}\/(att_[a-f0-9]{32})\//)?.[1] ?? null,
+      attachmentId: object.key.match(/^attachments\/(?:ws\d+\/)?\d{4}\/\d{2}\/(att_[a-f0-9]{32})\//)?.[1] ?? null,
       size: object.size,
       uploadedAt: object.uploaded.toISOString(),
     })),
@@ -181,7 +189,7 @@ export async function deleteAttachment(publicId: string, expectedVersion?: numbe
   await ensureDatabase();
   const record = await getDb().select().from(attachments)
     .where(eq(attachments.publicId, publicId)).limit(1);
-  if (!record[0]) throw new AttachmentError("附件不存在或已经删除", 404);
+  if (!record[0] || record[0].workspaceId !== 1) throw new AttachmentError("附件不存在或已经删除", 404);
 
   let nextVersion: number | null = null;
   if (record[0].postId !== null) {
@@ -336,15 +344,17 @@ export function prepareMarkdownAttachmentBinding(
 }
 
 export function attachmentIdsFromMarkdown(markdown: string) {
-  const matches = markdown.matchAll(/\/api\/attachments\/(att_[a-f0-9]{32})(?:\/|[)\s"']|$)/gi);
-  return [...new Set(Array.from(matches, (match) => match[1].toLowerCase()))];
+  const oldLinks = [...markdown.matchAll(/\/api\/attachments\/(att_[a-f0-9]{32})(?:\/|[)\s"']|$)/gi)];
+  const scopedLinks = [...markdown.matchAll(/\/api\/workspaces\/\d+\/attachments\/(att_[a-f0-9]{32})(?:\/|[)\s"']|$)/gi)];
+  return [...new Set([...oldLinks,...scopedLinks].map(match => match[1].toLowerCase()))];
 }
 
-export function attachmentUrl(record: { publicId: string; originalName: string }) {
+export function attachmentUrl(record: { publicId: string; originalName: string; workspaceId?: number }) {
+  if (record.workspaceId && record.workspaceId !== 1) return `/api/workspaces/${record.workspaceId}/attachments/${record.publicId}`;
   return `/api/attachments/${record.publicId}/${encodeURIComponent(record.originalName)}`;
 }
 
-export function attachmentMarkdown(record: { publicId: string; originalName: string; contentType: string; size: number }) {
+export function attachmentMarkdown(record: { publicId: string; originalName: string; contentType: string; size: number; workspaceId?: number }) {
   const url = attachmentUrl(record);
   const escapedName = record.originalName.replaceAll("[", "\\[").replaceAll("]", "\\]");
   if (record.contentType.startsWith("image/")) return `![${escapedName}](${url})`;

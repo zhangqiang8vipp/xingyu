@@ -127,6 +127,41 @@
       "when": 1790747482748,
       "tag": "0017_tiny_christian_walker",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1791590400000,
+      "tag": "0018_identity_email_login",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1791597600000,
+      "tag": "0019_workspaces_and_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1791604800000,
+      "tag": "0020_workspace_collaboration",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1791608400000,
+      "tag": "0021_organizations_and_units",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1791612000000,
+      "tag": "0022_teams_workspace_grants_space_acl",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getAdminIdentity, isPasswordLoginConfigured } from "@/server/auth/admin-auth";
+import { getAdminIdentity, isPasswordLoginConfigured, isLegacyAdminPasswordAllowed } from "@/server/auth/admin-auth";
 import AdminLoginForm from "./AdminLoginForm";
 import { safeOAuthReturnTo } from "@/worker/oauth/authorize";
 import { getSiteSettings } from "@/db/queries";
@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ return_to?: string }> }) {
   const returnTo = safeOAuthReturnTo((await searchParams).return_to);
   if (await getAdminIdentity()) redirect(returnTo || "/admin");
+  if (!(await isLegacyAdminPasswordAllowed())) redirect("/login?return_to=%2Fadmin");
   const configured = isPasswordLoginConfigured();
   const settings=await getSiteSettings();
 

@@ -2,6 +2,7 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import { handleBlogMcpRequest, isBlogMcpPath } from "./blog-mcp";
+import { handleWorkspaceUpload } from "@/server/workspace-upload";
 import { handleOAuthRequest, isOAuthPath } from "./oauth";
 import { enqueueExpiredUnboundAttachments, UNBOUND_ATTACHMENT_RETENTION_DAYS } from "@/db/attachment-cleanup";
 import { cleanupExpiredPostViews, POST_VIEWS_RETENTION_DAYS } from "@/db/view-tracking";
@@ -119,6 +120,16 @@ const worker = {
 
     if (isBlogMcpPath(url.pathname)) {
       return handleBlogMcpRequest(request, env, ctx);
+    }
+
+    // Keep multipart workspace uploads out of Vinext's Server Action request
+    // classifier. The shared handler still requires same-origin and membership.
+    const uploadRoute = request.method === "POST"
+      ? /^\/api\/workspaces\/([1-9]\d*)\/attachments\/?$/.exec(url.pathname)
+      : null;
+    if (uploadRoute) {
+      const uploaded = await handleWorkspaceUpload(request, uploadRoute[1]);
+      return addSecurityHeaders(uploaded,url,false,null,identityBearing,false);
     }
 
     if (cacheKey) {

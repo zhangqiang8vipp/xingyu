@@ -2,12 +2,16 @@ import { env } from "cloudflare:workers";
 import { DEFAULT_ABOUT_PAGE, DEFAULT_CONNECT_PAGE, DEFAULT_SITE_SETTINGS } from "@/domain/site/config";
 import { createPostPublicId } from "./public-id";
 import { PUBLIC_CACHE_SCHEMA_STATEMENTS } from "./public-cache-schema";
+import { WORKSPACE_GUARD_TRIGGERS } from "./workspace-guards";
+import { WORKSPACE_INVITATION_DDL, COLLABORATION_GUARDS } from "./workspace-collaboration-schema";
+import { ORGANIZATION_DDL, ORGANIZATION_GUARDS } from "./organization-schema";
+import { TEAM_ORG_DDL, TEAM_ORG_GUARDS } from "./team-space-schema";
 import { assertStoredInstanceIdentity, requireRuntimeInstanceIdentity } from "./instance-identity";
 
 let ready: Promise<void> | null = null;
 
 /** 当前 worker 期望的 D1 schema 版本，供健康检查与迁移门禁共用。 */
-export const schemaVersion = "19";
+export const schemaVersion = "24";
 
 const requiredUniqueIndexes = {
   attachments_object_key_uidx: { table: "attachments", columns: ["object_key"] },
@@ -28,18 +32,35 @@ const requiredUniqueIndexes = {
   spaces_parent_slug_uidx: { table: "spaces", columns: ["parent_id", "slug"] },
   spaces_root_slug_uidx: { table: "spaces", columns: ["slug"] },
   user_identities_provider_subject_uidx: { table: "user_identities", columns: ["provider", "subject"] },
+  workspaces_slug_uidx: { table: "workspaces", columns: ["slug"] },
+  organizations_slug_uidx: { table: "organizations", columns: ["slug"] },
+  teams_org_slug_uidx: { table: "teams", columns: ["organization_id","slug"] },
+  organization_invitations_token_uidx: { table: "organization_invitations", columns: ["token_hash"] },
+  organization_invitations_pending_uidx: { table: "organization_invitations", columns: ["organization_id", "email"] },
+  organization_units_sibling_uidx: { table: "organization_units", columns: ["organization_id", "parent_id", "name"] },
+  organization_units_root_uidx: { table: "organization_units", columns: ["organization_id", "name"] },
+  workspace_invitations_token_uidx: { table: "workspace_invitations", columns: ["token_hash"] },
+  workspace_invitations_pending_uidx: { table: "workspace_invitations", columns: ["workspace_id", "email"] },
 } as const;
 
 const requiredMigrationObjects = {
   table: [
     "admin_login_attempts", "app_meta", "attachment_cleanup_queue", "attachments", "categories",
-    "content_pages", "mcp_activity", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
+    "content_pages", "email_verifications", "identity_login_limits", "mcp_activity", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
     "oauth_consents", "oauth_rate_limits", "oauth_refresh_tokens", "post_preview_tokens",
-    "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_identities", "users", "view_request_limits",
+    "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_credentials", "user_identities", "user_sessions", "users", "view_request_limits", "workspaces", "workspace_memberships", "workspace_invitations", "organizations", "organization_memberships", "organization_invitations", "organization_units", "organization_unit_memberships", "teams", "team_memberships", "organization_workspaces", "workspace_team_grants", "space_access_policies", "space_principal_grants",
   ],
-  index: Object.keys(requiredUniqueIndexes),
+  index: [...Object.keys(requiredUniqueIndexes), "workspace_memberships_user_idx", "workspace_invitations_workspace_idx", "organization_memberships_user_idx", "organization_invitations_org_idx", "organization_units_tree_idx", "organization_unit_memberships_user_idx", "teams_org_idx", "team_memberships_user_idx", "organization_workspaces_org_idx", "workspace_team_grants_team_idx", "space_access_policies_workspace_idx", "space_principal_grants_principal_idx", "email_verifications_user_idx", "posts_workspace_updated_idx", "spaces_workspace_parent_idx", "attachments_workspace_idx", "categories_workspace_idx", "mcp_workspace_activity_idx"],
+  view: ["workspace_effective_grants"],
   trigger: [
     "posts_public_id_required_insert", "posts_public_id_required_update",
+    "workspace_member_role_guard_insert", "workspace_member_role_guard_update", "workspace_owner_delete_guard",
+    "org_membership_insert_guard", "org_membership_update_guard", "org_owner_membership_delete_guard", "org_member_units_cleanup",
+    "org_unit_insert_guard", "org_unit_update_guard", "org_unit_delete_guard", "org_unit_member_insert_guard", "org_unit_member_update_guard",
+    "team_member_insert_guard", "team_member_update_guard", "org_team_member_cleanup", "org_team_member_suspend_cleanup",
+    "org_workspace_link_insert_guard","org_workspace_link_update_guard","team_grant_insert_guard","team_grant_update_guard",
+    "space_policy_insert_guard","space_policy_update_guard","space_policy_delete_cleanup","space_grant_insert_guard","space_grant_update_guard",
+    "posts_workspace_insert_guard", "posts_workspace_update_guard", "spaces_workspace_insert_guard", "spaces_workspace_update_guard", "attachments_workspace_insert_guard", "attachments_workspace_update_guard",
     "posts_history_slug_guard_insert", "posts_history_slug_guard_update",
     "history_current_slug_guard_insert", "history_current_slug_guard_update",
     "posts_fts_insert", "posts_fts_delete", "posts_fts_update",
@@ -77,7 +98,7 @@ async function initialize() {
       throw new Error(`D1 schema version mismatch: expected ${schemaVersion}, found ${values.get("schema_version") ?? "missing"}`);
     }
     assertStoredInstanceIdentity(runtimeIdentity, values);
-    const objects = await d1.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type IN ('table', 'index', 'trigger')")
+    const objects = await d1.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type IN ('table', 'index', 'trigger', 'view')")
       .all<{ type: string; name: string; tbl_name: string; sql: string | null }>();
     const actual = new Set((objects.results ?? []).map(({ type, name }) => `${type}:${name}`));
     const missing = Object.entries(requiredMigrationObjects).flatMap(([type, names]) =>
@@ -106,7 +127,7 @@ async function initialize() {
       throw new Error("D1 posts.sort_order is missing or incompatible with browsing order");
     }
     const nonUnique = (objects.results ?? []).filter(({ type, name, sql: definition }) =>
-      type === "index" && requiredMigrationObjects.index.some((required) => required === name)
+      type === "index" && Object.hasOwn(requiredUniqueIndexes,name)
       && !/^CREATE\s+UNIQUE\s+INDEX\b/i.test(definition ?? ""));
     if (nonUnique.length > 0) {
       throw new Error(`D1 schema has non-unique required indexes: ${nonUnique.map(({ name }) => name).join(", ")}`);
@@ -141,9 +162,11 @@ async function initialize() {
     const misplacedPredicates = (objects.results ?? []).filter(({ type, name, sql: definition }) => {
       if (type !== "index" || !requiredIndexNames.includes(name)) return false;
       const normalized = (definition ?? "").replace(/["`\[\]]/g, "").replace(/\s+/g, " ").trim();
-      return name === "spaces_root_slug_uidx"
-        ? !/\bWHERE\s+spaces\.parent_id\s+IS\s+NULL\s*;?$/i.test(normalized)
-        : /\bWHERE\b/i.test(normalized);
+      if (name === "spaces_root_slug_uidx") return !/\bWHERE\s+spaces\.parent_id\s+IS\s+NULL\s*;?$/i.test(normalized);
+      if (name === "workspace_invitations_pending_uidx") return !/\bWHERE\s+(?:workspace_invitations\.)?accepted_at\s+IS\s+NULL\s+AND\s+(?:workspace_invitations\.)?revoked_at\s+IS\s+NULL\s*;?$/i.test(normalized);
+      if (name === "organization_invitations_pending_uidx") return !/\bWHERE\s+(?:organization_invitations\.)?accepted_at\s+IS\s+NULL\s+AND\s+(?:organization_invitations\.)?revoked_at\s+IS\s+NULL\s*;?$/i.test(normalized);
+      if (name === "organization_units_root_uidx") return !/\bWHERE\s+(?:organization_units\.)?parent_id\s+IS\s+NULL\s*;?$/i.test(normalized);
+      return /\bWHERE\b/i.test(normalized);
     });
     if (misplacedPredicates.length > 0) {
       throw new Error(`D1 schema has required indexes with wrong predicates: ${misplacedPredicates.map(({ name }) => name).join(", ")}`);
@@ -153,11 +176,13 @@ async function initialize() {
       (SELECT COUNT(*) FROM categories) AS category_count,
       (SELECT COUNT(*) FROM content_pages WHERE slug IN ('about', 'connect')) AS page_count,
       (SELECT COUNT(*) FROM public_cache_state WHERE id = 1) AS cache_count,
-      (SELECT COUNT(*) FROM site_memberships WHERE role = 'owner') AS owner_count`).first<{
-        settings_count: number; category_count: number; page_count: number; cache_count: number; owner_count: number;
+      (SELECT COUNT(*) FROM site_memberships WHERE role = 'owner') AS owner_count,
+      (SELECT COUNT(*) FROM user_identities WHERE provider = 'email' AND subject = 'zhangqiang8vip@gmail.com' AND user_id = 1) AS owner_email_count,
+      (SELECT COUNT(*) FROM workspace_memberships WHERE workspace_id = 1 AND user_id = 1 AND role = 'owner') AS owner_workspace_count`).first<{
+        settings_count: number; category_count: number; page_count: number; cache_count: number; owner_count: number; owner_email_count: number; owner_workspace_count: number;
       }>();
     if (!requiredData || requiredData.settings_count !== 1 || requiredData.category_count < 1
-      || requiredData.page_count !== 2 || requiredData.cache_count !== 1 || requiredData.owner_count < 1) {
+      || requiredData.page_count !== 2 || requiredData.cache_count !== 1 || requiredData.owner_count < 1 || requiredData.owner_email_count !== 1 || requiredData.owner_workspace_count !== 1) {
       throw new Error(`D1 required data is incomplete for version ${schemaVersion}`);
     }
     return;
@@ -388,6 +413,16 @@ async function initialize() {
     d1.prepare("CREATE INDEX IF NOT EXISTS user_identities_user_idx ON user_identities(user_id)"),
     d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS site_memberships_user_id_uidx ON site_memberships(user_id)"),
     d1.prepare("CREATE INDEX IF NOT EXISTS site_memberships_role_idx ON site_memberships(role)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS user_credentials (user_id INTEGER PRIMARY KEY NOT NULL, password_hash TEXT, legacy_admin INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS user_sessions (session_hash TEXT PRIMARY KEY NOT NULL, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL, revoked_at INTEGER, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    d1.prepare("CREATE INDEX IF NOT EXISTS user_sessions_user_expiry_idx ON user_sessions(user_id, expires_at)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS identity_login_limits (identifier TEXT PRIMARY KEY NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, window_started INTEGER NOT NULL, blocked_until INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS workspaces (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,kind TEXT NOT NULL DEFAULT 'personal',owner_user_id INTEGER NOT NULL,slug TEXT NOT NULL,name TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS workspaces_slug_uidx ON workspaces(slug)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS workspace_memberships (workspace_id INTEGER NOT NULL,user_id INTEGER NOT NULL,role TEXT NOT NULL DEFAULT 'owner',status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(workspace_id,user_id))"),
+    d1.prepare("CREATE INDEX IF NOT EXISTS workspace_memberships_user_idx ON workspace_memberships(user_id,workspace_id)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS email_verifications (token_hash TEXT PRIMARY KEY NOT NULL,purpose TEXT NOT NULL DEFAULT 'verify_email',user_id INTEGER NOT NULL,expires_at INTEGER NOT NULL,used_at INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    d1.prepare("CREATE INDEX IF NOT EXISTS email_verifications_user_idx ON email_verifications(user_id,expires_at)"),
     d1.prepare(`CREATE TABLE IF NOT EXISTS view_request_limits (
       identity_hash TEXT PRIMARY KEY,
       attempts INTEGER NOT NULL DEFAULT 0,
@@ -469,6 +504,9 @@ async function initialize() {
     d1.prepare("CREATE INDEX IF NOT EXISTS oauth_refresh_tokens_family_idx ON oauth_refresh_tokens(family_id)"),
     d1.prepare("CREATE INDEX IF NOT EXISTS oauth_refresh_tokens_client_idx ON oauth_refresh_tokens(client_id, subject)"),
     d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS oauth_consents_subject_client_resource_uidx ON oauth_consents(subject, client_id, resource)"),
+    ...WORKSPACE_INVITATION_DDL.map((statement) => d1.prepare(statement)),
+    ...ORGANIZATION_DDL.map((statement) => d1.prepare(statement)),
+    ...TEAM_ORG_DDL.map((statement) => d1.prepare(statement)),
     d1.prepare("CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(title, excerpt, content, content='posts', content_rowid='id', tokenize='trigram')"),
     d1.prepare(`CREATE TRIGGER IF NOT EXISTS posts_fts_insert AFTER INSERT ON posts BEGIN
       INSERT INTO posts_fts(rowid, title, excerpt, content) VALUES (new.id, new.title, new.excerpt, new.content);
@@ -508,6 +546,19 @@ async function initialize() {
   if (!(postColumns.results ?? []).some((column) => column.name === "sort_order")) {
     await d1.prepare("ALTER TABLE posts ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0").run();
   }
+  for (const table of ["categories", "spaces", "posts", "attachments", "mcp_activity"] as const) {
+    const columns = await d1.prepare("PRAGMA table_info(" + table + ")").all<{ name: string }>();
+    if (!(columns.results ?? []).some((column) => column.name === "workspace_id")) {
+      await d1.prepare("ALTER TABLE " + table + " ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1").run();
+    }
+  }
+  for (const statement of [
+    "CREATE INDEX IF NOT EXISTS posts_workspace_updated_idx ON posts(workspace_id,updated_at,id)",
+    "CREATE INDEX IF NOT EXISTS spaces_workspace_parent_idx ON spaces(workspace_id,parent_id,id)",
+    "CREATE INDEX IF NOT EXISTS attachments_workspace_idx ON attachments(workspace_id,post_id)",
+    "CREATE INDEX IF NOT EXISTS categories_workspace_idx ON categories(workspace_id,id)",
+    "CREATE INDEX IF NOT EXISTS mcp_workspace_activity_idx ON mcp_activity(workspace_id,created_at,id)",
+  ]) await d1.prepare(statement).run();
   const attachmentColumns = await d1.prepare("PRAGMA table_info(attachments)").all<{ name: string }>();
   if (!(attachmentColumns.results ?? []).some((column) => column.name === "unbound_at")) {
     await d1.prepare("ALTER TABLE attachments ADD COLUMN unbound_at TEXT").run();
@@ -548,6 +599,10 @@ async function initialize() {
     d1.prepare("INSERT OR IGNORE INTO users (id, display_name, status) VALUES (1, '星屿管理员', 'active')"),
     d1.prepare("INSERT OR IGNORE INTO user_identities (user_id, provider, subject, name) VALUES (1, 'local', 'owner', '星屿管理员')"),
     d1.prepare("INSERT OR IGNORE INTO site_memberships (user_id, role) VALUES (1, 'owner')"),
+    d1.prepare("INSERT OR IGNORE INTO workspaces(id,kind,owner_user_id,slug,name,status) VALUES(1,'personal',1,'personal-u1','星屿管理员的工作区','active')"),
+    d1.prepare("INSERT OR IGNORE INTO workspace_memberships(workspace_id,user_id,role,status) VALUES(1,1,'owner','active')"),
+    d1.prepare("INSERT OR IGNORE INTO user_identities (user_id, provider, subject, email, name) VALUES (1, 'email', ?, ?, '星屿管理员')").bind("zhangqiang8vip@gmail.com", "zhangqiang8vip@gmail.com"),
+    d1.prepare("INSERT OR IGNORE INTO user_credentials (user_id, legacy_admin) VALUES (1, 1)"),
     d1.prepare(`UPDATE categories
       SET name = '随笔', slug = 'notes', color = '#8E8E93'
       WHERE slug = 'uncategorized'
@@ -584,6 +639,9 @@ async function initialize() {
       ])),
   ]);
 
+  const ownerEmailIdentity = await d1.prepare("SELECT user_id FROM user_identities WHERE provider = 'email' AND subject = ?").bind("zhangqiang8vip@gmail.com").first<{user_id:number}>();
+  if (ownerEmailIdentity?.user_id !== 1) throw new Error("Owner email identity does not belong to the existing site owner");
+  for (const statement of [...WORKSPACE_GUARD_TRIGGERS, ...COLLABORATION_GUARDS, ...ORGANIZATION_GUARDS, ...TEAM_ORG_GUARDS]) await d1.prepare(statement).run();
   const searchVersion = await d1.prepare("SELECT value FROM app_meta WHERE key = 'posts_fts_version'").first<{ value: string }>();
   if (searchVersion?.value !== "2") {
     await d1.prepare("INSERT INTO posts_fts(posts_fts) VALUES ('rebuild')").run();

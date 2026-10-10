@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { env } from "cloudflare:workers";
-import { pbkdf2Sync, scryptSync } from "node:crypto";
+import { scryptSync } from "node:crypto";
+import { derivePasswordKey } from "./password-kdf";
 import { ensureDatabase } from "@/db/bootstrap";
 import {
   ADMIN_SESSION_COOKIE,
@@ -27,10 +28,18 @@ export function isPasswordLoginConfigured() {
   return Boolean(validSessionSecret() && (runtime.ADMIN_PASSWORD_HASH || (isDevelopment() && runtime.ADMIN_PASSWORD)));
 }
 
+export async function isLegacyAdminPasswordAllowed(): Promise<boolean> {
+  await ensureDatabase();
+  const credential = await env.DB.prepare("SELECT legacy_admin FROM user_credentials WHERE user_id=1").first<{legacy_admin:number}>();
+  return credential?.legacy_admin === 1;
+}
+
 export async function getAdminIdentity(): Promise<AdminIdentity | null> {
-  if (isPasswordLoginConfigured() && await hasValidAdminSession()) {
+  if (isPasswordLoginConfigured() && await hasValidAdminSession() && await isLegacyAdminPasswordAllowed()) {
     return { displayName: "星屿管理员", email: "password-admin" };
   }
+  const { isOwnerIdentity } = await import("./identity");
+  if (await isOwnerIdentity()) return { displayName: "星屿管理员", email: "zhangqiang8vip@gmail.com" };
   return null;
 }
 
@@ -84,7 +93,7 @@ async function verifyPbkdf2Password(password: string, encoded: string) {
     const salt = base64UrlToBytes(saltText);
     const expected = base64UrlToBytes(expectedText);
     if (salt.length < 16 || expected.length !== 32) return false;
-    const derived = new Uint8Array(pbkdf2Sync(password, salt, iterations, 32, "sha256"));
+    const derived = await derivePasswordKey(password, salt, iterations);
     return constantTimeBytesEqual(derived, expected);
   } catch {
     return false;
