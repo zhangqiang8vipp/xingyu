@@ -12,7 +12,10 @@
     "APP_ENV": "production",
     "INSTANCE_ID": "production:xingyu-blog",
     "DB_SCHEMA_MODE": "migration-only",
-    "CSP_MODE": "report-only"
+    "CSP_MODE": "report-only",
+    "REGISTRATION_ENABLED": "true",
+    "PUBLIC_SITE_URL": "https://zhangwansen.click",
+    "EMAIL_FROM": "XINGYU <accounts@mail.zhangwansen.click>"
   },
   "d1_databases": [
     {
