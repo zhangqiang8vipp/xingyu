@@ -4,7 +4,7 @@ import { scopedUploadAttachment } from "@/db/workspace-media";
 import { attachmentMarkdown } from "@/db/attachments";
 import { requireScope } from "../mcp-auth";
 import { IDENTIFIER_SCHEMA,CHANGE_SUMMARY_SCHEMA,MCP_ERROR_OUTPUT_FIELDS,toolResult,toolFailure,type McpToolContext } from "./shared";
-import { WORKSPACE_ID_SCHEMA,workspaceCall,attachmentLink } from "./workspace-tool-context";
+import { WORKSPACE_ID_SCHEMA,attachmentLink } from "./workspace-tool-context";
 import { resolveWorkspace } from "@/db/workspace-access";
 
 const obj=z.record(z.string(),z.unknown());

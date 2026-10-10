@@ -1,11 +1,11 @@
 "use client";
-import { useCallback,useEffect,useState,type FormEvent } from "react";
+import { useCallback,useEffect,useState,type CSSProperties,type FormEvent } from "react";
 type Workspace={id:number;name:string;kind:string;role:string};
 type Space={id:number;name:string;parentId:number|null;slug:string};
 type PostItem={id:number;publicId:string;title:string;status:string;version:number;spaceId:number|null;updatedAt:string};
 type PostDetail=PostItem&{content:string;excerpt:string};
-const panel:React.CSSProperties={border:"1px solid var(--border-color,#c6c8ca)",borderRadius:14,padding:20};
-const input:React.CSSProperties={width:"100%",minWidth:0,padding:10,borderRadius:8,border:"1px solid #aaa"};
+const panel:CSSProperties={border:"1px solid var(--border-color,#c6c8ca)",borderRadius:14,padding:20};
+const input:CSSProperties={width:"100%",minWidth:0,padding:10,borderRadius:8,border:"1px solid #aaa"};
 async function api(path:string,init?:RequestInit){
   const res=await fetch(path,{credentials:"same-origin",cache:"no-store",...init});
   const data=await res.json().catch(()=>({}));
@@ -32,7 +32,7 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
     ]);
     setSpaces(spaceData.spaces||[]);setPosts(postData.posts||[]);
   },[workspaceId]);
-  useEffect(()=>{setSelected(null);setContent("");refresh().catch(e=>setNotice(e.message));},[refresh]);
+  useEffect(()=>{refresh().catch(e=>setNotice(e.message));},[refresh]);
   async function createNote(e:FormEvent){
     e.preventDefault();if(!title.trim())return;setBusy(true);setNotice("");
     try{
@@ -84,7 +84,7 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
   return <div style={{display:"grid",gap:18}}>
     <section style={{...panel,display:"flex",gap:12,justifyContent:"space-between",flexWrap:"wrap",alignItems:"center"}}>
       <label>当前工作区：
-        <select value={workspaceId} onChange={e=>setWorkspaceId(Number(e.target.value))} style={{...input,width:"auto",marginLeft:8}}>
+        <select value={workspaceId} onChange={e=>{setSelected(null);setContent("");setWorkspaceId(Number(e.target.value));}} style={{...input,width:"auto",marginLeft:8}}>
           {initialWorkspaces.map(w=><option key={w.id} value={w.id}>{w.name}（{w.role}）</option>)}
         </select>
       </label>

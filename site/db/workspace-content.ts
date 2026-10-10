@@ -1,5 +1,4 @@
 import { env } from "cloudflare:workers";
-import { ensureDatabase } from "@/db/bootstrap";
 import { workspaceGrant, WorkspaceAccessError } from "@/db/workspace-access";
 import { attachmentIdsFromMarkdown } from "@/db/attachments";
 import { createPostPublicId } from "@/db/public-id";
@@ -15,7 +14,6 @@ export class WorkspaceContentError extends Error {
   constructor(message:string,readonly status:400|403|404|409=400){super(message);}
 }
 const postSelect = "SELECT id, workspace_id AS workspaceId, public_id AS publicId, title,slug,content,excerpt,category_id AS categoryId,space_id AS spaceId,version,status,featured,sort_order AS sortOrder,published_at AS publishedAt,created_at AS createdAt,updated_at AS updatedAt FROM posts";
-const validId = (n:number) => Number.isSafeInteger(n)&&n>0;
 const text = (v:string,max:number,name:string) => {
   const cleaned=v.trim();
   if(!cleaned || cleaned.length>max) throw new WorkspaceContentError(name+"无效");
