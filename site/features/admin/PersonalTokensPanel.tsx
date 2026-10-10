@@ -23,6 +23,14 @@ const lifetimeOptions = [
   { value: "365", label: "365 天" },
   { value: "never", label: "永久（手动撤销）" },
 ];
+async function loadOwnTokens(): Promise<{ loginRequired: boolean; tokens: PersonalToken[] }> {
+  const response = await fetch("/api/identity/tokens", { credentials: "same-origin", cache: "no-store" });
+  if (response.status === 401) return { loginRequired: true, tokens: [] };
+  const data = await response.json().catch(() => ({})) as TokenResponse;
+  if (!response.ok) throw new Error(data.error ?? "读取 Token 失败");
+  return { loginRequired: false, tokens: data.tokens ?? [] };
+}
+
 const scopeLabels: Record<string, string> = {
   "xingyu.read": "读取", "xingyu.draft": "草稿写入", "xingyu.publish": "发布与撤回",
 };
@@ -49,21 +57,29 @@ export default function PersonalTokensPanel() {
   const [message, setMessage] = useState("");
 
   const reload = useCallback(async () => {
-    const response = await fetch("/api/identity/tokens", { credentials: "same-origin", cache: "no-store" });
-    if (response.status === 401) { setLoginRequired(true); setLoading(false); return; }
-    const data = await response.json().catch(() => ({})) as TokenResponse;
-    if (!response.ok) throw new Error(data.error ?? "读取 Token 失败");
-    setItems(data.tokens ?? []);
+    const result = await loadOwnTokens();
+    setLoginRequired(result.loginRequired);
+    if (!result.loginRequired) setItems(result.tokens);
     setSnapshotAt(Math.floor(Date.now() / 1000));
-    setLoginRequired(false);
     setLoading(false);
   }, []);
   useEffect(() => {
-    void reload().catch(error => {
+    // Keep the effect itself subscription-only: React state changes happen
+    // after an external HTTP response, not synchronously during effect setup.
+    let active = true;
+    void loadOwnTokens().then(result => {
+      if (!active) return;
+      setLoginRequired(result.loginRequired);
+      if (!result.loginRequired) setItems(result.tokens);
+      setSnapshotAt(Math.floor(Date.now() / 1000));
+      setLoading(false);
+    }).catch(error => {
+      if (!active) return;
       setMessage(error instanceof Error ? error.message : "读取 Token 失败");
       setLoading(false);
     });
-  }, [reload]);
+    return () => { active = false; };
+  }, []);
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
