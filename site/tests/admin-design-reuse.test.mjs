@@ -38,9 +38,12 @@ test("collaboration forms and organization management use original admin cards a
   ])assert.match(read(path),/className="editor-section/,path);
   assert.match(read("app/organizations/OrganizationsClient.tsx"),/className="integration-card"/);
   assert.match(read("app/organizations/TeamWorkspacePanel.tsx"),/className="integration-card"/);
-  const css=read("app/admin/admin.css");
+  const css=read("features/admin/account-ui-adapter.css");
   assert.match(css,/\.admin-account-main/);
   assert.match(css,/--admin-panel/);
+  assert.match(read("features/admin/AccountStyleLoader.tsx"),/import "\.\/account-ui-adapter\.css"/);
+  for(const page of ["app/workspace/page.tsx","app/organizations/page.tsx"])
+    assert.match(read(page),/<AccountStyleLoader\/>/,page);
   assert.doesNotMatch(css,/--xy-(?:accent|background|text)/,
     "never add a second palette to original authoring CSS");
 });
