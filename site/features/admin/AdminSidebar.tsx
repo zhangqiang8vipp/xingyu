@@ -176,8 +176,8 @@ export default function AdminSidebar({
           key={item.section}
           item={item}
           selected={section === item.section}
-          stats={stats}
-          categoryCount={categoryCount}
+          stats={stats??EMPTY_STATS}
+          categoryCount={categoryCount??0}
           onSelect={select}
         />)}
       </div> : null}
@@ -186,8 +186,8 @@ export default function AdminSidebar({
           key={item.section}
           item={item}
           selected={section === item.section}
-          stats={stats}
-          categoryCount={categoryCount}
+          stats={stats??EMPTY_STATS}
+          categoryCount={categoryCount??0}
           compact
           onSelect={select}
         />)}
