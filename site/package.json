@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@noble/hashes": "2.4.0",
     "agents": "^0.18.0",
     "drizzle-orm": "0.45.2",
     "mermaid": "^11.17.2",

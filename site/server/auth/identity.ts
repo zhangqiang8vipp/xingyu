@@ -5,11 +5,11 @@ import { IDENTITY_COOKIE, identityBySession, sessionDigest } from "./identity-se
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
 import { verifyLocalAdminPassword } from "./admin-auth";
 import { ensureDatabase } from "@/db/bootstrap";
+import { derivePasswordKey, deriveScryptPasswordKey } from "./password-kdf";
 
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
 const ADMIN_EMAIL = "zhangqiang8vip@gmail.com";
-const PBKDF2_ITERATIONS = 310000;
-const encoder = new TextEncoder();
+const LEGACY_PBKDF2_ITERATIONS = 310000;
 
 export function normalizeEmail(raw: string): string | null {
   const email = raw.trim().toLowerCase();
@@ -18,24 +18,34 @@ export function normalizeEmail(raw: string): string | null {
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bytes = new Uint8Array(await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations: PBKDF2_ITERATIONS }, key, 256,
-  ));
-  return ["pbkdf2-sha256", PBKDF2_ITERATIONS, bytesToBase64Url(salt), bytesToBase64Url(bytes)].join("$");
+  const bytes = deriveScryptPasswordKey(password, salt);
+  return ["scrypt-v2", "32768", "8", "3", bytesToBase64Url(salt), bytesToBase64Url(bytes)].join("$");
 }
 
 export async function verifyPassword(password: string, encoded: string): Promise<boolean> {
-  const [algo, iterationText, saltText, valueText] = encoded.split("$");
-  if (algo !== "pbkdf2-sha256" || Number(iterationText) < PBKDF2_ITERATIONS || !/^\d+$/.test(iterationText)) return false;
+  if (encoded.startsWith("scrypt-v2$")) {
+    const parts = encoded.split("$");
+    if (parts.length !== 6 || parts[1] !== "32768" || parts[2] !== "8" || parts[3] !== "3") return false;
+    try {
+      const salt = decodeBase64(parts[4]);
+      const expected = decodeBase64(parts[5]);
+      if (salt.length !== 16 || expected.length !== 32) return false;
+      const found = deriveScryptPasswordKey(password, salt);
+      let mismatch = 0;
+      found.forEach((v, i) => { mismatch |= v ^ expected[i]; });
+      return mismatch === 0;
+    } catch { return false; }
+  }
+  const parts = encoded.split("$");
+  const [algo, iterationText, saltText, valueText] = parts;
+  const iterations = Number(iterationText);
+  if (parts.length !== 4 || algo !== "pbkdf2-sha256" || !/^\d+$/.test(iterationText) ||
+      !Number.isSafeInteger(iterations) || iterations < LEGACY_PBKDF2_ITERATIONS || iterations > 1_000_000) return false;
   try {
     const salt = new Uint8Array(decodeBase64(saltText));
     const expected = decodeBase64(valueText);
     if (salt.length !== 16 || expected.length !== 32) return false;
-    const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-    const found = new Uint8Array(await crypto.subtle.deriveBits(
-      { name: "PBKDF2", hash: "SHA-256", salt, iterations: Number(iterationText) }, key, 256,
-    ));
+    const found = await derivePasswordKey(password, salt, iterations);
     let mismatch = 0;
     found.forEach((v, i) => { mismatch |= v ^ expected[i]; });
     return mismatch === 0;
