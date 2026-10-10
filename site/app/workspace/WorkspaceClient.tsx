@@ -95,10 +95,6 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
       setNotice("附件已上传；请保存正文以插入链接。");
     }catch(e){setNotice(e instanceof Error?e.message:"上传失败");}finally{setBusy(false);}
   }
-  async function logout(){
-    await fetch("/api/identity/logout",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin"});
-    window.location.replace("/login");
-  }
   return <div style={{display:"grid",gap:18}}>
     <section className="editor-section admin-account-switcher" style={{display:"flex",gap:12,justifyContent:"space-between",flexWrap:"wrap",alignItems:"center"}}>
       <label>当前工作区：
@@ -106,7 +102,6 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
           {initialWorkspaces.map(w=><option key={w.id} value={w.id}>{w.name}（{w.role}）</option>)}
         </select>
       </label>
-      <button type="button" onClick={logout}>退出登录</button>
     </section>
     {notice?<p role="status" className="admin-account-notice">{notice}</p>:null}
     <div className="admin-account-columns" style={{display:"grid",gap:16}}>
