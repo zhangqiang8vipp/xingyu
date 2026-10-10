@@ -17,7 +17,8 @@ test("account workspaces reuse the existing AdminSidebar instead of introducing 
   const side=read("features/admin/AdminSidebar.tsx");
   const admin=read("features/admin/AdminClient.tsx");
   assert.doesNotMatch(frame,/import "@\/app\/admin\/admin\.css"/);
-  assert.match(read("features/admin/AccountStyleLoader.tsx"),/import "@\/app\/admin\/admin\.css"/);
+  assert.match(read("features/admin/AccountStyleLoader.tsx"),/href="\/account-admin\.css"/);
+  assert.match(read("scripts/stage-account-styles.mjs"),/app\/admin\/admin\.css/);
   assert.match(admin,/import "@\/app\/admin\/admin\.css"/);
   assert.match(frame,/<AdminSidebar/);
   assert.match(frame,/<main className=\{\`admin-shell admin-account-shell/);
@@ -42,7 +43,7 @@ test("collaboration forms and organization management use original admin cards a
   const css=read("features/admin/account-ui-adapter.css");
   assert.match(css,/\.admin-account-main/);
   assert.match(css,/--admin-panel/);
-  assert.match(read("features/admin/AccountStyleLoader.tsx"),/import "\.\/account-ui-adapter\.css"/);
+  assert.match(read("scripts/stage-account-styles.mjs"),/account-ui-adapter\.css/);
   for(const page of ["app/workspace/page.tsx","app/organizations/page.tsx"])
     assert.match(read(page),/<AccountStyleLoader\/>/,page);
   assert.doesNotMatch(css,/--xy-(?:accent|background|text)/,

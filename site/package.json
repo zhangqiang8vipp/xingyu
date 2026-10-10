@@ -28,7 +28,10 @@
     "beta:apply": "node scripts/beta-provision.mjs apply",
     "beta:verify": "node scripts/beta-provision.mjs verify",
     "beta:smoke": "node scripts/beta-provision.mjs smoke",
-    "beta:decommission": "node scripts/beta-provision.mjs decommission"
+    "beta:decommission": "node scripts/beta-provision.mjs decommission",
+    "prebuild": "node scripts/stage-account-styles.mjs",
+    "predev": "node scripts/stage-account-styles.mjs",
+    "predev:production": "node scripts/stage-account-styles.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
