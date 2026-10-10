@@ -27,8 +27,14 @@ export function isPasswordLoginConfigured() {
   return Boolean(validSessionSecret() && (runtime.ADMIN_PASSWORD_HASH || (isDevelopment() && runtime.ADMIN_PASSWORD)));
 }
 
+export async function isLegacyAdminPasswordAllowed(): Promise<boolean> {
+  await ensureDatabase();
+  const credential = await env.DB.prepare("SELECT legacy_admin FROM user_credentials WHERE user_id=1").first<{legacy_admin:number}>();
+  return credential?.legacy_admin === 1;
+}
+
 export async function getAdminIdentity(): Promise<AdminIdentity | null> {
-  if (isPasswordLoginConfigured() && await hasValidAdminSession()) {
+  if (isPasswordLoginConfigured() && await hasValidAdminSession() && await isLegacyAdminPasswordAllowed()) {
     return { displayName: "星屿管理员", email: "password-admin" };
   }
   const { isOwnerIdentity } = await import("./identity");

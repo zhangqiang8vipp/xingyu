@@ -23,6 +23,7 @@ CREATE INDEX workspace_memberships_user_idx ON workspace_memberships(user_id,wor
 --> statement-breakpoint
 CREATE TABLE email_verifications (
  token_hash text PRIMARY KEY NOT NULL,
+ purpose text DEFAULT 'verify_email' NOT NULL,
  user_id integer NOT NULL,
  expires_at integer NOT NULL,
  used_at integer,

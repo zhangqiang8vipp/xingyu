@@ -401,7 +401,7 @@ async function initialize() {
     d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS workspaces_slug_uidx ON workspaces(slug)"),
     d1.prepare("CREATE TABLE IF NOT EXISTS workspace_memberships (workspace_id INTEGER NOT NULL,user_id INTEGER NOT NULL,role TEXT NOT NULL DEFAULT 'owner',status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(workspace_id,user_id))"),
     d1.prepare("CREATE INDEX IF NOT EXISTS workspace_memberships_user_idx ON workspace_memberships(user_id,workspace_id)"),
-    d1.prepare("CREATE TABLE IF NOT EXISTS email_verifications (token_hash TEXT PRIMARY KEY NOT NULL,user_id INTEGER NOT NULL,expires_at INTEGER NOT NULL,used_at INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS email_verifications (token_hash TEXT PRIMARY KEY NOT NULL,purpose TEXT NOT NULL DEFAULT 'verify_email',user_id INTEGER NOT NULL,expires_at INTEGER NOT NULL,used_at INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     d1.prepare("CREATE INDEX IF NOT EXISTS email_verifications_user_idx ON email_verifications(user_id,expires_at)"),
     d1.prepare(`CREATE TABLE IF NOT EXISTS view_request_limits (
       identity_hash TEXT PRIMARY KEY,

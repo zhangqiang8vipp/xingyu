@@ -9,6 +9,8 @@
 - Legacy blog data is assigned `workspace_id=1`; existing post public IDs, slugs, content and R2 keys must not change.
 - Existing owner remains `users.id=1`, email identity `zhangqiang8vip@gmail.com`, with the **same current admin password**. The password is verified against existing `ADMIN_PASSWORD_HASH` on first identity login and re-hashed to `user_credentials`. The raw password is never migrated or sent to the operator.
 - All new signups are `pending` until a verified, single-use email link activates them. On activation they get their own personal workspace, private category and private root space; **no site admin privileges**.
+- Self-service password recovery uses a distinct purpose-bound email token; password reset invalidates all browser sessions and issued MCP tokens/consents for that user. Once owner email login migrates the credential, the legacy password-only admin endpoint and previously issued admin cookies are no longer valid.
+- Users can list/revoke their own MCP client connections under `/workspace` without affecting another account.
 - MCP login OAuth and MCP authorization OAuth remain separate: MCP `subject=user:<id>`; all MCP requests check both OAuth scopes and current workspace membership. Old owner/random-subject MCP OAuth grants and the global legacy bearer are not accepted in production; users must reconnect.
 - Workspaces may later be organization-owned and multi-member, but **organization invitations, sharing UI and external identity providers (WeChat/Google/Alipay) are not enabled in this release**.
 
@@ -40,8 +42,8 @@ For the application Worker, use a verified HTTPS site origin and an email-sendin
 4. Verify required schema objects, owner identity, memberships and workspace; validate there are no duplicate identities and all legacy post IDs/slugs, statuses and R2 keys remain identical.
 5. After verifying all migration statements, advance `app_meta.schema_version` to **21** on the correct production D1, maintaining unchanged `app_environment` and `instance_id`. Never claim production D1 by rewriting its instance marker. If the previous marker is not the approved version, stop and investigate.
 6. Deploy the **exact CI-green SHA**, run `/api/admin/diagnostics` from an authenticated owner session and check code/database version, relation audit, schema/instance identity fail-closed gates.
-7. Use the existing owner's email `zhangqiang8vip@gmail.com` and current password at `/login`. Check it resolves to `users.id=1`, and the original blog administration is accessible. This first login stores an independent PBKDF2 credential, without exposing the password.
-8. On the production Worker only after smoke, verify Resend sender and set `REGISTRATION_ENABLED=true` explicitly. Register two new nonowner test accounts via real email delivery; verify they cannot read the owner's content, each other's content or public administrative APIs. Run ChatGPT MCP OAuth login, consent, tool catalog, refresh and reconnect.
+7. Use the existing owner's email `zhangqiang8vip@gmail.com` and current password at `/login`. Check it resolves to `users.id=1`, and the original blog administration is accessible. This first login stores an independent PBKDF2 credential, without exposing the password. Confirm the old admin-password-only endpoint is **disabled** and previous admin-session cookies no longer authorize admin requests.
+8. On the production Worker only after smoke, verify Resend sender and set `REGISTRATION_ENABLED=true` explicitly. Register two new nonowner test accounts via real email delivery; verify they cannot read the owner's content, each other's content or public administrative APIs. Test forgot-password, one-time reset and invalidation of sessions/MCP tokens. Run ChatGPT MCP OAuth login, consent, tool catalog, refresh, revocation and reconnect.
 9. Monitor rate limits, email delivery failures, schema guards, R2 download 403/404, audit events and MCP authorization errors. Treat unexpected cross-workspace access as a release-stopping incident.
 
 ## Rollback and failure handling
@@ -56,7 +58,7 @@ For the application Worker, use a verified HTTPS site origin and an email-sendin
 
 - [ ] CI on final SHA: all phases passed; integration tests run, not just source grep
 - [ ] Two-user D1 and MCP cross-boundary tests passed in staging
-- [ ] Email sign-up, link expiry/one-time use, re-send, abuse tests passed with actual provider
+- [ ] Email sign-up, link expiry/one-time use, re-send, password reset and login abuse tests passed with actual provider
 - [ ] Owner password reused successfully; original site/URLs/R2 preserved
 - [ ] Old auth bypasses closed and prior MCP clients reconnected
 - [ ] Public images accessible; workspace R2 objects not accessible via legacy media/attachment routes

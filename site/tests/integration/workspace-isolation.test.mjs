@@ -1,48 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createHash,pbkdf2Sync,randomBytes } from "node:crypto";
+import { createHash,randomBytes } from "node:crypto";
+import { makeActiveUser as makeUser } from "./identity-fixtures.mjs";
 import {
   callMcpTool,closeTestHarness,jsonRequest,openTestHarness,
 } from "./harness.mjs";
 
-const PASSWORD="integration-test-strong-password-2026";
 const normHash=raw=>createHash("sha256").update(raw).digest("hex");
-function credential(password=PASSWORD){
-  const salt=randomBytes(16);
-  return ["pbkdf2-sha256","310000",salt.toString("base64url"),
-    pbkdf2Sync(password,salt,310000,32,"sha256").toString("base64url")].join("$");
-}
-function getCookie(response){
-  const values=response.headers.getSetCookie?.()??[response.headers.get("set-cookie")??""];
-  const entry=values.find(value=>value.startsWith("xingyu_identity_session="));
-  assert.ok(entry,"identity login must establish a session cookie");
-  return entry.split(";")[0];
-}
-async function makeUser(harness,label) {
-  const email=label+"@example.test";
-  const insert=await harness.db.prepare(
-    "INSERT INTO users(display_name,status) VALUES(?,'active') RETURNING id",
-  ).bind(label).first();
-  assert.ok(insert?.id);
-  await harness.db.prepare("INSERT INTO user_identities(user_id,provider,subject,email,name) VALUES(?,'email',?,?,?)")
-    .bind(insert.id,email,email,label).run();
-  await harness.db.prepare("INSERT INTO user_credentials(user_id,password_hash,legacy_admin) VALUES(?,?,0)")
-    .bind(insert.id,credential()).run();
-  const login=await jsonRequest(harness,"/api/identity/login",{
-    method:"POST",body:{email,password:PASSWORD},
-  });
-  assert.equal(login.status,200,await login.text());
-  const cookie=getCookie(login);
-  const list=await jsonRequest(harness,"/api/workspaces",{cookie});
-  assert.equal(list.status,200);
-  const body=await list.json();
-  assert.equal(body.workspaces.length,1);
-  const workspace=body.workspaces[0];
-  assert.equal(workspace.kind,"personal");
-  assert.equal(workspace.role,"owner");
-  assert.notEqual(workspace.id,1);
-  return {id:insert.id,email,cookie,workspaceId:workspace.id};
-}
 async function tokenFor(harness,userId,scopes="xingyu.read xingyu.draft xingyu.publish offline_access"){
   const bearer="xy_at_"+randomBytes(32).toString("base64url");
   const now=Math.floor(Date.now()/1000);

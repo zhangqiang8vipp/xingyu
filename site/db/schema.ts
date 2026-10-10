@@ -368,6 +368,7 @@ export const workspaceMemberships = sqliteTable("workspace_memberships", {
 
 export const emailVerifications = sqliteTable("email_verifications", {
   tokenHash: text("token_hash").primaryKey(),
+  purpose: text("purpose", { enum: ["verify_email", "reset_password"] }).notNull().default("verify_email"),
   userId: integer("user_id").notNull(),
   expiresAt: integer("expires_at").notNull(),
   usedAt: integer("used_at"),

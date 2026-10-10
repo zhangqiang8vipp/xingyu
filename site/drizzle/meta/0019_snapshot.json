@@ -2376,6 +2376,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "purpose": {
+          "name": "purpose",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'verify_email'"
+        },
         "user_id": {
           "name": "user_id",
           "type": "integer",
