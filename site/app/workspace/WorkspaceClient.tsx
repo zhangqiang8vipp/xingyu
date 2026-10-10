@@ -30,7 +30,7 @@ export default function WorkspaceClient({initialWorkspaces,onDirtyChange}:{initi
   const [createMode,setCreateMode]=useState(false);
   const currentWorkspace=initialWorkspaces.find(w=>w.id===workspaceId);
   const readOnly=currentWorkspace?.role==="viewer";
-  const dirty=selected?content!==savedContent:(content!==""||title!=="");
+  const dirty=!readOnly&&(selected?content!==savedContent:(content!==""||title!==""));
   const root="/api/workspaces/"+workspaceId;
   useEffect(()=>{onDirtyChange?.(dirty);},[dirty,onDirtyChange]);
   useEffect(()=>{
@@ -71,7 +71,7 @@ export default function WorkspaceClient({initialWorkspaces,onDirtyChange}:{initi
   }
   async function openPost(id:string){
     try{const data=await api(root+"/posts/"+encodeURIComponent(id));
-      if(!data.post)throw new Error("未找到文章");setSelected(data.post);setContent(data.post.content??"");setSavedContent(data.post.content??"");setSavedTitle("");}
+      if(!data.post)throw new Error("未找到文章");setSelected(data.post);setContent(data.post.content??"");setSavedContent(data.post.content??"");}
     catch(e){setNotice(e instanceof Error?e.message:"读取失败");}
   }
   async function savePost(){
@@ -89,7 +89,7 @@ export default function WorkspaceClient({initialWorkspaces,onDirtyChange}:{initi
       const data=await api(root+"/posts/"+selected.publicId+"/status",{method:"POST",
         headers:{"Content-Type":"application/json"},body:JSON.stringify({expected_version:selected.version,status:next})});
       if(!data.post)throw new Error("状态更新未返回文章");
-      setSelected(data.post);await refresh();setNotice(next==="published"?"已标记完成（私人空间仍然私密）":"已退回草稿");
+      setSelected(data.post);setContent(data.post.content??"");setSavedContent(data.post.content??"");await refresh();setNotice(next==="published"?"已标记完成（私人空间仍然私密）":"已退回草稿");
     }catch(e){setNotice(e instanceof Error?e.message:"操作失败");}finally{setBusy(false);}
   }
   async function createSpace(e:FormEvent){
