@@ -1,7 +1,7 @@
 import type {ReactNode} from "react";
 import {getSiteSettings} from "@/db/queries";
 import ThemeToggle from "@/features/navigation/ThemeToggle";
-import "@/app/admin/login/login.css";
+import ExistingLoginStyleLoader from "./ExistingLoginStyleLoader";
 
 /** Same sign-in chrome and CSS used by the original XingYu admin login. */
 export default async function IdentityAdminPanel({
@@ -10,7 +10,7 @@ export default async function IdentityAdminPanel({
   title:string;description:string;eyebrow?:string;children:ReactNode;
 }){
   const settings=await getSiteSettings();
-  return <main className="signin admin-signin">
+  return <main className="signin admin-signin"><ExistingLoginStyleLoader/>
     <div className="admin-login-theme"><ThemeToggle/></div>
     <div>
       <span className="admin-mark">{settings.brandName.slice(0,1)}</span>

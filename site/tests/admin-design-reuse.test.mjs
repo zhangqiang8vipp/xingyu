@@ -49,7 +49,9 @@ test("collaboration forms and organization management use original admin cards a
 });
 test("all account and invitation routes reuse original admin-signin and ThemeToggle",()=>{
   const panel=read("features/admin/IdentityAdminPanel.tsx");
-  assert.match(panel,/import "@\/app\/admin\/login\/login\.css"/);
+  assert.match(read("features/admin/ExistingLoginStyleLoader.tsx"),/import "@\/app\/admin\/login\/login\.css"/);
+  assert.match(panel,/<ExistingLoginStyleLoader\/>/);
+  assert.doesNotMatch(panel,/import "@\/app\/admin\/login\/login\.css"/);
   assert.match(panel,/<main className="signin admin-signin">/);
   assert.match(panel,/<ThemeToggle\/>/);
   assert.match(panel,/className="admin-login-form"/);
