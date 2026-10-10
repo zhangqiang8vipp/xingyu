@@ -29,7 +29,7 @@ export async function verifyPassword(password: string, encoded: string): Promise
   const [algo, iterationText, saltText, valueText] = encoded.split("$");
   if (algo !== "pbkdf2-sha256" || Number(iterationText) < PBKDF2_ITERATIONS || !/^\d+$/.test(iterationText)) return false;
   try {
-    const salt = decodeBase64(saltText);
+    const salt = new Uint8Array(decodeBase64(saltText));
     const expected = decodeBase64(valueText);
     if (salt.length !== 16 || expected.length !== 32) return false;
     const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);

@@ -7,7 +7,7 @@ export default function VerifyEmailAction({token}:{token:string}){
     try{
       const response=await fetch("/api/identity/verify",{method:"POST",
         headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({token})});
-      const data=await response.json().catch(()=>({}));
+      const data=await response.json().catch(()=>({})) as {error?:string};
       setDone(response.ok);setMessage(response.ok?"验证成功，现在可以登录星屿。":data.error||"验证失败");
     }catch{setMessage("网络错误，请重试");}finally{setBusy(false);}
   }

@@ -64,8 +64,9 @@ test("two users stay isolated in web and OAuth MCP workspaces",async()=>{
       method:"POST",cookie:a.cookie,
       body:{title:"Alice private research",content_markdown:"# Alice confidential notes\nPrivate text here."},
     });
-    assert.equal(created.status,201,await created.text());
-    const article=(await created.json()).post;
+    const createdData=await created.json();
+    assert.equal(created.status,201,JSON.stringify(createdData));
+    const article=createdData.post;
     assert.ok(article.publicId);
     assert.equal(article.workspaceId,a.workspaceId);
     assert.ok(article.spaceId,"ordinary-user posts must always be in a private space");

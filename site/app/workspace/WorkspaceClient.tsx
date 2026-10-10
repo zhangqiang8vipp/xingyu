@@ -6,9 +6,11 @@ type PostItem={id:number;publicId:string;title:string;status:string;version:numb
 type PostDetail=PostItem&{content:string;excerpt:string};
 const panel:CSSProperties={border:"1px solid var(--border-color,#c6c8ca)",borderRadius:14,padding:20};
 const input:CSSProperties={width:"100%",minWidth:0,padding:10,borderRadius:8,border:"1px solid #aaa"};
-async function api(path:string,init?:RequestInit){
+type ApiEnvelope={error?:string;spaces?:Space[];posts?:PostItem[];post?:PostDetail;
+  attachment?:{content_type:string;filename:string;url:string}};
+async function api(path:string,init?:RequestInit):Promise<ApiEnvelope>{
   const res=await fetch(path,{credentials:"same-origin",cache:"no-store",...init});
-  const data=await res.json().catch(()=>({}));
+  const data=await res.json().catch(()=>({})) as ApiEnvelope;
   if(!res.ok)throw new Error(data.error||"请求失败");
   return data;
 }
@@ -50,11 +52,13 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
     try{
       const data=await api(root+"/posts",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({title,content_markdown:content})});
+      if(!data.post)throw new Error("创建草稿未返回文章");
       setTitle("");await refresh();await openPost(data.post.publicId);setNotice("草稿已创建");
     }catch(e){setNotice(e instanceof Error?e.message:"创建失败");}finally{setBusy(false);}
   }
   async function openPost(id:string){
-    try{const data=await api(root+"/posts/"+encodeURIComponent(id));setSelected(data.post);setContent(data.post.content??"");}
+    try{const data=await api(root+"/posts/"+encodeURIComponent(id));
+      if(!data.post)throw new Error("未找到文章");setSelected(data.post);setContent(data.post.content??"");}
     catch(e){setNotice(e instanceof Error?e.message:"读取失败");}
   }
   async function savePost(){
@@ -62,6 +66,7 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
     try{
       const data=await api(root+"/posts/"+selected.publicId,{method:"PATCH",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({expected_version:selected.version,content_markdown:content})});
+      if(!data.post)throw new Error("保存未返回文章");
       setSelected(data.post);setContent(data.post.content||"");await refresh();setNotice("已保存 · 版本 "+data.post.version);
     }catch(e){setNotice(e instanceof Error?e.message:"保存失败");}finally{setBusy(false);}
   }
@@ -70,6 +75,7 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
     try{
       const data=await api(root+"/posts/"+selected.publicId+"/status",{method:"POST",
         headers:{"Content-Type":"application/json"},body:JSON.stringify({expected_version:selected.version,status:next})});
+      if(!data.post)throw new Error("状态更新未返回文章");
       setSelected(data.post);await refresh();setNotice(next==="published"?"已标记完成（私人空间仍然私密）":"已退回草稿");
     }catch(e){setNotice(e instanceof Error?e.message:"操作失败");}finally{setBusy(false);}
   }
@@ -84,6 +90,7 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
       const data=new FormData();data.set("file",file);data.set("post_identifier",selected.publicId);
       const result=await api(root+"/attachments",{method:"POST",body:data});
       const a=result.attachment;
+      if(!a)throw new Error("附件上传未返回信息");
       const snippet=a.content_type.startsWith("image/")?"!["+a.filename+"]("+a.url+")":"["+a.filename+"]("+a.url+")";
       setContent(previous=>previous+(previous.endsWith("\n")?"":"\n")+"\n"+snippet+"\n");
       setNotice("附件已上传；请保存正文以插入链接。");

@@ -12,7 +12,7 @@ export default function IdentityLoginForm({ returnTo = "/workspace" }: { returnT
       const result = await fetch("/api/identity/login", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }), credentials: "same-origin" });
       if (!result.ok) {
-        const data = await result.json().catch(() => ({}));
+        const data = await result.json().catch(() => ({})) as {error?:string};
         setError(data.error || "登录失败");
       } else {
         window.location.replace(returnTo);

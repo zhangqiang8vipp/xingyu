@@ -11,7 +11,7 @@ export default function RegisterForm() {
         method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",
         body:JSON.stringify({name,email,password}),
       });
-      const data=await response.json().catch(()=>({}));
+      const data=await response.json().catch(()=>({})) as {error?:string;message?:string};
       if(!response.ok)setError(data.error||"注册失败");
       else {setPassword("");setMessage(data.message||"请查收验证邮件");}
     } catch {setError("网络错误，请重试");}
@@ -22,7 +22,7 @@ export default function RegisterForm() {
     try{
       const response=await fetch("/api/identity/resend",{method:"POST",
         headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({email})});
-      const data=await response.json().catch(()=>({}));
+      const data=await response.json().catch(()=>({})) as {error?:string;message?:string};
       if(!response.ok)setError(data.error||"操作失败");
       else setMessage(data.message||"请检查邮箱");
     }catch{setError("网络错误");} finally{setBusy(false);}
