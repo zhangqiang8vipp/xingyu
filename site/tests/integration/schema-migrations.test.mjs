@@ -486,7 +486,7 @@ test("legacy schema 13 upgrades to the current schema while preserving posts and
     const response = await worker.fetch("/");
     assert.equal(response.status, 200, "valid legacy data must upgrade and serve normally");
     const marker = await DB.prepare("SELECT value FROM app_meta WHERE key = 'schema_version'").first();
-    assert.equal(marker?.value, "24");
+    assert.equal(marker?.value, "25");
     const postAfter = await DB.prepare("SELECT id, public_id, slug, content, status, version FROM posts WHERE public_id = ?")
       .bind(publicId).first();
     assert.deepEqual(postAfter, postBefore, "upgrading must not rewrite the article");
@@ -964,7 +964,7 @@ test("a locally migrated and seeded database serves public and admin pages witho
       "deleting the detached attachment must remove its local R2 object");
 
     const marker = await DB.prepare("SELECT value FROM app_meta WHERE key = 'schema_version'").first();
-    assert.equal(marker?.value, "24");
+    assert.equal(marker?.value, "25");
     const schemaAfterRequests = await DB.prepare(
       "SELECT type, name, tbl_name, rootpage, sql FROM sqlite_master ORDER BY type, name",
     ).all();
