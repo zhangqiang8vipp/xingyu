@@ -3,6 +3,8 @@ import { activeSubject } from "@/server/auth/identity-session";
 import { sha256Bytes, constantTimeBytesEqual } from "@/db/admin-session";
 import { ALL_SCOPES, findAccessToken, hashSecret, mcpResourceFor, parseScopeList, touchAccessToken } from "@/db/oauth";
 import { oauthLog } from "./oauth/errors";
+import { findPersonalAccessToken, touchPersonalAccessToken } from "@/db/personal-access-tokens";
+import { userSubject } from "@/server/auth/identity-session";
 import { unauthorizedChallenge } from "./oauth/metadata";
 import type { McpAuth } from "./mcp/scope-policy";
 
@@ -26,6 +28,16 @@ export async function authenticateMcp(request: Request): Promise<McpAuth | Respo
       subject: "xingyu-owner",
       scopes: [...ALL_SCOPES],
     };
+  }
+  if (/^xy_pat_[0-9a-f]{64}$/.test(bearer)) {
+    const row = await findPersonalAccessToken(await hashSecret(bearer));
+    const now = Math.floor(Date.now() / 1000);
+    if (!row || row.revokedAt !== null || (row.expiresAt !== null && row.expiresAt <= now)
+      || row.resource !== mcpResourceFor(origin)) return unauthorizedChallenge(origin);
+    const userId = await activeSubject(userSubject(row.userId));
+    if (!userId) return unauthorizedChallenge(origin);
+    return { authType: "pat", clientId: `pat:${row.id}`, subject: userSubject(userId),
+      userId, scopes: parseScopeList(row.scope), patId: row.id };
   }
   if (bearer.startsWith("xy_at_")) {
     const row = await findAccessToken(await hashSecret(bearer));
@@ -61,6 +73,7 @@ export async function authenticateMcp(request: Request): Promise<McpAuth | Respo
 
 export async function rememberTokenUse(auth: McpAuth, ctx: ExecutionContext) {
   if (auth.tokenId) ctx.waitUntil(touchAccessToken(auth.tokenId));
+  if (auth.patId) ctx.waitUntil(touchPersonalAccessToken(auth.patId));
 }
 
 async function bearerMatches(provided: string, expected: string) {
