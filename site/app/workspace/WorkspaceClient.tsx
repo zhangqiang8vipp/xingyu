@@ -24,7 +24,21 @@ export default function WorkspaceClient({initialWorkspaces,onDirtyChange}:{initi
   const [notice,setNotice]=useState("");
   const [busy,setBusy]=useState(false);
   const [query,setQuery]=useState("");
+  const [filterSpace,setFilterSpace]=useState("all");
+  const [draftSpace,setDraftSpace]=useState("");
+  const [savedContent,setSavedContent]=useState("");
+  const [createMode,setCreateMode]=useState(false);
+  const currentWorkspace=initialWorkspaces.find(w=>w.id===workspaceId);
+  const readOnly=currentWorkspace?.role==="viewer";
+  const dirty=selected?content!==savedContent:(content!==""||title!=="");
   const root="/api/workspaces/"+workspaceId;
+  useEffect(()=>{onDirtyChange?.(dirty);},[dirty,onDirtyChange]);
+  useEffect(()=>{
+    if(!dirty)return;
+    const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue="";};
+    window.addEventListener("beforeunload",warn);
+    return()=>window.removeEventListener("beforeunload",warn);
+  },[dirty]);
   const refresh=useCallback(async()=>{
     if(!workspaceId)return;
     const [spaceData,postData]=await Promise.all([
@@ -50,14 +64,14 @@ export default function WorkspaceClient({initialWorkspaces,onDirtyChange}:{initi
     e.preventDefault();if(!title.trim())return;setBusy(true);setNotice("");
     try{
       const data=await api(root+"/posts",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({title,content_markdown:content})});
+        body:JSON.stringify({title,content_markdown:content,...(draftSpace?{space:String(draftSpace)}:{})})});
       if(!data.post)throw new Error("创建草稿未返回文章");
-      setTitle("");await refresh();await openPost(data.post.publicId);setNotice("草稿已创建");
+      setTitle("");setCreateMode(false);setSavedContent("");await refresh();await openPost(data.post.publicId);setNotice("草稿已创建");
     }catch(e){setNotice(e instanceof Error?e.message:"创建失败");}finally{setBusy(false);}
   }
   async function openPost(id:string){
     try{const data=await api(root+"/posts/"+encodeURIComponent(id));
-      if(!data.post)throw new Error("未找到文章");setSelected(data.post);setContent(data.post.content??"");}
+      if(!data.post)throw new Error("未找到文章");setSelected(data.post);setContent(data.post.content??"");setSavedContent(data.post.content??"");setSavedTitle("");}
     catch(e){setNotice(e instanceof Error?e.message:"读取失败");}
   }
   async function savePost(){
@@ -66,7 +80,7 @@ export default function WorkspaceClient({initialWorkspaces,onDirtyChange}:{initi
       const data=await api(root+"/posts/"+selected.publicId,{method:"PATCH",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({expected_version:selected.version,content_markdown:content})});
       if(!data.post)throw new Error("保存未返回文章");
-      setSelected(data.post);setContent(data.post.content||"");await refresh();setNotice("已保存 · 版本 "+data.post.version);
+      setSelected(data.post);setContent(data.post.content||"");setSavedContent(data.post.content||"");await refresh();setNotice("已保存 · 版本 "+data.post.version);
     }catch(e){setNotice(e instanceof Error?e.message:"保存失败");}finally{setBusy(false);}
   }
   async function setStatus(next:"draft"|"published"){
@@ -95,27 +109,32 @@ export default function WorkspaceClient({initialWorkspaces,onDirtyChange}:{initi
       setNotice("附件已上传；请保存正文以插入链接。");
     }catch(e){setNotice(e instanceof Error?e.message:"上传失败");}finally{setBusy(false);}
   }
-  return <div style={{display:"grid",gap:18}}>
+  function canLeave(){return !dirty||window.confirm("有尚未保存的修改，继续将丢失当前编辑内容。确定继续吗？");}
+  const available=posts.filter(p=>p.title.toLowerCase().includes(query.toLowerCase()) && (filterSpace==="all"||(filterSpace==="root"?p.spaceId===null:p.spaceId===Number(filterSpace))));
+  function resetDraft(){if(!canLeave())return;setSelected(null);setTitle("");setContent("");setSavedContent("");setSavedTitle("");setCreateMode(true);}
+  return <div className="workspace-editor" style={{display:"grid",gap:18}}>
     <section className="editor-section admin-account-switcher" style={{display:"flex",gap:12,justifyContent:"space-between",flexWrap:"wrap",alignItems:"center"}}>
       <label>当前工作区：
-        <select value={workspaceId} onChange={e=>{setSelected(null);setContent("");setWorkspaceId(Number(e.target.value));}} style={{...input,width:"auto",marginLeft:8}}>
+        <select value={workspaceId} onChange={e=>{if(!canLeave())return;setSelected(null);setContent("");setTitle("");setSavedContent("");setWorkspaceId(Number(e.target.value));setFilterSpace("all");setDraftSpace("");}} style={{...input,width:"auto",marginLeft:8}}>
           {initialWorkspaces.map(w=><option key={w.id} value={w.id}>{w.name}（{w.role}）</option>)}
         </select>
       </label>
     </section>
     {notice?<p role="status" className="admin-account-notice">{notice}</p>:null}
+    {dirty?<p className="account-unsaved" role="status">● 尚未保存的修改</p>:null}
     <div className="admin-account-columns" style={{display:"grid",gap:16}}>
       <aside className="editor-section" style={{display:"grid",alignContent:"start",gap:18}}>
-        <div><h2>知识空间</h2>{spaces.length?spaces.map(s=><p key={s.id} style={{margin:"8px 0"}}>📁 {s.name}</p>):<p>暂无空间</p>}</div>
-        <form onSubmit={createSpace} style={{display:"grid",gap:8}}>
+        <div><h2>知识空间</h2><p>按空间筛选文章，点击「全部文档」返回。</p><div className="workspace-folder-list"><button type="button" aria-pressed={filterSpace==="all"} onClick={()=>setFilterSpace("all")}>▤ 全部文档 <small>{posts.length}</small></button>{spaces.map(sp=><button key={sp.id} type="button" aria-pressed={filterSpace===String(sp.id)} onClick={()=>setFilterSpace(String(sp.id))}>◇ {sp.name}</button>)}</div></div>
+        {!readOnly?<form onSubmit={createSpace} style={{display:"grid",gap:8}}>
           <label htmlFor="space-name">创建顶级空间</label>
           <input id="space-name" style={input} value={name} onChange={e=>setName(e.target.value)} maxLength={100}/>
           <button type="submit" disabled={busy}>添加空间</button>
-        </form>
-        <div className="admin-account-article-list"><h2>文章</h2>
+        </form>:null}
+        <div className="admin-account-article-list"><div className="account-list-title"><h2>文章</h2>{!readOnly?<button type="button" onClick={resetDraft}>＋ 新建</button>:null}</div>
           <input aria-label="筛选文章标题" style={input} value={query} onChange={e=>setQuery(e.target.value)} placeholder="筛选标题"/>
-          {posts.filter(p=>p.title.toLowerCase().includes(query.toLowerCase())).map(p=>
-            <button className="admin-account-article" aria-pressed={selected?.publicId===p.publicId} type="button" key={p.publicId} onClick={()=>openPost(p.publicId)} style={{display:"block",padding:"10px 0",width:"100%",textAlign:"left",border:0,background:"transparent",cursor:"pointer"}}>
+          {available.length===0?<p>这个筛选下暂无文档。</p>:null}
+          {available.map(p=>
+            <button className="admin-account-article" aria-pressed={selected?.publicId===p.publicId} type="button" key={p.publicId} onClick={()=>{if(canLeave())void openPost(p.publicId);}} style={{display:"block",padding:"10px 0",width:"100%",textAlign:"left",border:0,background:"transparent",cursor:"pointer"}}>
               {p.title} <small>· {p.status==="draft"?"草稿":"已完成"}</small>
             </button>)}
         </div>
@@ -124,16 +143,17 @@ export default function WorkspaceClient({initialWorkspaces,onDirtyChange}:{initi
         {selected?<><h2>编辑：{selected.title}</h2>
           <p>版本 {selected.version} · {selected.status==="draft"?"草稿":"已完成"} · 私人空间数据只对授权成员开放</p>
           <label htmlFor="edit-markdown">Markdown 正文</label>
-          <textarea id="edit-markdown" value={content} onChange={e=>setContent(e.target.value)} rows={18} style={{...input,resize:"vertical",fontFamily:"monospace"}}/>
+          <textarea disabled={readOnly} id="edit-markdown" value={content} onChange={e=>setContent(e.target.value)} rows={18} style={{...input,resize:"vertical",fontFamily:"monospace"}}/>
           <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-            <button className="new-button" type="button" disabled={busy} onClick={savePost}>保存修改</button>
-            <button type="button" disabled={busy} onClick={()=>setStatus(selected.status==="draft"?"published":"draft")}>{selected.status==="draft"?"标记完成":"退回草稿"}</button>
-            <label>上传附件 <input type="file" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)upload(file);e.target.value="";}}/></label>
-            <button type="button" onClick={()=>{setSelected(null);setContent("");}}>新建草稿</button>
+            {!readOnly?<button className="new-button" type="button" disabled={busy||!dirty} onClick={savePost}>保存修改</button>:null}
+            {!readOnly?<button type="button" disabled={busy} onClick={()=>setStatus(selected.status==="draft"?"published":"draft")}>{selected.status==="draft"?"标记完成":"退回草稿"}</button>:null}
+            {!readOnly?<label>上传附件 <input type="file" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)upload(file);e.target.value="";}}/></label>:null}
+            {!readOnly?<button type="button" onClick={resetDraft}>新建草稿</button>:null}
           </div>
-        </>:<form onSubmit={createNote} style={{display:"grid",gap:12}}>
-          <h2>新建草稿</h2><label htmlFor="new-title">标题</label>
+        </>:readOnly?<div className="account-empty"><h2>选择一篇文章</h2><p>你有此工作区的阅读权限。选择左侧文章即可查看正文。</p></div>:<form onSubmit={createNote} style={{display:"grid",gap:12}}>
+          <h2>{createMode?"新建草稿":"开始写作"}</h2><p>写下标题和正文，再保存到当前工作区。</p><label htmlFor="new-title">标题</label>
           <input id="new-title" style={input} value={title} onChange={e=>setTitle(e.target.value)} maxLength={200} required/>
+          <label htmlFor="new-space">保存到知识空间</label><select id="new-space" style={input} value={draftSpace} onChange={e=>setDraftSpace(e.target.value)}><option value="">默认知识空间</option>{spaces.map(sp=><option key={sp.id} value={sp.id}>{sp.name}</option>)}</select>
           <label htmlFor="new-content">Markdown 正文</label>
           <textarea id="new-content" style={{...input,resize:"vertical",fontFamily:"monospace"}} value={content} onChange={e=>setContent(e.target.value)} rows={16}/>
           <button className="new-button" type="submit" disabled={busy}>创建草稿</button>
