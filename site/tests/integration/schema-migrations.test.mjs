@@ -562,7 +562,7 @@ test("migration-only startup waits for an interrupted local migration and recove
     await applySqlFile(DB, "seed-app-defaults.sql");
     const retainedCategory = await DB.prepare("SELECT name FROM categories WHERE id = 1").first();
     assert.equal(retainedCategory?.name, "Retained category", "retrying the seed must not overwrite existing data");
-    await DB.prepare("UPDATE app_meta SET value = '21' WHERE key = 'schema_version'").run();
+    await DB.prepare("UPDATE app_meta SET value = '22' WHERE key = 'schema_version'").run();
     const schemaBeforeRecovery = await DB.prepare("SELECT type, name, sql FROM sqlite_master ORDER BY type, name").all();
     assert.equal((await worker.fetch("/")).status, 200, "the same worker must recover once migration is complete");
     const schemaAfterRecovery = await DB.prepare("SELECT type, name, sql FROM sqlite_master ORDER BY type, name").all();

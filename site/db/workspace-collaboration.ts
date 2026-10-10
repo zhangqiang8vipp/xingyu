@@ -35,6 +35,9 @@ export async function createSharedWorkspace(userId:number,nameInput:string) {
   await ensureDatabase();
   if(!validId(userId))throw new CollaborationError("请先登录",403);
   const name=cleanWorkspaceName(nameInput);
+  const current=await env.DB.prepare("SELECT COUNT(*) AS count FROM workspaces WHERE owner_user_id=? AND kind='shared' AND status='active'")
+    .bind(userId).first<{count:number}>();
+  if((current?.count??0)>=20)throw new CollaborationError("每个账号最多创建 20 个共享工作区",429);
   const slug="shared-"+crypto.randomUUID();
   const result=await env.DB.batch([
     env.DB.prepare("INSERT INTO workspaces(kind,owner_user_id,slug,name,status) SELECT 'shared',id,?,?,'active' FROM users WHERE id=? AND status='active' RETURNING id")

@@ -187,3 +187,7 @@ approval_mode = "prompt"
 
 令牌只放入本机 `XINGYU_BLOG_MCP_TOKEN` 环境变量，不要写入仓库或
 `config.toml`。
+
+## 多人协作（依赖身份系统 PR #15）
+
+在 `/workspace` 创建共享工作区并按邮箱邀请成员。个人工作区永远保持私有，成员角色与网站和 MCP 的同一套权限实时联动。需要已配置的 Resend 发信服务。迁移及预发验收请参阅 [协作上线说明](../docs/runbooks/2026-10-10-workspace-collaboration.md)。
