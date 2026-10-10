@@ -52,6 +52,9 @@ test("all account and invitation routes reuse original admin-signin and ThemeTog
   const panel=read("features/admin/IdentityAdminPanel.tsx");
   assert.match(read("features/admin/ExistingLoginStyleLoader.tsx"),/import "@\/app\/admin\/login\/login\.css"/);
   assert.match(panel,/<ExistingLoginStyleLoader\/>/);
+  const legacyLogin=read("app/admin/login/page.tsx");
+  assert.match(legacyLogin,/<ExistingLoginStyleLoader\/>/);
+  assert.doesNotMatch(legacyLogin,/import "\.\/login\.css"/);
   assert.doesNotMatch(panel,/import "@\/app\/admin\/login\/login\.css"/);
   assert.match(panel,/<main className="signin admin-signin">/);
   assert.match(panel,/<ThemeToggle\/>/);

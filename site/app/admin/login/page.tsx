@@ -5,7 +5,7 @@ import AdminLoginForm from "./AdminLoginForm";
 import { safeOAuthReturnTo } from "@/worker/oauth/authorize";
 import { getSiteSettings } from "@/db/queries";
 import ThemeToggle from "@/features/navigation/ThemeToggle";
-import "./login.css";
+import ExistingLoginStyleLoader from "@/features/admin/ExistingLoginStyleLoader";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
   const configured = isPasswordLoginConfigured();
   const settings=await getSiteSettings();
 
-  return <main className="signin admin-signin"><div className="admin-login-theme"><ThemeToggle /></div><div>
+  return <main className="signin admin-signin"><ExistingLoginStyleLoader/><div className="admin-login-theme"><ThemeToggle /></div><div>
     <span className="admin-mark">{settings.brandName.slice(0,1)}</span>
     <small>PRIVATE WRITING SPACE</small>
     <h1>{settings.brandName}写作后台</h1>
