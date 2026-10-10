@@ -4,6 +4,7 @@ import { currentIdentity } from "@/server/auth/identity";
 import { listUserWorkspaces } from "@/db/workspace-access";
 import WorkspaceClient from "./WorkspaceClient";
 import ConnectionsPanel from "./ConnectionsPanel";
+import CollaborationPanel from "./CollaborationPanel";
 export const dynamic="force-dynamic";
 export default async function WorkspacePage(){
   const user=await currentIdentity();
@@ -18,6 +19,7 @@ export default async function WorkspacePage(){
       </nav>
     </header>
     <WorkspaceClient initialWorkspaces={workspaces}/>
+    <CollaborationPanel workspaces={workspaces}/>
     <ConnectionsPanel/>
   </main>;
 }

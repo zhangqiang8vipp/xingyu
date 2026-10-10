@@ -4,6 +4,7 @@ import { ensureDatabase } from "@/db/bootstrap";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
 import { hashPassword, normalizeEmail } from "./identity";
 import { sessionDigest, userSubject } from "./identity-session";
+import { getMailSettings, sendTransactionalEmail, MailDeliveryError } from "@/server/mail-delivery";
 
 type SignupEnv = Env & { RESEND_API_KEY?: string; EMAIL_FROM?: string; PUBLIC_SITE_URL?: string; REGISTRATION_ENABLED?: string };
 function config() { return env as SignupEnv; }
@@ -11,13 +12,13 @@ export class IdentityEmailError extends Error {
   constructor(message: string, readonly status: 400 | 429 | 503) { super(message); }
 }
 function requireMailConfig(registrationRequired = true) {
-  const c = config();
-  if ((registrationRequired && c.REGISTRATION_ENABLED !== "true") || !c.RESEND_API_KEY || !c.EMAIL_FROM || !c.PUBLIC_SITE_URL) {
-    throw new IdentityEmailError("邮件验证服务尚未配置或注册尚未开放", 503);
+  if (registrationRequired && config().REGISTRATION_ENABLED !== "true")
+    throw new IdentityEmailError("邮件验证服务尚未配置或注册尚未开放",503);
+  try { return getMailSettings(); }
+  catch (error) {
+    if (error instanceof MailDeliveryError) throw new IdentityEmailError(error.message,503);
+    throw error;
   }
-  const base = new URL(c.PUBLIC_SITE_URL);
-  if (base.protocol !== "https:" && base.hostname !== "localhost") throw new IdentityEmailError("邮件回调域名配置无效",503);
-  return { base, key: c.RESEND_API_KEY, from: c.EMAIL_FROM };
 }
 export function validRegistrationPassword(password: string) {
   return password.length >= 12 && password.length <= 128 && !/[\u0000-\u001f]/.test(password);
@@ -36,15 +37,11 @@ async function checkSignupLimit(request: Request, email: string) {
   await limitBucket("email:"+email,5,3600);
 }
 
-async function sendMail(mail: ReturnType<typeof requireMailConfig>, to: string, subject: string, content: string) {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: "Bearer "+mail.key, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: mail.from, to: [to], subject, text: content }),
-  });
-  if (!response.ok) {
-    console.error("identity.email.delivery_failed", response.status);
-    throw new IdentityEmailError("邮件发送暂时失败，请稍后再试",503);
+async function sendMail(mail: ReturnType<typeof requireMailConfig>,to:string,subject:string,content:string) {
+  try { await sendTransactionalEmail(mail,{to,subject,text:content}); }
+  catch(error) {
+    if(error instanceof MailDeliveryError) throw new IdentityEmailError("邮件发送暂时失败，请稍后再试",503);
+    throw error;
   }
 }
 

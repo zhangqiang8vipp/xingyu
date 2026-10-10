@@ -427,7 +427,7 @@ test("knowledge spaces are durable, arbitrarily nested and isolated from the pub
   assert.match(schema,/spaces = sqliteTable\("spaces"/);
   assert.match(schema,/parentId: integer\("parent_id"\)/);
   assert.match(schema,/spaceId: integer\("space_id"\)/);
-  assert.match(bootstrap,/schemaVersion = "21"/);
+  assert.match(bootstrap,/schemaVersion = "22"/);
   assert.match(bootstrap,/CREATE TABLE IF NOT EXISTS spaces/);
   assert.match(bootstrap,/ALTER TABLE posts ADD COLUMN space_id/);
   assert.match(migration,/CREATE TABLE `spaces`/);
@@ -621,7 +621,7 @@ test("admin diagnostics endpoint and cron health gate cover the core-relations a
     source("worker/index.ts"),
     source("db/bootstrap.ts"),
   ]);
-  assert.match(bootstrap,/export const schemaVersion = "21"/);
+  assert.match(bootstrap,/export const schemaVersion = "22"/);
   assert.match(health,/export async function collectSiteHealth/);
   for (const key of [
     "posts_missing_category", "posts_missing_space", "spaces_missing_parent",
