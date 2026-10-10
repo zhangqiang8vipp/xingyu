@@ -11,7 +11,7 @@ import { assertStoredInstanceIdentity, requireRuntimeInstanceIdentity } from "./
 let ready: Promise<void> | null = null;
 
 /** 当前 worker 期望的 D1 schema 版本，供健康检查与迁移门禁共用。 */
-export const schemaVersion = "24";
+export const schemaVersion = "25";
 
 const requiredUniqueIndexes = {
   attachments_object_key_uidx: { table: "attachments", columns: ["object_key"] },
@@ -19,6 +19,7 @@ const requiredUniqueIndexes = {
   attachment_cleanup_queue_object_key_uidx: { table: "attachment_cleanup_queue", columns: ["object_key"] },
   categories_slug_uidx: { table: "categories", columns: ["slug"] },
   content_pages_slug_uidx: { table: "content_pages", columns: ["slug"] },
+  personal_access_tokens_hash_uidx: { table: "personal_access_tokens", columns: ["token_hash"] },
   oauth_access_tokens_hash_uidx: { table: "oauth_access_tokens", columns: ["token_hash"] },
   oauth_authorization_codes_hash_uidx: { table: "oauth_authorization_codes", columns: ["code_hash"] },
   oauth_clients_client_id_uidx: { table: "oauth_clients", columns: ["client_id"] },
@@ -46,11 +47,11 @@ const requiredUniqueIndexes = {
 const requiredMigrationObjects = {
   table: [
     "admin_login_attempts", "app_meta", "attachment_cleanup_queue", "attachments", "categories",
-    "content_pages", "email_verifications", "identity_login_limits", "mcp_activity", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
+    "content_pages", "email_verifications", "identity_login_limits", "mcp_activity", "personal_access_tokens", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
     "oauth_consents", "oauth_rate_limits", "oauth_refresh_tokens", "post_preview_tokens",
     "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_credentials", "user_identities", "user_sessions", "users", "view_request_limits", "workspaces", "workspace_memberships", "workspace_invitations", "organizations", "organization_memberships", "organization_invitations", "organization_units", "organization_unit_memberships", "teams", "team_memberships", "organization_workspaces", "workspace_team_grants", "space_access_policies", "space_principal_grants",
   ],
-  index: [...Object.keys(requiredUniqueIndexes), "workspace_memberships_user_idx", "workspace_invitations_workspace_idx", "organization_memberships_user_idx", "organization_invitations_org_idx", "organization_units_tree_idx", "organization_unit_memberships_user_idx", "teams_org_idx", "team_memberships_user_idx", "organization_workspaces_org_idx", "workspace_team_grants_team_idx", "space_access_policies_workspace_idx", "space_principal_grants_principal_idx", "email_verifications_user_idx", "posts_workspace_updated_idx", "spaces_workspace_parent_idx", "attachments_workspace_idx", "categories_workspace_idx", "mcp_workspace_activity_idx"],
+  index: [...Object.keys(requiredUniqueIndexes), "personal_access_tokens_user_idx", "workspace_memberships_user_idx", "workspace_invitations_workspace_idx", "organization_memberships_user_idx", "organization_invitations_org_idx", "organization_units_tree_idx", "organization_unit_memberships_user_idx", "teams_org_idx", "team_memberships_user_idx", "organization_workspaces_org_idx", "workspace_team_grants_team_idx", "space_access_policies_workspace_idx", "space_principal_grants_principal_idx", "email_verifications_user_idx", "posts_workspace_updated_idx", "spaces_workspace_parent_idx", "attachments_workspace_idx", "categories_workspace_idx", "mcp_workspace_activity_idx"],
   view: ["workspace_effective_grants"],
   trigger: [
     "posts_public_id_required_insert", "posts_public_id_required_update",
@@ -430,6 +431,21 @@ async function initialize() {
       blocked_until INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL
     )`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS personal_access_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      token_suffix TEXT NOT NULL,
+      resource TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      expires_at INTEGER,
+      revoked_at INTEGER,
+      last_used_at INTEGER,
+      created_at INTEGER NOT NULL
+    )`),
+    d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS personal_access_tokens_hash_uidx ON personal_access_tokens(token_hash)"),
+    d1.prepare("CREATE INDEX IF NOT EXISTS personal_access_tokens_user_idx ON personal_access_tokens(user_id,created_at,id)"),
     d1.prepare(`CREATE TABLE IF NOT EXISTS oauth_clients (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_id TEXT NOT NULL UNIQUE,
