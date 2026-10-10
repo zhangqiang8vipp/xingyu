@@ -1,5 +1,7 @@
 # XINGYU multi-user identity release: operator runbook
 
+> V1 集成以 `docs/releases/v1-rc-20261010/` 为准。在该 RC 获准之前，不要按本文件单独部署生产。
+
 > **Draft PR #15 / deployment blocked pending final-head CI and staging acceptance.**
 > Do not merge, deploy, mutate production D1/R2, or enable public registration before all gates pass.
 
