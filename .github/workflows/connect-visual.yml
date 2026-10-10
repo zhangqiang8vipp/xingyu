@@ -38,6 +38,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: connect-visual-acceptance
-          path: site/.visual-connect/*.png
+          path: site/visual-connect/*.png
           if-no-files-found: warn
           retention-days: 14
