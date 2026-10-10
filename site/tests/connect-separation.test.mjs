@@ -46,6 +46,6 @@ test("release default copy documents dual auth and never asks for shared static 
   const seed = file("drizzle/seed-app-defaults.sql");
   assert.match(config, /title: "把星屿，连接到你的 AI。"/);
   assert.match(config, /OAuth/);
-  assert.match(seed, /PERSONAL/);
+  assert.match(seed, /把星屿，连接到你的 AI/);
   assert.doesNotMatch(config, /MCP_WRITE_TOKEN/);
 });
