@@ -6,7 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import puppeteer from "puppeteer-core";
 import { openTestHarness, closeTestHarness, jsonRequest } from "../tests/integration/harness.mjs";
@@ -112,6 +112,14 @@ function watchErrors(page, name) {
     const url = new URL(r.url());
     if ((url.pathname.startsWith("/_next/") || url.pathname.startsWith("/assets/")) && r.status() >= 400) {
       failures.push("asset HTTP " + r.status() + " " + url.pathname);
+      const assetName = url.pathname.split("/").at(-1);
+      const inClient = existsSync(resolve(clientRoot, "." + url.pathname));
+      const clientAssets = existsSync(resolve(clientRoot, "assets"))
+        ? readdirSync(resolve(clientRoot, "assets")).filter(name => /admin/i.test(name)).slice(0, 20)
+        : [];
+      console.error("[visual-assets] missing", assetName,
+        "resourceType", r.request().resourceType(),
+        "in client build", inClient, "built admin candidates", clientAssets);
     }
   });
   return () => assert.deepEqual(failures, [], name + " browser errors");
