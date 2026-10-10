@@ -1,8 +1,8 @@
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { getDb } from ".";
 import { ensureDatabase } from "./bootstrap";
 import type { McpConnection } from "./integrations";
-import { mcpActivity, posts } from "./schema";
+import { mcpActivity, personalAccessTokens, posts } from "./schema";
 import {
   activityActorLabel,
   betaActivationStage,
@@ -26,7 +26,7 @@ function parseChangedFields(value: string) {
 export async function getBetaActivationSignal(connections: McpConnection[]): Promise<BetaActivationSignal> {
   await ensureDatabase();
   const db = getDb();
-  const [knowledgeRows, activityRows] = await Promise.all([
+  const [knowledgeRows, activityRows, activePatRows] = await Promise.all([
     db.select({ value: sql<number>`count(*)` }).from(posts)
       .where(isNotNull(posts.spaceId)),
     db.select({
@@ -48,6 +48,14 @@ export async function getBetaActivationSignal(connections: McpConnection[]): Pro
       ))
       .orderBy(desc(mcpActivity.createdAt), desc(mcpActivity.id))
       .limit(100),
+    db.select({ name: personalAccessTokens.name }).from(personalAccessTokens)
+      .where(and(
+        isNull(personalAccessTokens.revokedAt),
+        isNotNull(personalAccessTokens.lastUsedAt),
+        or(isNull(personalAccessTokens.expiresAt),
+          gt(personalAccessTokens.expiresAt, Math.floor(Date.now() / 1000))),
+      ))
+      .limit(40),
   ]);
 
   const privateRow = activityRows.find((row) => isPrivateActivationWrite({
@@ -57,7 +65,8 @@ export async function getBetaActivationSignal(connections: McpConnection[]): Pro
   const connectionNames = [...new Set(
     connections
       .filter((connection) => connection.status === "connected")
-      .map(displayActivationConnectionName),
+      .map(displayActivationConnectionName)
+      .concat(activePatRows.map(row => `个人 Token · ${row.name}`)),
   )];
   const knowledgeCount = Number(knowledgeRows[0]?.value ?? 0);
   const privateWrite = privateRow ? {
