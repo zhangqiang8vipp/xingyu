@@ -65,6 +65,7 @@ export function displayActivationConnectionName(connection: Pick<ActivationConne
 }
 
 export function activityActorLabel(clientLabel: string, connections: ActivationConnectionIdentity[]) {
+  if (clientLabel.startsWith("pat:")) return "个人 Access Token";
   if (clientLabel.startsWith("oauth:")) {
     const connection = connections.find((item) => {
       if (item.kind !== "oauth") return false;
