@@ -92,7 +92,7 @@ async function initialize() {
       throw new Error(`D1 schema version mismatch: expected ${schemaVersion}, found ${values.get("schema_version") ?? "missing"}`);
     }
     assertStoredInstanceIdentity(runtimeIdentity, values);
-    const objects = await d1.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type IN ('table', 'index', 'trigger')")
+    const objects = await d1.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type IN ('table', 'index', 'trigger', 'view')")
       .all<{ type: string; name: string; tbl_name: string; sql: string | null }>();
     const actual = new Set((objects.results ?? []).map(({ type, name }) => `${type}:${name}`));
     const missing = Object.entries(requiredMigrationObjects).flatMap(([type, names]) =>

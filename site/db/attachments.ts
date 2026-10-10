@@ -86,7 +86,7 @@ export async function createAttachment(input: {
       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
       WHERE EXISTS (SELECT 1 FROM workspaces WHERE id = ? AND status = 'active')
         AND (? IS NULL OR EXISTS (SELECT 1 FROM posts WHERE id = ? AND workspace_id = ?))
-        AND (? IS NULL OR EXISTS (SELECT 1 FROM workspace_memberships WHERE workspace_id = ? AND user_id = ? AND status = 'active' AND role IN ('owner','admin','editor')))
+        AND (? IS NULL OR EXISTS (SELECT 1 FROM workspace_effective_grants WHERE workspace_id = ? AND user_id = ? AND role IN ('owner','admin','editor')))
       RETURNING id, public_id AS publicId, post_id AS postId, object_key AS objectKey,
         original_name AS originalName, content_type AS contentType, size, sha256,
         created_at AS createdAt`).bind(

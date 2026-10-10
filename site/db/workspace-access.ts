@@ -32,7 +32,10 @@ export async function ensurePersonalWorkspace(userId: number) {
 export async function listUserWorkspaces(userId: number): Promise<WorkspaceGrant[]> {
   await ensureDatabase();
   const result = await env.DB.prepare(
-    "SELECT w.id,w.name,w.kind,m.role FROM workspace_memberships m JOIN workspaces w ON w.id=m.workspace_id JOIN users u ON u.id=m.user_id WHERE m.user_id=? AND u.status='active' AND w.status='active' AND m.status='active' AND (w.kind<>'personal' OR m.user_id=w.owner_user_id) ORDER BY w.id",
+    "SELECT id,name,kind,role FROM (SELECT w.id,w.name,w.kind,g.role,ROW_NUMBER() OVER "+
+    "(PARTITION BY w.id ORDER BY CASE g.role WHEN 'owner' THEN 4 WHEN 'admin' THEN 3 WHEN 'editor' THEN 2 ELSE 1 END DESC) AS rank "+
+    "FROM workspace_effective_grants g JOIN workspaces w ON w.id=g.workspace_id "+
+    "WHERE g.user_id=?) WHERE rank=1 ORDER BY id",
   ).bind(userId).all<WorkspaceGrant>();
   return result.results ?? [];
 }
@@ -41,7 +44,9 @@ export async function workspaceGrant(userId: number, workspaceId: number, action
   if (!Number.isSafeInteger(userId) || userId < 1 || !Number.isSafeInteger(workspaceId) || workspaceId < 1) throw new WorkspaceAccessError();
   await ensureDatabase();
   const item = await env.DB.prepare(
-    "SELECT w.id,w.name,w.kind,m.role FROM workspace_memberships m JOIN workspaces w ON w.id=m.workspace_id JOIN users u ON u.id=m.user_id WHERE w.id=? AND m.user_id=? AND u.status='active' AND w.status='active' AND m.status='active' AND (w.kind<>'personal' OR m.user_id=w.owner_user_id)",
+    "SELECT w.id,w.name,w.kind,g.role FROM workspace_effective_grants g "+
+    "JOIN workspaces w ON w.id=g.workspace_id WHERE w.id=? AND g.user_id=? "+
+    "ORDER BY CASE g.role WHEN 'owner' THEN 4 WHEN 'admin' THEN 3 WHEN 'editor' THEN 2 ELSE 1 END DESC LIMIT 1",
   ).bind(workspaceId,userId).first<WorkspaceGrant>();
   if (!item) throw new WorkspaceAccessError();
   if (action === "write" && item.role === "viewer") throw new WorkspaceAccessError("没有工作区写入权限",403);

@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { workspaceGrant, WorkspaceAccessError } from "@/db/workspace-access";
 import { attachmentIdsFromMarkdown } from "@/db/attachments";
 import { createPostPublicId } from "@/db/public-id";
+import { accessibleSpaceIds,assertSpacePermission } from "@/db/space-acl";
 
 type Status = "draft" | "published";
 export type ScopedPost = {
@@ -31,16 +32,24 @@ export async function scopedCategories(userId:number,workspaceId:number) {
 }
 export async function scopedSpaces(userId:number,workspaceId:number,parentId?:number|null) {
   await workspaceGrant(userId,workspaceId);
-  const sql="SELECT s.id,s.parent_id AS parentId,s.name,s.slug,s.sort_order AS sortOrder,(SELECT COUNT(*) FROM posts p WHERE p.space_id=s.id AND p.workspace_id=s.workspace_id) AS articleCount FROM spaces s WHERE s.workspace_id=?";
-  const query=parentId===undefined?sql+" ORDER BY s.parent_id,s.sort_order,s.id":sql+" AND s.parent_id IS ? ORDER BY s.sort_order,s.id";
-  const rows=await env.DB.prepare(query).bind(...(parentId===undefined?[workspaceId]:[workspaceId,parentId])).all();
+  const accessible=await accessibleSpaceIds(userId,workspaceId);
+  if(accessible!==null&&accessible.length===0)return [];
+  // Filter inside SQL: private nodes must never affect result counts or pagination.
+  const spaceGuard=accessible===null?"":" AND s.id IN ("+accessible.map(()=>"?").join(",")+")";
+  const sql="SELECT s.id,s.parent_id AS parentId,s.name,s.slug,s.sort_order AS sortOrder,"+
+    "(SELECT COUNT(*) FROM posts p WHERE p.space_id=s.id AND p.workspace_id=s.workspace_id) AS articleCount "+
+    "FROM spaces s WHERE s.workspace_id=?"+spaceGuard;
+  const args:unknown[]=[workspaceId,...(accessible??[])];
+  const query=parentId===undefined?sql+" ORDER BY s.parent_id,s.sort_order,s.id":
+    sql+" AND s.parent_id IS ? ORDER BY s.sort_order,s.id";
+  const rows=await env.DB.prepare(query).bind(...(parentId===undefined?args:[...args,parentId])).all();
   return rows.results??[];
 }
 export async function scopedSpace(userId:number,workspaceId:number,reference:string):Promise<{id:number;name:string;parentId:number|null;slug:string}> {
   await workspaceGrant(userId,workspaceId);
   if(/^[1-9]\d*$/.test(reference)) {
     const row=await env.DB.prepare("SELECT id,name,parent_id AS parentId,slug FROM spaces WHERE workspace_id=? AND id=?").bind(workspaceId,Number(reference)).first<{id:number;name:string;parentId:number|null;slug:string}>();
-    if(row)return row;
+    if(row){await assertSpacePermission(userId,workspaceId,row.id);return row;}
     throw new WorkspaceContentError("空间不存在",404);
   }
   const names=reference.split("/").map(v=>v.trim()).filter(Boolean);
@@ -52,6 +61,7 @@ export async function scopedSpace(userId:number,workspaceId:number,reference:str
     if(!found)throw new WorkspaceContentError("空间不存在",404);
     parent=found.id;
   }
+  await assertSpacePermission(userId,workspaceId,found!.id);
   return found!;
 }
 export async function newScopedSpace(userId:number,workspaceId:number,input:{name:string;parentId?:number|null;sortOrder?:number}) {
@@ -59,15 +69,18 @@ export async function newScopedSpace(userId:number,workspaceId:number,input:{nam
   const name=text(input.name,100,"空间名称");
   const parentId=input.parentId??null;
   if(parentId!==null)await scopedSpace(userId,workspaceId,String(parentId));
+  if(parentId!==null)await assertSpacePermission(userId,workspaceId,parentId,"write");
   const slug="w"+workspaceId+"-"+safeSlug(name).slice(0,35)+"-"+crypto.randomUUID().slice(0,8);
   const order=input.sortOrder??0;
   if(!Number.isSafeInteger(order))throw new WorkspaceContentError("排序无效");
-  const result=await env.DB.prepare("INSERT INTO spaces(workspace_id,parent_id,name,slug,sort_order) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM workspace_memberships WHERE workspace_id=? AND user_id=? AND status='active' AND role IN('owner','admin','editor')) RETURNING id").bind(workspaceId,parentId,name,slug,order,workspaceId,userId).first<{id:number}>();
+  const result=await env.DB.prepare("INSERT INTO spaces(workspace_id,parent_id,name,slug,sort_order) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id").bind(workspaceId,parentId,name,slug,order,workspaceId,userId).first<{id:number}>();
   if(!result)throw new WorkspaceAccessError();
   return scopedSpace(userId,workspaceId,String(result.id));
 }
 export async function editScopedSpace(userId:number,workspaceId:number,spaceId:number,input:{name?:string;parentId?:number|null;sortOrder?:number}) {
-  await workspaceGrant(userId,workspaceId,"write");
+  const grant=await workspaceGrant(userId,workspaceId,"write");
+  if(grant.kind==="organization"&&grant.role!=="owner"&&grant.role!=="admin")
+    throw new WorkspaceAccessError("组织工作区空间结构仅允许管理员调整",403);
   const current=await scopedSpace(userId,workspaceId,String(spaceId));
   const name=input.name===undefined?current.name:text(input.name,100,"空间名称");
   const parent=input.parentId===undefined?current.parentId:input.parentId;
@@ -77,17 +90,19 @@ export async function editScopedSpace(userId:number,workspaceId:number,spaceId:n
   if(cycle)throw new WorkspaceContentError("不能移动到自己的子空间");
   const order=input.sortOrder??0;
   if(!Number.isSafeInteger(order))throw new WorkspaceContentError("排序无效");
-  const result=await env.DB.prepare("UPDATE spaces SET name=?,parent_id=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND workspace_id=? AND NOT EXISTS(WITH RECURSIVE descendants(id) AS (SELECT id FROM spaces WHERE id=? UNION SELECT child.id FROM spaces child JOIN descendants ON child.parent_id=descendants.id WHERE child.workspace_id=?) SELECT 1 FROM descendants WHERE id=?) AND EXISTS(SELECT 1 FROM workspace_memberships WHERE workspace_id=? AND user_id=? AND status='active' AND role IN('owner','admin','editor')) RETURNING id")
+  const result=await env.DB.prepare("UPDATE spaces SET name=?,parent_id=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND workspace_id=? AND NOT EXISTS(WITH RECURSIVE descendants(id) AS (SELECT id FROM spaces WHERE id=? UNION SELECT child.id FROM spaces child JOIN descendants ON child.parent_id=descendants.id WHERE child.workspace_id=?) SELECT 1 FROM descendants WHERE id=?) AND EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id")
     .bind(name,parent,order,spaceId,workspaceId,spaceId,workspaceId,parent,workspaceId,userId).first();
   if(!result)throw new WorkspaceContentError("移动被拒绝或工作区权限已变化",409);
   return scopedSpace(userId,workspaceId,String(spaceId));
 }
 export async function removeEmptyScopedSpace(userId:number,workspaceId:number,spaceId:number) {
-  await workspaceGrant(userId,workspaceId,"write");
+  const grant=await workspaceGrant(userId,workspaceId,"write");
+  if(grant.kind==="organization"&&grant.role!=="owner"&&grant.role!=="admin")
+    throw new WorkspaceAccessError("仅组织工作区管理员可删除空间",403);
   const row=await scopedSpace(userId,workspaceId,String(spaceId));
   if(row.slug.startsWith("private-u"))throw new WorkspaceContentError("默认私人知识库不能删除",403);
-  const result=await env.DB.prepare("DELETE FROM spaces WHERE id=? AND workspace_id=? AND NOT EXISTS(SELECT 1 FROM spaces child WHERE child.parent_id=?) AND NOT EXISTS(SELECT 1 FROM posts p WHERE p.space_id=?) AND EXISTS(SELECT 1 FROM workspace_memberships WHERE workspace_id=? AND user_id=? AND status='active' AND role IN('owner','admin','editor')) RETURNING id")
-    .bind(spaceId,workspaceId,spaceId,spaceId,workspaceId,userId).first();
+  const result=await env.DB.prepare("DELETE FROM spaces WHERE id=? AND workspace_id=? AND NOT EXISTS(SELECT 1 FROM spaces child WHERE child.parent_id=?) AND NOT EXISTS(SELECT 1 FROM posts p WHERE p.space_id=?) AND NOT EXISTS(SELECT 1 FROM space_access_policies a WHERE a.space_id=? AND a.workspace_id=?) AND EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id")
+    .bind(spaceId,workspaceId,spaceId,spaceId,spaceId,workspaceId,workspaceId,userId).first();
   if(!result)throw new WorkspaceContentError("仅允许删除空空间",409);
   return {id:spaceId,deleted:true};
 }
@@ -96,16 +111,24 @@ export async function scopedPost(userId:number,workspaceId:number,identifier:str
   const id=String(identifier);
   const row=await env.DB.prepare(postSelect+" WHERE workspace_id=? AND (public_id=? OR slug=? OR id=?) LIMIT 1").bind(workspaceId,id,id,/^\d+$/.test(id)?Number(id):-1).first<ScopedPost>();
   if(!row)throw new WorkspaceContentError("文章不存在",404);
+  await assertSpacePermission(userId,workspaceId,row.spaceId);
   return row;
 }
 export async function scopedPosts(userId:number,workspaceId:number,query="",limit=20,spaceId?:number|null,status:"all"|"draft"|"published"="all") {
   await workspaceGrant(userId,workspaceId);
+  const visible=await accessibleSpaceIds(userId,workspaceId);
+  if(visible!==null&&visible.length===0)return [];
   const size=Math.min(50,Math.max(1,limit));
-  const where=" WHERE workspace_id=?"+(spaceId===undefined?"":" AND space_id IS ?")+(status==="all"?"":" AND status=?")+(query?" AND (title LIKE ? OR excerpt LIKE ?)":"");
+  const guard=visible===null?"":" AND space_id IN ("+visible.map(()=>"?").join(",")+")";
+  const where=" WHERE workspace_id=?"+guard+(spaceId===undefined?"":" AND space_id IS ?")+
+    (status==="all"?"":" AND status=?")+(query?" AND (title LIKE ? ESCAPE '\\' OR excerpt LIKE ? ESCAPE '\\')":"");
   const escaped=query.replace(/[\\%_]/g,c=>"\\"+c).slice(0,120);
-  const args:unknown[]=[workspaceId,...(spaceId===undefined?[]:[spaceId]),...(status==="all"?[]:[status]),...(query?["%"+escaped+"%","%"+escaped+"%"]:[])];
-  const rows=await env.DB.prepare("SELECT id,public_id AS publicId,title,slug,excerpt,status,version,space_id AS spaceId,updated_at AS updatedAt FROM posts"+where+" ORDER BY updated_at DESC,id DESC LIMIT ?")
-    .bind(...args,size).all();
+  const args:unknown[]=[workspaceId,...(visible??[]),...(spaceId===undefined?[]:[spaceId]),...(status==="all"?[]:[status]),
+    ...(query?["%"+escaped+"%","%"+escaped+"%"]:[])];
+  const rows=await env.DB.prepare(
+    "SELECT id,public_id AS publicId,title,slug,excerpt,status,version,space_id AS spaceId,updated_at AS updatedAt "+
+    "FROM posts"+where+" ORDER BY updated_at DESC,id DESC LIMIT ?",
+  ).bind(...args,size).all();
   return rows.results??[];
 }
 async function categoryId(workspaceId:number,ref?:string|null) {
@@ -147,12 +170,13 @@ export async function scopedCreateDraft(userId:number,workspaceId:number,input:{
   if(content.length>750000||excerpt.length>1000)throw new WorkspaceContentError("文章长度超限");
   const catId=await categoryId(workspaceId,input.category);
   const spaceId=await workspaceSpace(userId,workspaceId,input.space);
+  await assertSpacePermission(userId,workspaceId,spaceId,"write");
   const ids=await checkAttachmentReferences(workspaceId,content,null);
   const publicId=createPostPublicId();
   const base=safeSlug(input.slug||title)||"note";
   const slug=(workspaceId===1&&userId===1&&spaceId===null)?base:("w"+workspaceId+"-"+base.slice(0,60)+"-"+crypto.randomUUID().slice(0,8));
   const order=input.sortOrder??0;if(!Number.isSafeInteger(order))throw new WorkspaceContentError("排序无效");
-  const insert=env.DB.prepare("INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,sort_order,status,featured,author_id,created_by,updated_by) SELECT ?,?,?,?,?,?,?,?,?, 'draft',?,?,?,? WHERE EXISTS(SELECT 1 FROM workspace_memberships WHERE workspace_id=? AND user_id=? AND status='active' AND role IN('owner','admin','editor')) RETURNING id")
+  const insert=env.DB.prepare("INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,sort_order,status,featured,author_id,created_by,updated_by) SELECT ?,?,?,?,?,?,?,?,?, 'draft',?,?,?,? WHERE EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id")
     .bind(workspaceId,publicId,title,slug,excerpt,content,catId,spaceId,order,input.featured?1:0,userId,userId,userId,workspaceId,userId);
   const audit=env.DB.prepare(auditSql("create_draft")).bind(summary,clientLabel,publicId);
   const results=await env.DB.batch([insert,audit]);
@@ -172,7 +196,9 @@ export async function scopedUpdatePost(userId:number,workspaceId:number,identifi
   const content=input.content??post.content;const excerpt=input.excerpt??post.excerpt;
   if(content.length>750000||excerpt.length>1000)throw new WorkspaceContentError("文章长度超限");
   const catId=input.category?await categoryId(workspaceId,input.category):post.categoryId;
+  await assertSpacePermission(userId,workspaceId,post.spaceId,"write");
   const spaceId=await workspaceSpace(userId,workspaceId,input.space,post.spaceId);
+  await assertSpacePermission(userId,workspaceId,spaceId,"write");
   const ids=await checkAttachmentReferences(workspaceId,content,post.id);
   const newSlug=input.slug&&input.slug!==post.slug
     ? (workspaceId===1&&userId===1&&spaceId===null?safeSlug(input.slug):"w"+workspaceId+"-"+safeSlug(input.slug).slice(0,60)+"-"+crypto.randomUUID().slice(0,8))
@@ -181,7 +207,7 @@ export async function scopedUpdatePost(userId:number,workspaceId:number,identifi
   if(!Number.isSafeInteger(order))throw new WorkspaceContentError("排序无效");
   const statements=[];
   if(post.slug!==newSlug)statements.push(env.DB.prepare("INSERT OR IGNORE INTO post_slug_history(post_id,slug) SELECT id,slug FROM posts WHERE id=? AND workspace_id=? AND version=?").bind(post.id,workspaceId,post.version));
-  statements.push(env.DB.prepare("UPDATE posts SET title=?,slug=?,excerpt=?,content=?,category_id=?,space_id=?,sort_order=?,featured=?,updated_by=?,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND workspace_id=? AND version=? AND EXISTS(SELECT 1 FROM workspace_memberships WHERE workspace_id=? AND user_id=? AND status='active' AND role IN('owner','admin','editor')) RETURNING id")
+  statements.push(env.DB.prepare("UPDATE posts SET title=?,slug=?,excerpt=?,content=?,category_id=?,space_id=?,sort_order=?,featured=?,updated_by=?,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND workspace_id=? AND version=? AND EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id")
     .bind(title,newSlug,excerpt,content,catId,spaceId,order,input.featured===undefined?post.featured:input.featured?1:0,userId,post.id,workspaceId,post.version,workspaceId,userId));
   const updateIndex=statements.length-1;
   statements.push(env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,before_status,after_status,changed_fields,summary,client_label) SELECT workspace_id,'update_post',id,public_id,title,status,status,'[]',?,? FROM posts WHERE id=? AND version=? AND workspace_id=? AND changes()=1").bind(summary,clientLabel,post.id,post.version+1,workspaceId));
@@ -193,10 +219,11 @@ export async function scopedUpdatePost(userId:number,workspaceId:number,identifi
 export async function scopedStatusChange(userId:number,workspaceId:number,identifier:string,version:number,status:Status,clientLabel:string,summary:string) {
   await workspaceGrant(userId,workspaceId,"write");
   const post=await scopedPost(userId,workspaceId,identifier);
+  await assertSpacePermission(userId,workspaceId,post.spaceId,"write");
   if(post.version!==version)throw new WorkspaceContentError("版本已变化，请重新读取全文",409);
   if(post.status===status)return post;
   const action=status==="published"?"publish_post":"unpublish_post";
-  const update=env.DB.prepare("UPDATE posts SET status=?,published_at=CASE WHEN ?='published' THEN COALESCE(published_at,?) ELSE published_at END,updated_at=CURRENT_TIMESTAMP,updated_by=?,version=version+1 WHERE id=? AND workspace_id=? AND version=? AND EXISTS(SELECT 1 FROM workspace_memberships WHERE workspace_id=? AND user_id=? AND status='active' AND role IN('owner','admin','editor')) RETURNING id")
+  const update=env.DB.prepare("UPDATE posts SET status=?,published_at=CASE WHEN ?='published' THEN COALESCE(published_at,?) ELSE published_at END,updated_at=CURRENT_TIMESTAMP,updated_by=?,version=version+1 WHERE id=? AND workspace_id=? AND version=? AND EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id")
     .bind(status,status,new Date().toISOString(),userId,post.id,workspaceId,version,workspaceId,userId);
   const audit=env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,before_status,after_status,changed_fields,summary,client_label) SELECT workspace_id,?,id,public_id,title,?,status,'[\"status\"]',?,? FROM posts WHERE id=? AND workspace_id=? AND version=? AND changes()=1")
     .bind(action,post.status,summary,clientLabel,post.id,workspaceId,version+1);
@@ -206,7 +233,13 @@ export async function scopedStatusChange(userId:number,workspaceId:number,identi
 }
 export async function scopedActivity(userId:number,workspaceId:number,limit=20) {
   await workspaceGrant(userId,workspaceId);
-  const rows=await env.DB.prepare("SELECT id,action,post_id AS postId,title,summary,client_label AS clientLabel,created_at AS createdAt FROM mcp_activity WHERE workspace_id=? ORDER BY created_at DESC,id DESC LIMIT ?")
-    .bind(workspaceId,Math.min(50,Math.max(1,limit))).all();
+  const permitted=await accessibleSpaceIds(userId,workspaceId);
+  if(permitted!==null&&permitted.length===0)return [];
+  const clause=permitted===null?"":" AND a.post_id IN (SELECT p.id FROM posts p WHERE p.workspace_id=? AND p.space_id IN ("+
+    permitted.map(()=>"?").join(",")+"))";
+  const rows=await env.DB.prepare(
+    "SELECT a.id,a.action,a.post_id AS postId,a.title,a.summary,a.client_label AS clientLabel,a.created_at AS createdAt "+
+    "FROM mcp_activity a WHERE a.workspace_id=?"+clause+" ORDER BY a.created_at DESC,a.id DESC LIMIT ?",
+  ).bind(workspaceId,...(permitted===null?[]:[workspaceId,...permitted]),Math.min(50,Math.max(1,limit))).all();
   return rows.results??[];
 }

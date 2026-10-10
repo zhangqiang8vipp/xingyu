@@ -451,3 +451,49 @@ export const organizationUnitMemberships = sqliteTable("organization_unit_member
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 },t=>[primaryKey({columns:[t.organizationId,t.unitId,t.userId]}),
   index("organization_unit_memberships_user_idx").on(t.userId,t.organizationId)]);
+
+
+/** Team and ACL relations are separate from identity and workspace ownership. */
+export const teams = sqliteTable("teams", {
+  id: integer("id").primaryKey({autoIncrement:true}),
+  organizationId: integer("organization_id").notNull(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[uniqueIndex("teams_org_slug_uidx").on(t.organizationId,t.slug),
+  index("teams_org_idx").on(t.organizationId,t.id)]);
+export const teamMemberships = sqliteTable("team_memberships", {
+  organizationId: integer("organization_id").notNull(),
+  teamId: integer("team_id").notNull(),
+  userId: integer("user_id").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[primaryKey({columns:[t.teamId,t.userId]}),
+  index("team_memberships_user_idx").on(t.userId,t.organizationId,t.teamId)]);
+export const organizationWorkspaces = sqliteTable("organization_workspaces",{
+  organizationId: integer("organization_id").notNull(),
+  workspaceId: integer("workspace_id").primaryKey(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[index("organization_workspaces_org_idx").on(t.organizationId,t.workspaceId)]);
+export const workspaceTeamGrants = sqliteTable("workspace_team_grants",{
+  organizationId: integer("organization_id").notNull(),
+  workspaceId: integer("workspace_id").notNull(),
+  teamId: integer("team_id").notNull(),
+  role: text("role",{enum:["viewer","editor"]}).notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[primaryKey({columns:[t.workspaceId,t.teamId]}),
+  index("workspace_team_grants_team_idx").on(t.teamId,t.workspaceId)]);
+export const spaceAccessPolicies = sqliteTable("space_access_policies",{
+  workspaceId: integer("workspace_id").notNull(),
+  spaceId: integer("space_id").primaryKey(),
+  mode: text("mode",{enum:["restricted"]}).notNull().default("restricted"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[index("space_access_policies_workspace_idx").on(t.workspaceId,t.spaceId)]);
+export const spacePrincipalGrants = sqliteTable("space_principal_grants",{
+  workspaceId: integer("workspace_id").notNull(),
+  spaceId: integer("space_id").notNull(),
+  principalType: text("principal_type",{enum:["user","team"]}).notNull(),
+  principalId: integer("principal_id").notNull(),
+  role: text("role",{enum:["viewer","editor"]}).notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[primaryKey({columns:[t.spaceId,t.principalType,t.principalId]}),
+  index("space_principal_grants_principal_idx").on(t.principalType,t.principalId,t.workspaceId)]);

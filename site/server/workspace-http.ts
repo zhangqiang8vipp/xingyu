@@ -3,6 +3,7 @@ import { workspaceGrant, WorkspaceAccessError } from "@/db/workspace-access";
 import { WorkspaceContentError } from "@/db/workspace-content";
 import { AttachmentError } from "@/db/attachments";
 import { CollaborationError } from "@/db/workspace-collaboration";
+import { OrganizationError } from "@/db/organization-errors";
 
 type Context={ userId:number; workspaceId:number; request:Request };
 const noStore={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
@@ -18,7 +19,7 @@ export async function withWorkspace(request:Request,rawId:string,fn:(ctx:Context
     await workspaceGrant(user.userId,workspaceId,request.method==="GET"?"read":"write");
     return await fn({userId:user.userId,workspaceId,request});
   } catch(error){
-    if(error instanceof WorkspaceContentError||error instanceof WorkspaceAccessError||error instanceof AttachmentError||error instanceof CollaborationError)
+    if(error instanceof WorkspaceContentError||error instanceof WorkspaceAccessError||error instanceof AttachmentError||error instanceof CollaborationError||error instanceof OrganizationError)
       return apiJson({error:error.message},error.status);
     console.error("workspace.api.error",error instanceof Error?error.name:"unknown");
     return apiJson({error:"工作区操作失败"},500);

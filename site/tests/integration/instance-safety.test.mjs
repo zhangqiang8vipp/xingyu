@@ -20,7 +20,7 @@ async function prepareDatabase(db, { environment, instanceId }) {
     .sort();
   for (const migration of migrations) await applySqlFile(db, migration);
   await applySqlFile(db, "seed-app-defaults.sql");
-  await db.prepare("INSERT INTO app_meta (key, value) VALUES ('schema_version', '23'), ('app_environment', ?)")
+  await db.prepare("INSERT INTO app_meta (key, value) VALUES ('schema_version', '24'), ('app_environment', ?)")
     .bind(environment).run();
   if (instanceId !== null) {
     await db.prepare("INSERT INTO app_meta (key, value) VALUES ('instance_id', ?)").bind(instanceId).run();

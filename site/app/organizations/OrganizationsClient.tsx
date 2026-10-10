@@ -1,5 +1,6 @@
 "use client";
 import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
+import TeamWorkspacePanel from "./TeamWorkspacePanel";
 
 type Role="owner"|"admin"|"member";
 type Org={id:number;name:string;slug:string;ownerUserId:number;role:Role};
@@ -216,6 +217,7 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
           </li>)}</ul>}
       </>:null}
     </section>
+    <TeamWorkspacePanel key={selected.id} organization={selected} members={members}/>
     <section style={{border:edge,borderRadius:14,padding:18}}>
       <h2>部门架构</h2>
       <p>部门可多级嵌套；成员可以同时属于多个部门。移动部门不会改变任何工作区访问权限。</p>
