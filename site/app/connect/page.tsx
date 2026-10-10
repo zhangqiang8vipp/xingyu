@@ -7,7 +7,6 @@ import NavTitleChrome from "@/features/navigation/NavTitleChrome";
 import IslandSearch from "@/features/navigation/IslandSearch";
 import MarkdownRenderer from "@/features/markdown/MarkdownRenderer";
 import AdminPreviewBridge from "../AdminPreviewBridge";
-import "./connect-marketing.css";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +31,7 @@ export default async function ConnectPage({ searchParams }: { searchParams: Page
   const renderGuide = !legacyGuide && Boolean(page.content.trim());
 
   return <main className="about-page connect-page xy-marketing-page">
+    <link rel="stylesheet" href="/connect-marketing.css" precedence="default" />
     <SiteNavigation brandName={settings.brandName} current="connect">
       <NavTitleChrome targetId="connect-hero-title" lead={split.lead} tail={split.tail} returnLabel="返回接入页顶部" />
       <IslandSearch initialText={title} />
