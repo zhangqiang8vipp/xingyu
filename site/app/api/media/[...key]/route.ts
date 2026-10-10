@@ -4,6 +4,8 @@ import { mergeResponseHeaders } from "#domain/media/image-transform";
 export async function GET(request: Request, { params }: { params: Promise<{ key: string[] }> }) {
   const { key } = await params;
   const objectKey = key.join("/");
+  // Only public image uploads may use this route. Workspaces and attachments use authenticated download handlers.
+  if (!/^images\/\d{4}\/\d{2}\/[A-Za-z0-9_.-]+$/.test(objectKey)) return new Response("Not found",{status:404});
   let object = await env.MEDIA.get(objectKey);
   if (!object) return new Response("Not found", { status: 404 });
   const contentType = object.httpMetadata?.contentType ?? "application/octet-stream";

@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { cookies } from "next/headers";
 import { bytesToBase64Url, sha256Bytes, adminRuntimeEnv, validSessionSecret } from "@/db/admin-session";
 import { IDENTITY_COOKIE, identityBySession, sessionDigest } from "./identity-session";
+import { ensurePersonalWorkspace } from "@/db/workspace-access";
 import { verifyLocalAdminPassword } from "./admin-auth";
 import { ensureDatabase } from "@/db/bootstrap";
 
@@ -83,6 +84,7 @@ export async function signInWithEmail(email: string, password: string) {
   const raw = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)));
   const hash = await sessionDigest(raw);
   const expires = Math.floor(Date.now() / 1000) + SESSION_SECONDS;
+  await ensurePersonalWorkspace(row.id);
   await env.DB.prepare("INSERT INTO user_sessions(session_hash,user_id,expires_at) VALUES(?,?,?)").bind(hash, row.id, expires).run();
   (await cookies()).set(IDENTITY_COOKIE, raw, { httpOnly: true, secure: adminRuntimeEnv().APP_ENV !== "development", sameSite: "lax", path: "/", maxAge: SESSION_SECONDS });
   return { userId: row.id };

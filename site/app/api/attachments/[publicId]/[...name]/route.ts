@@ -10,7 +10,7 @@ const MAX_IMAGE_TRANSFORM_BYTES = 20 * 1024 * 1024;
 export async function GET(request: Request, { params }: { params: Promise<{ publicId: string; name: string[] }> }) {
   const { publicId } = await params;
   const attachment = await getAttachment(publicId);
-  if (!attachment) return new Response("Not found", { status: 404 });
+  if (!attachment || attachment.workspaceId !== 1) return new Response("Not found", { status: 404 });
 
   const isPublic = attachment.postStatus === "published" && attachment.postSpaceId === null;
   const previewToken = new URL(request.url).searchParams.get("preview") ?? "";

@@ -26,7 +26,7 @@ export async function listPosts(filters: PostFilters = {}) {
   // This generic reader belongs to the public content surface. Private
   // knowledge-space articles must only be reached through authenticated
   // admin/MCP queries, even if a future caller forgets to add the boundary.
-  const conditions = [isNull(posts.spaceId)];
+  const conditions = [eq(posts.workspaceId,1),isNull(posts.spaceId)];
 
   if (filters.status && filters.status !== "all") conditions.push(eq(posts.status, filters.status));
   if (filters.category && filters.category !== "all") conditions.push(eq(categories.slug, filters.category));
@@ -57,13 +57,13 @@ export async function listPosts(filters: PostFilters = {}) {
 export const getCategories = cache(async function getCategories() {
   await ensureDatabase();
   return getDb().select({ id: categories.id, name: categories.name, slug: categories.slug, color: categories.color })
-    .from(categories).orderBy(categories.id);
+    .from(categories).where(eq(categories.workspaceId,1)).orderBy(categories.id);
 });
 
 export async function listHomePosts(category = "all", requestedLimit: number = CONTENT_LIMITS.homeDefault) {
   await ensureDatabase();
   const limit = Math.min(CONTENT_LIMITS.homeMaximum, Math.max(1, requestedLimit));
-  const conditions = [eq(posts.status, "published"),isNull(posts.spaceId)];
+  const conditions = [eq(posts.workspaceId,1),eq(posts.status, "published"),isNull(posts.spaceId)];
   if (category !== "all") conditions.push(eq(categories.slug, category));
   return getDb().select({
     id: posts.id, publicId: posts.publicId, title: posts.title, slug: posts.slug, excerpt: posts.excerpt,
@@ -154,7 +154,7 @@ async function getPublicReadSession(session?: PublicReadSession) {
 async function readPublicPostBySlug(session: PublicReadSession, slug: string) {
   return session.first<PublicPost>(
     `${publicPostSelection}
-      WHERE p.slug = ? AND p.status = 'published' AND p.space_id IS NULL
+      WHERE p.slug = ? AND p.status = 'published' AND p.space_id IS NULL AND p.workspace_id = 1
       LIMIT 1`,
     [slug],
   );
@@ -163,7 +163,7 @@ async function readPublicPostBySlug(session: PublicReadSession, slug: string) {
 async function readPublicPostByPublicId(session: PublicReadSession, publicId: string) {
   return session.first<PublicPost>(
     `${publicPostSelection}
-      WHERE p.public_id = ? AND p.status = 'published' AND p.space_id IS NULL
+      WHERE p.public_id = ? AND p.status = 'published' AND p.space_id IS NULL AND p.workspace_id = 1
       LIMIT 1`,
     [publicId],
   );
@@ -172,7 +172,7 @@ async function readPublicPostByPublicId(session: PublicReadSession, publicId: st
 async function readPublicPostById(session: PublicReadSession, id: number) {
   return session.first<PublicPost>(
     `${publicPostSelection}
-      WHERE p.id = ? AND p.status = 'published' AND p.space_id IS NULL
+      WHERE p.id = ? AND p.status = 'published' AND p.space_id IS NULL AND p.workspace_id = 1
       LIMIT 1`,
     [id],
   );

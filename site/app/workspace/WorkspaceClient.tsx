@@ -32,7 +32,19 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
     ]);
     setSpaces(spaceData.spaces||[]);setPosts(postData.posts||[]);
   },[workspaceId]);
-  useEffect(()=>{refresh().catch(e=>setNotice(e.message));},[refresh]);
+  useEffect(()=>{
+    if(!workspaceId)return;
+    let active=true;
+    void Promise.all([
+      api("/api/workspaces/"+workspaceId+"/spaces?parent_id=all"),
+      api("/api/workspaces/"+workspaceId+"/posts?limit=50"),
+    ]).then(([spaceData,postData])=>{
+      if(!active)return;
+      setSpaces(spaceData.spaces||[]);
+      setPosts(postData.posts||[]);
+    }).catch(error=>{if(active)setNotice(error instanceof Error?error.message:"加载失败");});
+    return ()=>{active=false;};
+  },[workspaceId]);
   async function createNote(e:FormEvent){
     e.preventDefault();if(!title.trim())return;setBusy(true);setNotice("");
     try{
