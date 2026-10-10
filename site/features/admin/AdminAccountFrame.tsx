@@ -3,7 +3,7 @@
 import {useEffect,useState,type ReactNode} from "react";
 import AdminSidebar from "./AdminSidebar";
 
-type AccountArea="workspace"|"organizations";
+type AccountArea="workspace"|"organizations"|"ai-connections";
 type Props={
   area:AccountArea;
   brandName:string;
@@ -37,6 +37,7 @@ export default function AdminAccountFrame({area,brandName,userName,isLegacyAdmin
     }catch{setError("退出失败，请检查网络连接后重试");}
   }
   const organization=area==="organizations";
+  const aiConnections=area==="ai-connections";
   return <main className={`admin-shell admin-account-shell${collapsed?" sidebar-collapsed":""}`}>
     <AdminSidebar brandName={brandName} avatarUrl="" authorName="" userName={userName}
       accountArea={area} isLegacyAdmin={isLegacyAdmin}
@@ -45,9 +46,9 @@ export default function AdminAccountFrame({area,brandName,userName,isLegacyAdmin
       <section className="admin-main admin-config-main admin-account-main">
         <header className="admin-header">
           <div>
-            <p>{organization?"ORGANIZATION / COLLABORATION":"PERSONAL / KNOWLEDGE"}</p>
-            <h1>{organization?"组织与团队":"我的知识空间"}</h1>
-            <span>{organization
+            <p>{aiConnections?"PERSONAL / AI CONNECTIONS":organization?"ORGANIZATION / COLLABORATION":"PERSONAL / KNOWLEDGE"}</p>
+            <h1>{aiConnections?"AI 连接":organization?"组织与团队":"我的知识空间"}</h1>
+            <span>{aiConnections?"管理自己的 OAuth 授权与个人访问令牌；每条连接都可以独立撤销。":organization
               ?"管理部门、团队和组织授权；组织成员身份不会自动开放私人内容。"
               :"管理个人与共享空间，内容仅向获得授权的成员开放。"}</span>
           </div>

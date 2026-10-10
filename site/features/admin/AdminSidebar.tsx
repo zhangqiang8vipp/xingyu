@@ -49,6 +49,7 @@ const MORE_SECTIONS = new Set<AdminSection>(["home", "about", "categories", "con
 const ACCOUNT_LINKS = [
   { href:"/workspace", icon:"◇", label:"知识空间", area:"workspace" },
   { href:"/organizations", icon:"◎", label:"组织与团队", area:"organizations" },
+  { href:"/ai-connections", icon:"↗", label:"AI 连接", area:"ai-connections" },
 ] as const;
 const EMPTY_STATS:AdminStats={total:0,published:0,drafts:0,views:0,privateArticles:0};
 
@@ -102,7 +103,7 @@ export default function AdminSidebar({
   section?: AdminSection;
   stats?: AdminStats;
   categoryCount?: number;
-  accountArea?: "workspace"|"organizations";
+  accountArea?: "workspace"|"organizations"|"ai-connections";
   isLegacyAdmin?: boolean;
   collapsed: boolean;
   onSectionChange?: (section: AdminSection) => void;

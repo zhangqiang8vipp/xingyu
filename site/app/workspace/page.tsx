@@ -6,7 +6,6 @@ import AdminAccountFrame from "@/features/admin/AdminAccountFrame";
 import AccountStyleLoader from "@/features/admin/AccountStyleLoader";
 import WorkspaceClient from "./WorkspaceClient";
 import CollaborationPanel from "./CollaborationPanel";
-import ConnectionsPanel from "./ConnectionsPanel";
 
 export const dynamic="force-dynamic";
 export default async function WorkspacePage(){
@@ -19,6 +18,5 @@ export default async function WorkspacePage(){
     userName={user.displayName} isLegacyAdmin={user.userId===1}>
     <WorkspaceClient initialWorkspaces={workspaces}/>
     <CollaborationPanel workspaces={workspaces}/>
-    <ConnectionsPanel/>
   </AdminAccountFrame></>;
 }
