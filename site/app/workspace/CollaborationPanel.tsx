@@ -87,10 +87,10 @@ export default function CollaborationPanel({workspaces}:{workspaces:Workspace[]}
       window.location.reload();
     },"已退出工作区");
   }
-  return <section style={{border,borderRadius:14,padding:20,marginTop:18}}>
+  return <section className="xy-card xy-collaboration" style={{border,borderRadius:14,padding:20,marginTop:18}}>
     <h2>共享与协作</h2>
     <p>个人工作区保持私有。需要与他人合作时创建共享工作区，并通过邮箱邀请成员。</p>
-    <form onSubmit={create} style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"end"}}>
+    <form className="xy-form-row" onSubmit={create} style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"end"}}>
       <label>新共享工作区名称
         <input required minLength={1} maxLength={80} value={newName}
           onChange={e=>setNewName(e.target.value)} placeholder="例如：产品研发团队"
@@ -98,7 +98,7 @@ export default function CollaborationPanel({workspaces}:{workspaces:Workspace[]}
       </label>
       <button type="submit" disabled={busy}>创建共享工作区</button>
     </form>
-    <hr style={{margin:"22px 0",borderTop:border,borderBottom:0}}/>
+    <hr className="xy-section-divider" style={{margin:"22px 0",borderTop:border,borderBottom:0}}/>
     <label>选择要管理的工作区
       <select value={selectedId} onChange={e=>{setSelectedId(Number(e.target.value));setNotice("");}}
         style={{display:"block",padding:9,marginTop:6,maxWidth:"100%"}}>
@@ -110,7 +110,7 @@ export default function CollaborationPanel({workspaces}:{workspaces:Workspace[]}
     <>
       <h3>工作区成员</h3>
       <div style={{display:"grid",gap:10}}>
-        {members.map(member=><div key={member.userId} style={{border,borderRadius:10,padding:10,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+        {members.map(member=><div className="xy-member-row" key={member.userId} style={{border,borderRadius:10,padding:10,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
           <div><strong>{member.name}</strong> <small>{member.email??""}</small><div><small>{member.role}</small></div></div>
           {canManage&&member.role!=="owner"&&!(selected.role==="admin"&&member.role==="admin")?
           <div style={{display:"flex",gap:7,alignItems:"center"}}>
@@ -118,14 +118,14 @@ export default function CollaborationPanel({workspaces}:{workspaces:Workspace[]}
               {selected.role==="owner"?<option value="admin">Admin</option>:null}
               <option value="editor">Editor</option><option value="viewer">Viewer</option>
             </select></label>
-            <button type="button" disabled={busy} onClick={()=>void remove(member)}>移除</button>
+            <button className="xy-danger" type="button" disabled={busy} onClick={()=>void remove(member)}>移除</button>
           </div>:null}
         </div>)}
       </div>
       {selected.role!=="owner"?<p><button disabled={busy} onClick={()=>void leave()} type="button">退出此共享工作区</button></p>:null}
-      {canManage?<section style={{marginTop:20}}>
+      {canManage?<section className="xy-subcard" style={{marginTop:20}}>
         <h3>邀请成员</h3>
-        <form onSubmit={invite} style={{display:"flex",gap:8,alignItems:"end",flexWrap:"wrap"}}>
+        <form className="xy-form-row" onSubmit={invite} style={{display:"flex",gap:8,alignItems:"end",flexWrap:"wrap"}}>
           <label>受邀邮箱 <input type="email" required maxLength={254} value={email}
             onChange={e=>setEmail(e.target.value)} placeholder="member@example.com" style={{display:"block",padding:8}}/></label>
           <label>角色 <select value={inviteRole} onChange={e=>setInviteRole(e.target.value)} style={{display:"block",padding:8}}>
@@ -136,9 +136,9 @@ export default function CollaborationPanel({workspaces}:{workspaces:Workspace[]}
         </form>
         <h3 style={{marginTop:20}}>待接受的邀请</h3>
         {!invitations.length?<p>暂无等待接受的邀请。</p>:
-        <ul>{invitations.map(i=><li key={i.id} style={{marginBottom:8}}>
+        <ul className="xy-pending-list">{invitations.map(i=><li key={i.id} style={{marginBottom:8}}>
           {i.email} · {i.role}
-          <button type="button" disabled={busy} style={{marginLeft:10}}
+          <button className="xy-danger" type="button" disabled={busy} style={{marginLeft:10}}
             onClick={()=>void run(()=>request(root+"/invitations/"+i.id,"DELETE"),"邀请已撤销",true)}>撤销</button>
         </li>)}</ul>}
       </section>:null}

@@ -1,10 +1,9 @@
 import Link from "next/link";
+import AuthShell from "@/app/console/AuthShell";
 import RegisterForm from "./RegisterForm";
-export default function RegisterPage() {
-  return <main style={{maxWidth:440,margin:"10vh auto",padding:24}}>
-    <small>XINGYU IDENTITY</small><h1>创建星屿账号</h1>
-    <p>每个账号默认拥有独立的私人工作区，验证邮箱后才能登录。</p>
-    <RegisterForm />
-    <p>已有账号？<Link href="/login">前往登录</Link></p>
-  </main>;
+export default function RegisterPage(){
+  return <AuthShell title="创建星屿账号" description="注册即可拥有独立的私人知识空间，验证邮箱后开始使用。">
+    <RegisterForm/>
+    <p className="xy-auth-links">已有账号？<Link href="/login">立即登录</Link></p>
+  </AuthShell>;
 }

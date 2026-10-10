@@ -1,10 +1,9 @@
 import Link from "next/link";
+import AuthShell from "@/app/console/AuthShell";
 import ForgotPasswordForm from "./ForgotPasswordForm";
 export default function ForgotPasswordPage(){
-  return <main style={{maxWidth:440,margin:"12vh auto",padding:24}}>
-    <small>XINGYU IDENTITY</small><h1>找回密码</h1>
-    <p>请输入已注册的邮箱。验证邮件将在 30 分钟内有效。</p>
+  return <AuthShell title="找回密码" description="输入已注册的邮箱，我们将发送一个 30 分钟内有效的重置链接。">
     <ForgotPasswordForm/>
-    <p><Link href="/login">返回登录</Link></p>
-  </main>;
+    <p className="xy-auth-links"><Link href="/login">返回登录</Link></p>
+  </AuthShell>;
 }

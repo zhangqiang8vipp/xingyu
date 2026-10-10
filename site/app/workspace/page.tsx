@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { currentIdentity } from "@/server/auth/identity";
 import { listUserWorkspaces } from "@/db/workspace-access";
+import ConsoleShell from "@/app/console/ConsoleShell";
 import WorkspaceClient from "./WorkspaceClient";
 import ConnectionsPanel from "./ConnectionsPanel";
 import CollaborationPanel from "./CollaborationPanel";
@@ -10,17 +10,9 @@ export default async function WorkspacePage(){
   const user=await currentIdentity();
   if(!user)redirect("/login");
   const workspaces=await listUserWorkspaces(user.userId);
-  return <main style={{maxWidth:1040,margin:"40px auto",padding:"0 20px 80px"}}>
-    <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-      <div><small>XINGYU WORKSPACE</small><h1>我的知识空间</h1><p>{user.displayName} · 私人内容不会公开展示</p></div>
-      <nav style={{display:"flex",gap:16,alignItems:"center"}}>
-        {user.userId===1?<Link href="/admin">原写作后台</Link>:null}
-        <Link href="/organizations">组织管理</Link>
-        <Link href="/">返回博客</Link>
-      </nav>
-    </header>
+  return <ConsoleShell area="workspace" userName={user.displayName} isLegacyAdmin={user.userId===1}>
     <WorkspaceClient initialWorkspaces={workspaces}/>
     <CollaborationPanel workspaces={workspaces}/>
     <ConnectionsPanel/>
-  </main>;
+  </ConsoleShell>;
 }

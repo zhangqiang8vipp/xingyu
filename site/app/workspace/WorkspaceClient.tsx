@@ -100,8 +100,8 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
     await fetch("/api/identity/logout",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin"});
     window.location.replace("/login");
   }
-  return <div style={{display:"grid",gap:18}}>
-    <section style={{...panel,display:"flex",gap:12,justifyContent:"space-between",flexWrap:"wrap",alignItems:"center"}}>
+  return <div className="xy-workspace-client" style={{display:"grid",gap:18}}>
+    <section className="xy-card xy-switcher" style={{...panel,display:"flex",gap:12,justifyContent:"space-between",flexWrap:"wrap",alignItems:"center"}}>
       <label>当前工作区：
         <select value={workspaceId} onChange={e=>{setSelected(null);setContent("");setWorkspaceId(Number(e.target.value));}} style={{...input,width:"auto",marginLeft:8}}>
           {initialWorkspaces.map(w=><option key={w.id} value={w.id}>{w.name}（{w.role}）</option>)}
@@ -110,31 +110,31 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
       <button type="button" onClick={logout}>退出登录</button>
     </section>
     {notice?<p role="status" style={{padding:12,...panel}}>{notice}</p>:null}
-    <div style={{display:"grid",gridTemplateColumns:"minmax(210px,1fr) minmax(0,2fr)",gap:16}}>
-      <aside style={{...panel,display:"grid",alignContent:"start",gap:18}}>
-        <div><h2>知识空间</h2>{spaces.length?spaces.map(s=><p key={s.id} style={{margin:"8px 0"}}>📁 {s.name}</p>):<p>暂无空间</p>}</div>
-        <form onSubmit={createSpace} style={{display:"grid",gap:8}}>
+    <div className="xy-workspace-grid" style={{display:"grid",gridTemplateColumns:"minmax(210px,1fr) minmax(0,2fr)",gap:16}}>
+      <aside className="xy-card xy-navigation-card" style={{...panel,display:"grid",alignContent:"start",gap:18}}>
+        <div><h2>知识空间</h2>{spaces.length?spaces.map(s=><p key={s.id} className="xy-space-item" style={{margin:"8px 0"}}>▧ {s.name}</p>):<p className="xy-empty">暂无知识空间</p>}</div>
+        <form className="xy-space-create-form" onSubmit={createSpace} style={{display:"grid",gap:8}}>
           <label htmlFor="space-name">创建顶级空间</label>
           <input id="space-name" style={input} value={name} onChange={e=>setName(e.target.value)} maxLength={100}/>
           <button type="submit" disabled={busy}>添加空间</button>
         </form>
-        <div><h2>文章</h2>
-          <input style={input} value={query} onChange={e=>setQuery(e.target.value)} placeholder="筛选标题"/>
+        <div className="xy-document-list"><h2>文章</h2>
+          <input aria-label="筛选文章标题" style={input} value={query} onChange={e=>setQuery(e.target.value)} placeholder="搜索文章标题…"/>
           {posts.filter(p=>p.title.toLowerCase().includes(query.toLowerCase())).map(p=>
-            <button type="button" key={p.publicId} onClick={()=>openPost(p.publicId)} style={{display:"block",padding:"10px 0",width:"100%",textAlign:"left",border:0,background:"transparent",cursor:"pointer"}}>
+            <button className="xy-post-row" type="button" aria-pressed={selected?.publicId===p.publicId} key={p.publicId} onClick={()=>openPost(p.publicId)} style={{display:"block",padding:"10px 0",width:"100%",textAlign:"left",border:0,background:"transparent",cursor:"pointer"}}>
               {p.title} <small>· {p.status==="draft"?"草稿":"已完成"}</small>
             </button>)}
         </div>
       </aside>
-      <section style={{...panel,display:"grid",gap:14,alignContent:"start"}}>
+      <section className="xy-card xy-editor-card" style={{...panel,display:"grid",gap:14,alignContent:"start"}}>
         {selected?<><h2>编辑：{selected.title}</h2>
           <p>版本 {selected.version} · {selected.status==="draft"?"草稿":"已完成"} · 私人空间数据只对授权成员开放</p>
           <label htmlFor="edit-markdown">Markdown 正文</label>
           <textarea id="edit-markdown" value={content} onChange={e=>setContent(e.target.value)} rows={18} style={{...input,resize:"vertical",fontFamily:"monospace"}}/>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-            <button type="button" disabled={busy} onClick={savePost}>保存修改</button>
+          <div className="xy-editor-actions" style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            <button className="xy-primary" type="button" disabled={busy} onClick={savePost}>保存修改</button>
             <button type="button" disabled={busy} onClick={()=>setStatus(selected.status==="draft"?"published":"draft")}>{selected.status==="draft"?"标记完成":"退回草稿"}</button>
-            <label>上传附件 <input type="file" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)upload(file);e.target.value="";}}/></label>
+            <label className="xy-file-upload">上传附件 <input type="file" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)upload(file);e.target.value="";}}/></label>
             <button type="button" onClick={()=>{setSelected(null);setContent("");}}>新建草稿</button>
           </div>
         </>:<form onSubmit={createNote} style={{display:"grid",gap:12}}>
