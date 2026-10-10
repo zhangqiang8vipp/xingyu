@@ -16,7 +16,7 @@
     "start": "vinext start",
     "test": "npm run typecheck && npm run build && npm run types:worker:check && npm run test:provisioning && npm run test:source && npm run test:integration",
     "test:source": "node --test tests/instance-identity.test.mjs tests/rendered-html.test.mjs tests/oauth-auth.test.mjs tests/oauth-protocol.test.mjs tests/mcp-read.test.mjs tests/admin-reader-context.test.mjs tests/admin-activation.test.mjs tests/public-document-cache.test.mjs tests/media-response.test.mjs tests/public-read-session.test.mjs tests/document-blocks.test.mjs tests/identity-email.test.mjs",
-    "test:integration": "node --test tests/integration/instance-safety.test.mjs tests/integration/security-contracts.test.mjs tests/integration/schema-migrations.test.mjs tests/integration/post-write-contracts.test.mjs tests/integration/views-contracts.test.mjs tests/integration/read-session-contracts.test.mjs tests/integration/knowledge-import-contracts.test.mjs tests/integration/private-beta-safety-contracts.test.mjs",
+    "test:integration": "node --test tests/integration/instance-safety.test.mjs tests/integration/security-contracts.test.mjs tests/integration/schema-migrations.test.mjs tests/integration/post-write-contracts.test.mjs tests/integration/views-contracts.test.mjs tests/integration/read-session-contracts.test.mjs tests/integration/knowledge-import-contracts.test.mjs tests/integration/private-beta-safety-contracts.test.mjs tests/integration/workspace-isolation.test.mjs",
     "ci": "npm run lint && npm run typecheck && npm run build && npm run types:worker:check && npm run test:provisioning && npm run test:source && npm run test:integration",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
