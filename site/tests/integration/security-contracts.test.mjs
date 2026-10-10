@@ -432,8 +432,8 @@ test("admin diagnostics is admin-only and reports a healthy site with the full a
     assert.equal(authorized.headers.get("cache-control"), "no-store", "diagnostics must never be cached");
 
     const body = JSON.parse(await authorized.text());
-    assert.equal(body.schema.code, "24", "the report must name the expected schema version");
-    assert.equal(body.schema.database, "24", "the local D1 must report the same schema version");
+    assert.equal(body.schema.code, "25", "the report must name the expected schema version");
+    assert.equal(body.schema.database, "25", "the local D1 must report the same schema version");
     assert.equal(body.schema.environment, "development");
     assert.equal(body.migrations, null, "a legacy-bootstrap harness has no d1_migrations table");
     assert.equal(body.ownerPresent, true, "the site owner membership must be present");

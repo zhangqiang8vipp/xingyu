@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import PersonalTokensPanel from "./PersonalTokensPanel";
+import ClientSetupGuide from "./ClientSetupGuide";
 import { useState } from "react";
 import { readApiJson } from "@/app/api-response";
 import {
@@ -84,6 +86,8 @@ export default function AdminIntegrationsPanel({
     </header>
 
     <div className="config-form activation-config">
+      <PersonalTokensPanel />
+      <ClientSetupGuide />
       <section className="editor-section activation-overview">
         <div className="activation-hero">
           <div>

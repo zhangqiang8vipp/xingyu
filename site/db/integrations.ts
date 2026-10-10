@@ -36,7 +36,7 @@ export async function listMcpConnections(): Promise<McpConnection[]> {
     createdAt: mcpActivity.createdAt,
     clientLabel: mcpActivity.clientLabel,
   }).from(mcpActivity)
-    .where(not(like(mcpActivity.clientLabel, "oauth:%")))
+    .where(and(not(like(mcpActivity.clientLabel, "oauth:%")), not(like(mcpActivity.clientLabel, "pat:%"))))
     .orderBy(desc(mcpActivity.createdAt), desc(mcpActivity.id))
     .limit(1);
 

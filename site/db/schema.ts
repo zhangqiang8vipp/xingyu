@@ -225,6 +225,24 @@ export const mcpActivity = sqliteTable("mcp_activity", {
   index("mcp_activity_post_idx").on(table.postId, table.id),
 ]);
 
+/** Individually revocable, user-owned MCP credentials; only SHA-256 hashes are stored. */
+export const personalAccessTokens = sqliteTable("personal_access_tokens", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id").notNull(),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  tokenSuffix: text("token_suffix").notNull(),
+  resource: text("resource").notNull(),
+  scope: text("scope").notNull(),
+  expiresAt: integer("expires_at"),
+  revokedAt: integer("revoked_at"),
+  lastUsedAt: integer("last_used_at"),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("personal_access_tokens_hash_uidx").on(table.tokenHash),
+  index("personal_access_tokens_user_idx").on(table.userId, table.createdAt, table.id),
+]);
+
 export const oauthClients = sqliteTable("oauth_clients", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   clientId: text("client_id").notNull(),

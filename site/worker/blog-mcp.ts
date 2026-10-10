@@ -66,7 +66,7 @@ export async function handleBlogMcpRequest(
   const origin = new URL(request.url).origin;
   const clientLabel = auth.authType === "legacy"
     ? (request.headers.get("User-Agent") || "remote-mcp").slice(0, 160)
-    : `oauth:${auth.clientId}:${auth.subject}`;
+    : `${auth.authType}:${auth.clientId}:${auth.subject}`;
   const server = createBlogMcpServer(origin, clientLabel, auth);
   const response = await createMcpHandler(server, {
     route: MCP_PATH,
