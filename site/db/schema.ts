@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const categories = sqliteTable("categories", {
+  workspaceId: integer("workspace_id").notNull().default(1),
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   slug: text("slug").notNull(),
@@ -10,6 +11,7 @@ export const categories = sqliteTable("categories", {
 }, (table) => [uniqueIndex("categories_slug_uidx").on(table.slug)]);
 
 export const spaces = sqliteTable("spaces", {
+  workspaceId: integer("workspace_id").notNull().default(1),
   id: integer("id").primaryKey({ autoIncrement: true }),
   parentId: integer("parent_id"),
   name: text("name").notNull(),
@@ -25,6 +27,7 @@ export const spaces = sqliteTable("spaces", {
 ]);
 
 export const posts = sqliteTable("posts", {
+  workspaceId: integer("workspace_id").notNull().default(1),
   id: integer("id").primaryKey({ autoIncrement: true }),
   publicId: text("public_id").notNull(),
   title: text("title").notNull(),
@@ -103,6 +106,7 @@ export const postSlugHistory = sqliteTable("post_slug_history", {
 ]);
 
 export const attachments = sqliteTable("attachments", {
+  workspaceId: integer("workspace_id").notNull().default(1),
   id: integer("id").primaryKey({ autoIncrement: true }),
   publicId: text("public_id").notNull(),
   postId: integer("post_id"),
@@ -204,6 +208,7 @@ export const viewRequestLimits = sqliteTable("view_request_limits", {
 });
 
 export const mcpActivity = sqliteTable("mcp_activity", {
+  workspaceId: integer("workspace_id").notNull().default(1),
   id: integer("id").primaryKey({ autoIncrement: true }),
   action: text("action").notNull(),
   postId: integer("post_id").notNull(),
@@ -339,3 +344,32 @@ export const identityLoginLimits = sqliteTable("identity_login_limits", {
   blockedUntil: integer("blocked_until").notNull().default(0),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const workspaces = sqliteTable("workspaces", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  kind: text("kind", { enum: ["personal", "organization"] }).notNull().default("personal"),
+  ownerUserId: integer("owner_user_id").notNull(),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("active"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("workspaces_slug_uidx").on(table.slug)]);
+
+export const workspaceMemberships = sqliteTable("workspace_memberships", {
+  workspaceId: integer("workspace_id").notNull(),
+  userId: integer("user_id").notNull(),
+  role: text("role", { enum: ["owner", "admin", "editor", "viewer"] }).notNull().default("owner"),
+  status: text("status").notNull().default("active"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  primaryKey({ columns: [table.workspaceId, table.userId] }),
+  index("workspace_memberships_user_idx").on(table.userId, table.workspaceId),
+]);
+
+export const emailVerifications = sqliteTable("email_verifications", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: integer("user_id").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  usedAt: integer("used_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("email_verifications_user_idx").on(table.userId, table.expiresAt)]);

@@ -2,12 +2,13 @@ import { env } from "cloudflare:workers";
 import { DEFAULT_ABOUT_PAGE, DEFAULT_CONNECT_PAGE, DEFAULT_SITE_SETTINGS } from "@/domain/site/config";
 import { createPostPublicId } from "./public-id";
 import { PUBLIC_CACHE_SCHEMA_STATEMENTS } from "./public-cache-schema";
+import { WORKSPACE_GUARD_TRIGGERS } from "./workspace-guards";
 import { assertStoredInstanceIdentity, requireRuntimeInstanceIdentity } from "./instance-identity";
 
 let ready: Promise<void> | null = null;
 
 /** 当前 worker 期望的 D1 schema 版本，供健康检查与迁移门禁共用。 */
-export const schemaVersion = "20";
+export const schemaVersion = "21";
 
 const requiredUniqueIndexes = {
   attachments_object_key_uidx: { table: "attachments", columns: ["object_key"] },
@@ -28,18 +29,20 @@ const requiredUniqueIndexes = {
   spaces_parent_slug_uidx: { table: "spaces", columns: ["parent_id", "slug"] },
   spaces_root_slug_uidx: { table: "spaces", columns: ["slug"] },
   user_identities_provider_subject_uidx: { table: "user_identities", columns: ["provider", "subject"] },
+  workspaces_slug_uidx: { table: "workspaces", columns: ["slug"] },
 } as const;
 
 const requiredMigrationObjects = {
   table: [
     "admin_login_attempts", "app_meta", "attachment_cleanup_queue", "attachments", "categories",
-    "content_pages", "identity_login_limits", "mcp_activity", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
+    "content_pages", "email_verifications", "identity_login_limits", "mcp_activity", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
     "oauth_consents", "oauth_rate_limits", "oauth_refresh_tokens", "post_preview_tokens",
-    "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_credentials", "user_identities", "user_sessions", "users", "view_request_limits",
+    "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_credentials", "user_identities", "user_sessions", "users", "view_request_limits", "workspaces", "workspace_memberships",
   ],
-  index: Object.keys(requiredUniqueIndexes),
+  index: [...Object.keys(requiredUniqueIndexes), "workspace_memberships_user_idx", "email_verifications_user_idx", "posts_workspace_updated_idx", "spaces_workspace_parent_idx", "attachments_workspace_idx", "categories_workspace_idx", "mcp_workspace_activity_idx"],
   trigger: [
     "posts_public_id_required_insert", "posts_public_id_required_update",
+    "posts_workspace_insert_guard", "posts_workspace_update_guard", "spaces_workspace_insert_guard", "spaces_workspace_update_guard", "attachments_workspace_insert_guard", "attachments_workspace_update_guard",
     "posts_history_slug_guard_insert", "posts_history_slug_guard_update",
     "history_current_slug_guard_insert", "history_current_slug_guard_update",
     "posts_fts_insert", "posts_fts_delete", "posts_fts_update",
@@ -154,11 +157,12 @@ async function initialize() {
       (SELECT COUNT(*) FROM content_pages WHERE slug IN ('about', 'connect')) AS page_count,
       (SELECT COUNT(*) FROM public_cache_state WHERE id = 1) AS cache_count,
       (SELECT COUNT(*) FROM site_memberships WHERE role = 'owner') AS owner_count,
-      (SELECT COUNT(*) FROM user_identities WHERE provider = 'email' AND subject = 'zhangqiang8vip@gmail.com' AND user_id = 1) AS owner_email_count`).first<{
-        settings_count: number; category_count: number; page_count: number; cache_count: number; owner_count: number; owner_email_count: number;
+      (SELECT COUNT(*) FROM user_identities WHERE provider = 'email' AND subject = 'zhangqiang8vip@gmail.com' AND user_id = 1) AS owner_email_count,
+      (SELECT COUNT(*) FROM workspace_memberships WHERE workspace_id = 1 AND user_id = 1 AND role = 'owner') AS owner_workspace_count`).first<{
+        settings_count: number; category_count: number; page_count: number; cache_count: number; owner_count: number; owner_email_count: number; owner_workspace_count: number;
       }>();
     if (!requiredData || requiredData.settings_count !== 1 || requiredData.category_count < 1
-      || requiredData.page_count !== 2 || requiredData.cache_count !== 1 || requiredData.owner_count < 1 || requiredData.owner_email_count !== 1) {
+      || requiredData.page_count !== 2 || requiredData.cache_count !== 1 || requiredData.owner_count < 1 || requiredData.owner_email_count !== 1 || requiredData.owner_workspace_count !== 1) {
       throw new Error(`D1 required data is incomplete for version ${schemaVersion}`);
     }
     return;
@@ -393,6 +397,12 @@ async function initialize() {
     d1.prepare("CREATE TABLE IF NOT EXISTS user_sessions (session_hash TEXT PRIMARY KEY NOT NULL, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL, revoked_at INTEGER, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     d1.prepare("CREATE INDEX IF NOT EXISTS user_sessions_user_expiry_idx ON user_sessions(user_id, expires_at)"),
     d1.prepare("CREATE TABLE IF NOT EXISTS identity_login_limits (identifier TEXT PRIMARY KEY NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, window_started INTEGER NOT NULL, blocked_until INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS workspaces (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,kind TEXT NOT NULL DEFAULT 'personal',owner_user_id INTEGER NOT NULL,slug TEXT NOT NULL,name TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS workspaces_slug_uidx ON workspaces(slug)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS workspace_memberships (workspace_id INTEGER NOT NULL,user_id INTEGER NOT NULL,role TEXT NOT NULL DEFAULT 'owner',status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(workspace_id,user_id))"),
+    d1.prepare("CREATE INDEX IF NOT EXISTS workspace_memberships_user_idx ON workspace_memberships(user_id,workspace_id)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS email_verifications (token_hash TEXT PRIMARY KEY NOT NULL,user_id INTEGER NOT NULL,expires_at INTEGER NOT NULL,used_at INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    d1.prepare("CREATE INDEX IF NOT EXISTS email_verifications_user_idx ON email_verifications(user_id,expires_at)"),
     d1.prepare(`CREATE TABLE IF NOT EXISTS view_request_limits (
       identity_hash TEXT PRIMARY KEY,
       attempts INTEGER NOT NULL DEFAULT 0,
@@ -513,6 +523,19 @@ async function initialize() {
   if (!(postColumns.results ?? []).some((column) => column.name === "sort_order")) {
     await d1.prepare("ALTER TABLE posts ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0").run();
   }
+  for (const table of ["categories", "spaces", "posts", "attachments", "mcp_activity"] as const) {
+    const columns = await d1.prepare("PRAGMA table_info(" + table + ")").all<{ name: string }>();
+    if (!(columns.results ?? []).some((column) => column.name === "workspace_id")) {
+      await d1.prepare("ALTER TABLE " + table + " ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1").run();
+    }
+  }
+  for (const statement of [
+    "CREATE INDEX IF NOT EXISTS posts_workspace_updated_idx ON posts(workspace_id,updated_at,id)",
+    "CREATE INDEX IF NOT EXISTS spaces_workspace_parent_idx ON spaces(workspace_id,parent_id,id)",
+    "CREATE INDEX IF NOT EXISTS attachments_workspace_idx ON attachments(workspace_id,post_id)",
+    "CREATE INDEX IF NOT EXISTS categories_workspace_idx ON categories(workspace_id,id)",
+    "CREATE INDEX IF NOT EXISTS mcp_workspace_activity_idx ON mcp_activity(workspace_id,created_at,id)",
+  ]) await d1.prepare(statement).run();
   const attachmentColumns = await d1.prepare("PRAGMA table_info(attachments)").all<{ name: string }>();
   if (!(attachmentColumns.results ?? []).some((column) => column.name === "unbound_at")) {
     await d1.prepare("ALTER TABLE attachments ADD COLUMN unbound_at TEXT").run();
@@ -553,6 +576,8 @@ async function initialize() {
     d1.prepare("INSERT OR IGNORE INTO users (id, display_name, status) VALUES (1, '星屿管理员', 'active')"),
     d1.prepare("INSERT OR IGNORE INTO user_identities (user_id, provider, subject, name) VALUES (1, 'local', 'owner', '星屿管理员')"),
     d1.prepare("INSERT OR IGNORE INTO site_memberships (user_id, role) VALUES (1, 'owner')"),
+    d1.prepare("INSERT OR IGNORE INTO workspaces(id,kind,owner_user_id,slug,name,status) VALUES(1,'personal',1,'personal-u1','星屿管理员的工作区','active')"),
+    d1.prepare("INSERT OR IGNORE INTO workspace_memberships(workspace_id,user_id,role,status) VALUES(1,1,'owner','active')"),
     d1.prepare("INSERT OR IGNORE INTO user_identities (user_id, provider, subject, email, name) VALUES (1, 'email', ?, ?, '星屿管理员')").bind("zhangqiang8vip@gmail.com", "zhangqiang8vip@gmail.com"),
     d1.prepare("INSERT OR IGNORE INTO user_credentials (user_id, legacy_admin) VALUES (1, 1)"),
     d1.prepare(`UPDATE categories
@@ -593,6 +618,7 @@ async function initialize() {
 
   const ownerEmailIdentity = await d1.prepare("SELECT user_id FROM user_identities WHERE provider = 'email' AND subject = ?").bind("zhangqiang8vip@gmail.com").first<{user_id:number}>();
   if (ownerEmailIdentity?.user_id !== 1) throw new Error("Owner email identity does not belong to the existing site owner");
+  for (const statement of WORKSPACE_GUARD_TRIGGERS) await d1.prepare(statement).run();
   const searchVersion = await d1.prepare("SELECT value FROM app_meta WHERE key = 'posts_fts_version'").first<{ value: string }>();
   if (searchVersion?.value !== "2") {
     await d1.prepare("INSERT INTO posts_fts(posts_fts) VALUES ('rebuild')").run();

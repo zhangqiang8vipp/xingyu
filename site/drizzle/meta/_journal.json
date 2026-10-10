@@ -134,6 +134,13 @@
       "when": 1791590400000,
       "tag": "0018_identity_email_login",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1791597600000,
+      "tag": "0019_workspaces_and_verification",
+      "breakpoints": true
     }
   ]
 }
