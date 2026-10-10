@@ -398,11 +398,11 @@ test("a newer database schema is never downgraded by an older worker", async () 
     const worker = server.getWorker();
     const { DB } = await worker.getEnv();
     await DB.prepare("CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)").run();
-    await DB.prepare("INSERT INTO app_meta (key, value) VALUES ('schema_version', '25'), ('app_environment', 'development'), ('instance_id', 'development:integration')").run();
+    await DB.prepare("INSERT INTO app_meta (key, value) VALUES ('schema_version', '26'), ('app_environment', 'development'), ('instance_id', 'development:integration')").run();
     const response = await worker.fetch("/");
     assert.equal(response.status, 500, "an older worker must refuse a newer schema");
     const version = await DB.prepare("SELECT value FROM app_meta WHERE key='schema_version'").first();
-    assert.equal(version?.value, "25", "the version marker must remain unchanged");
+    assert.equal(version?.value, "26", "the version marker must remain unchanged");
     const postsTable = await DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='posts'").first();
     assert.equal(postsTable, null, "the rejected request must not create application tables");
   } finally {
