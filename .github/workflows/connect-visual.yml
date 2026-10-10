@@ -31,6 +31,10 @@ jobs:
         run: npm ci
       - name: Build production Worker
         run: npm run build
+      - name: Install CJK browser fallback fonts
+        run: sudo apt-get update -qq && sudo apt-get install -y fonts-noto-cjk
+      - name: Inspect built admin assets
+        run: find dist -iname '*admin*' -type f | head -30
       - name: Capture and check real Connect pages
         run: node scripts/visual-connect-acceptance.mjs
       - name: Save browser screenshots
