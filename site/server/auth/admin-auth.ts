@@ -31,6 +31,8 @@ export async function getAdminIdentity(): Promise<AdminIdentity | null> {
   if (isPasswordLoginConfigured() && await hasValidAdminSession()) {
     return { displayName: "星屿管理员", email: "password-admin" };
   }
+  const { isOwnerIdentity } = await import("./identity");
+  if (await isOwnerIdentity()) return { displayName: "星屿管理员", email: "zhangqiang8vip@gmail.com" };
   return null;
 }
 

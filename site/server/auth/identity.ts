@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { cookies } from "next/headers";
-import { bytesToBase64Url, sha256Bytes, constantTimeTextEqual, adminRuntimeEnv, validSessionSecret } from "@/db/admin-session";
+import { bytesToBase64Url, sha256Bytes, adminRuntimeEnv, validSessionSecret } from "@/db/admin-session";
 import { verifyLocalAdminPassword } from "./admin-auth";
 import { ensureDatabase } from "@/db/bootstrap";
 
