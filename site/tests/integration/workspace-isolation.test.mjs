@@ -43,11 +43,18 @@ test("two users stay isolated in web and OAuth MCP workspaces",async()=>{
     assert.ok(markedData.post.spaceId,"marked-as-complete personal content stays private");
 
     // Authenticated R2 objects must never leak via another workspace ID or old public media routes.
-    const form=new FormData();
-    form.set("file",new File(["ALICE ATTACHMENT SECRET"],"alice-secret.txt",{type:"text/plain"}));
-    form.set("post_identifier",article.publicId);
+    const boundary="xingyu-private-upload-"+randomBytes(10).toString("hex");
+    const multipart=[
+      "--"+boundary+"\r\nContent-Disposition: form-data; name=\"file\"; filename=\"alice-secret.txt\"\r\nContent-Type: text/plain\r\n\r\n",
+      "ALICE ATTACHMENT SECRET\r\n",
+      "--"+boundary+"\r\nContent-Disposition: form-data; name=\"post_identifier\"\r\n\r\n",
+      article.publicId+"\r\n",
+      "--"+boundary+"--\r\n",
+    ].join("");
     const uploaded=await harness.dispatch("/api/workspaces/"+a.workspaceId+"/attachments",{
-      method:"POST",headers:{origin:harness.origin,cookie:a.cookie},body:form,
+      method:"POST",
+      headers:{origin:harness.origin,cookie:a.cookie,"content-type":"multipart/form-data; boundary="+boundary},
+      body:multipart,
     });
     const uploadData=await uploaded.json();
     assert.equal(uploaded.status,201,JSON.stringify(uploadData));
