@@ -394,3 +394,60 @@ export const workspaceInvitations = sqliteTable("workspace_invitations", {
     .where(sql`${table.acceptedAt} IS NULL AND ${table.revokedAt} IS NULL`),
   index("workspace_invitations_workspace_idx").on(table.workspaceId,table.createdAt),
 ]);
+
+
+/** Organization membership never implicitly grants content access to a workspace. */
+export const organizations = sqliteTable("organizations", {
+  id: integer("id").primaryKey({autoIncrement:true}),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  ownerUserId: integer("owner_user_id").notNull(),
+  status: text("status",{enum:["active","archived"]}).notNull().default("active"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[uniqueIndex("organizations_slug_uidx").on(t.slug)]);
+export const organizationMemberships = sqliteTable("organization_memberships", {
+  organizationId: integer("organization_id").notNull(),
+  userId: integer("user_id").notNull(),
+  role: text("role",{enum:["owner","admin","member"]}).notNull(),
+  status: text("status",{enum:["active","suspended"]}).notNull().default("active"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[primaryKey({columns:[t.organizationId,t.userId]}),
+  index("organization_memberships_user_idx").on(t.userId,t.organizationId)]);
+export const organizationInvitations = sqliteTable("organization_invitations", {
+  id: integer("id").primaryKey({autoIncrement:true}),
+  organizationId: integer("organization_id").notNull(),
+  email: text("email").notNull(),
+  role: text("role",{enum:["admin","member"]}).notNull(),
+  tokenHash: text("token_hash").notNull(),
+  invitedBy: integer("invited_by").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  acceptedBy: integer("accepted_by"),
+  acceptedAt: integer("accepted_at"),
+  revokedAt: integer("revoked_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[
+  uniqueIndex("organization_invitations_token_uidx").on(t.tokenHash),
+  uniqueIndex("organization_invitations_pending_uidx").on(t.organizationId,t.email)
+    .where(sql`${t.acceptedAt} IS NULL AND ${t.revokedAt} IS NULL`),
+  index("organization_invitations_org_idx").on(t.organizationId,t.createdAt),
+]);
+export const organizationUnits = sqliteTable("organization_units", {
+  id: integer("id").primaryKey({autoIncrement:true}),
+  organizationId: integer("organization_id").notNull(),
+  parentId: integer("parent_id"),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[
+  uniqueIndex("organization_units_sibling_uidx").on(t.organizationId,t.parentId,t.name),
+  uniqueIndex("organization_units_root_uidx").on(t.organizationId,t.name).where(sql`${t.parentId} IS NULL`),
+  index("organization_units_tree_idx").on(t.organizationId,t.parentId,t.sortOrder,t.id),
+]);
+export const organizationUnitMemberships = sqliteTable("organization_unit_memberships", {
+  organizationId: integer("organization_id").notNull(),
+  unitId: integer("unit_id").notNull(),
+  userId: integer("user_id").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[primaryKey({columns:[t.organizationId,t.unitId,t.userId]}),
+  index("organization_unit_memberships_user_idx").on(t.userId,t.organizationId)]);

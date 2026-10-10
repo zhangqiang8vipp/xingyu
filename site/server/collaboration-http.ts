@@ -1,5 +1,6 @@
 import { identityFromRequest } from "@/server/auth/identity-session";
 import { CollaborationError } from "@/db/workspace-collaboration";
+import { OrganizationError } from "@/db/organization-errors";
 import { WorkspaceAccessError } from "@/db/workspace-access";
 import { WorkspaceContentError } from "@/db/workspace-content";
 import { apiJson } from "@/server/workspace-http";
@@ -12,7 +13,7 @@ export async function withAccountRequest(request:Request,callback:(userId:number
   if(!identity)return apiJson({error:"请先登录"},401);
   try{return await callback(identity.userId);}
   catch(error){
-    if(error instanceof CollaborationError||error instanceof WorkspaceAccessError||error instanceof WorkspaceContentError)
+    if(error instanceof CollaborationError||error instanceof WorkspaceAccessError||error instanceof WorkspaceContentError||error instanceof OrganizationError)
       return apiJson({error:error.message},error.status);
     console.error("collaboration.account.failed",error instanceof Error?error.name:"unknown");
     return apiJson({error:"请求处理失败"},500);

@@ -15,6 +15,7 @@ export default async function WorkspacePage(){
       <div><small>XINGYU WORKSPACE</small><h1>我的知识空间</h1><p>{user.displayName} · 私人内容不会公开展示</p></div>
       <nav style={{display:"flex",gap:16,alignItems:"center"}}>
         {user.userId===1?<Link href="/admin">原写作后台</Link>:null}
+        <Link href="/organizations">组织管理</Link>
         <Link href="/">返回博客</Link>
       </nav>
     </header>
