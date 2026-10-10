@@ -27,3 +27,12 @@
 - 限流策略、创建配额并发竞争；当前上限为业务层计数，极端并发可能突破上限。
 - 确认浏览器 / 客户端可以在远程 MCP 请求中正常发送 Authorization Header。
 - 已保存的线上 `connect` 文案需要单独由内容库修改；代码部署不会自动改写用户内容。
+
+## 页面职责与视觉验收
+
+- 公开 `/connect` 是纯介绍页，按已确认的 Demo 实现视觉：大标题 + 深色 endpoint 卡片、OAuth/PAT 两种方式、步骤、权限卡与 FAQ。**不读取账号、不会调用 PAT API、不显示真实 Token，也不执行 OAuth 授权**。
+- 登录后的 `/ai-connections` 提供所有普通用户的个人 PAT 创建/列表/撤销与属于该账号的 OAuth 授权记录；复用原来的 AdminAccountFrame / AdminSidebar 视觉和会话。普通用户无权操作其他用户的凭据。
+- 旧管理后台「AI 连接」（`/admin?section=integrations`）继续显示现有连接与激活概览，并复用 PersonalTokensPanel，仅在使用真实个人邮箱账号会话时创建个人 PAT。
+- `/workspace` 不再塞入连接管理面板。侧栏新增「AI 连接」，确保实际功能不与知识空间编辑混杂。
+- `content_pages[slug='connect']` 仍提供公开页可编辑文案。老生产数据库有旧 Codex/共享密钥相关内容，版本发布后应使用 `/admin?section=connect` 页面编辑器更新并审阅正文；**不要在 Schema 25 迁移中直接覆盖线上运营文案**。页面暂时隐藏已识别的旧配置文章，新站点默认种子已经改成 OAuth+PAT 指引。
+- 部署检查：桌面/手机/深色模式对照已确认 Demo，不允许只出现新增小功能模块而保留原文档式主体；同时检查公开页面不触发 `GET /api/identity/tokens`。
