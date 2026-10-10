@@ -16,7 +16,8 @@ test("account workspaces reuse the existing AdminSidebar instead of introducing 
   const frame=read("features/admin/AdminAccountFrame.tsx");
   const side=read("features/admin/AdminSidebar.tsx");
   const admin=read("features/admin/AdminClient.tsx");
-  assert.match(frame,/import "@\/app\/admin\/admin\.css"/);
+  assert.doesNotMatch(frame,/import "@\/app\/admin\/admin\.css"/);
+  assert.match(read("features/admin/AccountStyleLoader.tsx"),/import "@\/app\/admin\/admin\.css"/);
   assert.match(admin,/import "@\/app\/admin\/admin\.css"/);
   assert.match(frame,/<AdminSidebar/);
   assert.match(frame,/<main className=\{\`admin-shell admin-account-shell/);

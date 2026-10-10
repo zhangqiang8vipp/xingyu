@@ -1,6 +1,5 @@
 "use client";
 
-import "@/app/admin/admin.css";
 import {useEffect,useState,type ReactNode} from "react";
 import AdminSidebar from "./AdminSidebar";
 
