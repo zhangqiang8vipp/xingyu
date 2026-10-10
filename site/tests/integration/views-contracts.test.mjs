@@ -162,11 +162,14 @@ test("parallel requests for one server-side viewer add at most one daily event a
   const harness = await openTestHarness();
   try {
     await seedPublicPost(harness.db, "views-parallel", "Parallel views");
-    const responses = await Promise.all(Array.from({ length: 12 }, () =>
-      viewRequest(harness, "views-parallel", { address: "203.0.113.55" })));
-    for (const response of responses) assert.equal(response.status, 200);
-    const bodies = await Promise.all(responses.map((response) => response.json()));
-    assert.equal(bodies.filter(({ counted }) => counted).length, 1);
+    // Read each body before the next Worker dispatch can recycle the response.
+    const results = await Promise.all(Array.from({ length: 12 }, async () => {
+      const response = await viewRequest(harness, "views-parallel", { address: "203.0.113.55" });
+      const body = await response.json();
+      return { status: response.status, body };
+    }));
+    for (const result of results) assert.equal(result.status, 200);
+    assert.equal(results.filter(({ body }) => body.counted).length, 1);
 
     assert.equal((await harness.db.prepare("SELECT view_count FROM posts WHERE slug = 'views-parallel'").first())?.view_count, 1);
     assert.equal((await harness.db.prepare(`SELECT COUNT(*) AS c FROM post_views
