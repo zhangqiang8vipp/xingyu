@@ -15,6 +15,10 @@ export function cleanName(input:unknown,label="名称",limit=80) {
 }
 export function siblingConflict(error:unknown):never {
   if(error instanceof OrganizationError)throw error;
+  if(error instanceof Error&&/organization unit cycle or cross-organization parent/i.test(error.message))
+    throw new OrganizationError("部门不能移动到自己的下级或其他组织",409);
+  if(error instanceof Error&&/organization unit parent boundary/i.test(error.message))
+    throw new OrganizationError("父部门不属于此组织",409);
   if(error instanceof Error&&/UNIQUE constraint failed|SQLITE_CONSTRAINT|constraint failed/i.test(error.message))
     throw new OrganizationError("该层级已有同名部门，或此邀请已被其他请求处理",409);
   throw error;

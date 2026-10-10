@@ -44,7 +44,7 @@ function sortInput(value:unknown) {
 export async function createOrganizationUnit(userId:number,orgId:number,input:{name?:unknown;parentId?:unknown;sortOrder?:unknown}) {
   await orgGrant(userId,orgId,"manage");
   const name=cleanName(input.name,"部门名称");
-  const parent=parentInput(input.parentId,true);
+  const parent=parentInput(input.parentId,false)??null;
   const sort=sortInput(input.sortOrder)??0;
   const count=await env.DB.prepare("SELECT COUNT(*) AS n FROM organization_units WHERE organization_id=?")
     .bind(orgId).first<{n:number}>();
