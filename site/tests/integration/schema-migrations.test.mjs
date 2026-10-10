@@ -561,6 +561,7 @@ test("migration-only startup waits for an interrupted local migration and recove
     await applySqlFile(DB, "0020_workspace_collaboration.sql");
     await applySqlFile(DB, "0021_organizations_and_units.sql");
     await applySqlFile(DB, "0022_teams_workspace_grants_space_acl.sql");
+    await applySqlFile(DB, "0023_personal_access_tokens.sql");
     await applySqlFile(DB, "seed-app-defaults.sql");
     const retainedCategory = await DB.prepare("SELECT name FROM categories WHERE id = 1").first();
     assert.equal(retainedCategory?.name, "Retained category", "retrying the seed must not overwrite existing data");
