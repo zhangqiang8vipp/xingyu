@@ -51,13 +51,17 @@ test("two users stay isolated in web and OAuth MCP workspaces",async()=>{
       article.publicId+"\r\n",
       "--"+boundary+"--\r\n",
     ].join("");
-    const uploaded=await harness.dispatch("/api/workspaces/"+a.workspaceId+"/attachments",{
+    // Next/vinext validates multipart Origin against Host separately from JSON API requests.
+    const uploadUrl=new URL("/api/workspaces/"+a.workspaceId+"/attachments",harness.origin);
+    const uploaded=await harness.dispatch(uploadUrl.toString(),{
       method:"POST",
-      headers:{origin:harness.origin,cookie:a.cookie,"content-type":"multipart/form-data; boundary="+boundary},
+      headers:{host:uploadUrl.host,origin:uploadUrl.origin,cookie:a.cookie,
+        "content-type":"multipart/form-data; boundary="+boundary},
       body:multipart,
     });
-    const uploadData=await uploaded.json();
-    assert.equal(uploaded.status,201,JSON.stringify(uploadData));
+    const uploadResponse=await uploaded.text();
+    assert.equal(uploaded.status,201,uploadResponse);
+    const uploadData=JSON.parse(uploadResponse);
     const attachmentId=uploadData.attachment.public_id;
     const ownFile=await harness.dispatch("/api/workspaces/"+a.workspaceId+"/attachments/"+attachmentId,{
       headers:{cookie:a.cookie},
