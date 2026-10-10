@@ -1,10 +1,11 @@
 export type McpAuth = {
-  authType: "legacy" | "oauth";
+  authType: "legacy" | "oauth" | "pat";
   clientId: string;
   subject: string;
   userId?: number;
   scopes: string[];
   tokenId?: number;
+  patId?: number;
 };
 
 export class ScopeError extends Error {
