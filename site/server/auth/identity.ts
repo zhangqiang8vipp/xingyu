@@ -1,10 +1,10 @@
 import { env } from "cloudflare:workers";
 import { cookies } from "next/headers";
 import { bytesToBase64Url, sha256Bytes, adminRuntimeEnv, validSessionSecret } from "@/db/admin-session";
+import { IDENTITY_COOKIE, identityBySession, sessionDigest } from "./identity-session";
 import { verifyLocalAdminPassword } from "./admin-auth";
 import { ensureDatabase } from "@/db/bootstrap";
 
-export const IDENTITY_COOKIE = "xingyu_identity_session";
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
 const ADMIN_EMAIL = "zhangqiang8vip@gmail.com";
 const PBKDF2_ITERATIONS = 310000;
@@ -81,7 +81,7 @@ export async function signInWithEmail(email: string, password: string) {
       .bind(encoded, row.id).run();
   }
   const raw = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)));
-  const hash = await digest(raw);
+  const hash = await sessionDigest(raw);
   const expires = Math.floor(Date.now() / 1000) + SESSION_SECONDS;
   await env.DB.prepare("INSERT INTO user_sessions(session_hash,user_id,expires_at) VALUES(?,?,?)").bind(hash, row.id, expires).run();
   (await cookies()).set(IDENTITY_COOKIE, raw, { httpOnly: true, secure: adminRuntimeEnv().APP_ENV !== "development", sameSite: "lax", path: "/", maxAge: SESSION_SECONDS });
@@ -89,19 +89,13 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 export async function currentIdentity() {
-  await ensureDatabase();
-  const raw = (await cookies()).get(IDENTITY_COOKIE)?.value;
-  if (!raw || !/^[A-Za-z0-9_-]{40,60}$/.test(raw)) return null;
-  const row = await env.DB.prepare("SELECT u.id, u.display_name, u.status FROM user_sessions s JOIN users u ON u.id=s.user_id WHERE s.session_hash=? AND s.revoked_at IS NULL AND s.expires_at>?")
-    .bind(await digest(raw), Math.floor(Date.now() / 1000))
-    .first<{ id: number; display_name: string; status: string }>();
-  return row?.status === "active" ? { userId: row.id, displayName: row.display_name } : null;
+  return identityBySession((await cookies()).get(IDENTITY_COOKIE)?.value);
 }
 
 export async function logoutIdentity() {
   const store = await cookies();
   const token = store.get(IDENTITY_COOKIE)?.value;
-  if (token) await env.DB.prepare("UPDATE user_sessions SET revoked_at=? WHERE session_hash=?").bind(Math.floor(Date.now() / 1000), await digest(token)).run();
+  if (token) await env.DB.prepare("UPDATE user_sessions SET revoked_at=? WHERE session_hash=?").bind(Math.floor(Date.now() / 1000), await sessionDigest(token)).run();
   store.set(IDENTITY_COOKIE, "", { httpOnly: true, secure: adminRuntimeEnv().APP_ENV !== "development", sameSite: "lax", path: "/", maxAge: 0 });
 }
 

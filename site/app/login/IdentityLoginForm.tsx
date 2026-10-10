@@ -1,6 +1,6 @@
 "use client";
 import { useState, type FormEvent } from "react";
-export default function IdentityLoginForm() {
+export default function IdentityLoginForm({ returnTo = "/workspace" }: { returnTo?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -15,7 +15,7 @@ export default function IdentityLoginForm() {
         const data = await result.json().catch(() => ({}));
         setError(data.error || "登录失败");
       } else {
-        window.location.replace("/");
+        window.location.replace(returnTo);
       }
     } catch { setError("网络错误，请重试"); }
     finally { setBusy(false); }
