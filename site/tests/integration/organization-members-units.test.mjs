@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {createHash,randomBytes} from "node:crypto";
-import {openTestHarness,closeTestHarness,jsonRequest} from "./harness.mjs";
+import {openTestHarness,closeTestHarness,jsonRequest,callMcpTool} from "./harness.mjs";
 import {makeActiveUser} from "./identity-fixtures.mjs";
 
 const hash=text=>createHash("sha256").update(text).digest("hex");
@@ -65,6 +65,21 @@ test("users join multiple organizations through verified-email single-use invita
     assert.equal(originalPersonal.status,404,"org membership never grants private workspace access");
     const listWorkspaces=await api(h,"/api/workspaces",{cookie:bob.cookie});
     assert.equal(listWorkspaces.data.workspaces.some(x=>x.id===owner.workspaceId),false);
+    const ownerPost=await api(h,"/api/workspaces/"+owner.workspaceId+"/posts",{
+      method:"POST",cookie:owner.cookie,body:{title:"Owner private organization research",content_markdown:"# Cannot be shared by joining org"},
+    });
+    assert.equal(ownerPost.status,201,JSON.stringify(ownerPost.data));
+    const mcpToken="xy_at_"+randomBytes(32).toString("base64url");
+    await h.db.prepare(
+      "INSERT INTO oauth_access_tokens(token_hash,client_id,subject,resource,scope,expires_at) VALUES(?,?,?,?,?,?)",
+    ).bind(hash(mcpToken),"chatgpt-xingyu","user:"+bob.id,h.origin+"/mcp","xingyu.read",
+      Math.floor(Date.now()/1000)+3600).run();
+    const orgMcpDenied=await callMcpTool(h,{
+      name:"get_post",token:mcpToken,
+      arguments:{workspace_id:owner.workspaceId,identifier:ownerPost.data.post.publicId,view:"content"},
+    });
+    assert.equal(orgMcpDenied.isError,true,"org member must not inherit another user's MCP workspace access");
+
     const noOrgWorkspace=await h.db.prepare("SELECT COUNT(*) AS n FROM workspaces WHERE kind='organization'").first();
     assert.equal(noOrgWorkspace.n,0,"organization creation must not implicitly create a content workspace");
 

@@ -191,3 +191,7 @@ approval_mode = "prompt"
 ## 多人协作（依赖身份系统 PR #15）
 
 在 `/workspace` 创建共享工作区并按邮箱邀请成员。个人工作区永远保持私有，成员角色与网站和 MCP 的同一套权限实时联动。需要已配置的 Resend 发信服务。迁移及预发验收请参阅 [协作上线说明](../docs/runbooks/2026-10-10-workspace-collaboration.md)。
+
+## 组织与部门（依赖协作 PR #16）
+
+同一星屿用户可加入多个组织，组织 Owner/Admin/Member 与工作区权限相互独立。使用 `/organizations` 管理组织、邮箱邀请和多级部门树；组织成员**不会自动获取任何个人或共享工作区的内容权限**。Schema 22→23 的迁移、验收与回滚见 [组织 V1 运行手册](../docs/runbooks/2026-10-10-organizations-v1.md)。
