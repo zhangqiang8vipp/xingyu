@@ -240,3 +240,32 @@ test("restricted ancestor ACL filters search, posts, attachments and MCP while p
     assert.equal((await call(h,"/api/workspaces/"+w.id+"/posts/"+privatePost.publicId,{cookie:carol.cookie})).status,200);
   }finally{await closeTestHarness(h);}
 });
+
+test("organization removal and archive revoke team-derived and direct workspace access",async()=>{
+  const h=await openTestHarness();
+  try{
+    const owner=await makeActiveUser(h,"team-owner-lifecycle");
+    const bob=await makeActiveUser(h,"team-member-lifecycle");
+    const o=await org(h,owner,"Lifecycle org");
+    await join(h,o,bob,owner);
+    const t=await team(h,o,owner,"Ops");
+    await addTeamMember(h,o,t.id,owner,bob);
+    const w=await workspace(h,o,owner);
+    await grant(h,o,w.id,t.id,owner,"viewer");
+    assert.equal((await call(h,"/api/workspaces/"+w.id+"/posts",{cookie:bob.cookie})).status,200);
+    const revoke=await call(h,"/api/organizations/"+o.id+"/members/"+bob.id,{
+      method:"DELETE",cookie:owner.cookie,
+    });
+    assert.equal(revoke.status,200,JSON.stringify(revoke.data));
+    assert.equal((await h.db.prepare(
+      "SELECT COUNT(*) AS n FROM team_memberships WHERE organization_id=? AND user_id=?",
+    ).bind(o.id,bob.id).first()).n,0,"removing org member must clean team memberships");
+    assert.equal((await call(h,"/api/workspaces/"+w.id+"/posts",{cookie:bob.cookie})).status,404);
+    assert.equal((await call(h,"/api/workspaces/"+owner.workspaceId+"/posts",{cookie:owner.cookie})).status,200);
+    await h.db.prepare("UPDATE organizations SET status='archived' WHERE id=?").bind(o.id).run();
+    assert.equal((await call(h,"/api/workspaces/"+w.id+"/posts",{cookie:owner.cookie})).status,404,
+      "archived organization must disable even its owner's organization workspace access");
+    assert.equal((await call(h,"/api/workspaces/"+owner.workspaceId+"/posts",{cookie:owner.cookie})).status,200,
+      "archiving one organization must not affect an independent personal workspace");
+  }finally{await closeTestHarness(h);}
+});

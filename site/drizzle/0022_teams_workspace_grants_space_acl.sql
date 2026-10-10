@@ -97,7 +97,7 @@ JOIN workspaces w ON w.id=m.workspace_id JOIN users u ON u.id=m.user_id
 WHERE m.status='active' AND w.status='active' AND u.status='active'
 AND (w.kind<>'personal' OR w.owner_user_id=m.user_id)
 AND (w.kind<>'organization' OR (
- EXISTS(SELECT 1 FROM organization_workspaces ow JOIN organization_memberships om ON om.organization_id=ow.organization_id
+ EXISTS(SELECT 1 FROM organization_workspaces ow JOIN organizations o ON o.id=ow.organization_id AND o.status='active' JOIN organization_memberships om ON om.organization_id=ow.organization_id
  WHERE ow.workspace_id=w.id AND om.user_id=m.user_id AND om.status='active')))
 UNION ALL
 SELECT ow.workspace_id,tm.user_id,tg.role FROM workspace_team_grants tg
