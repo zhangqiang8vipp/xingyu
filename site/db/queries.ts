@@ -97,7 +97,7 @@ export async function getAdminStats() {
     drafts: sql<number>`sum(case when ${posts.spaceId} is null and ${posts.status} = 'draft' then 1 else 0 end)`,
     views: sql<number>`coalesce(sum(case when ${posts.spaceId} is null then ${posts.viewCount} else 0 end), 0)`,
     privateArticles: sql<number>`sum(case when ${posts.spaceId} is not null then 1 else 0 end)`,
-  }).from(posts);
+  }).from(posts).where(eq(posts.workspaceId,1));
   const row = rows[0];
   return {
     total: Number(row?.total ?? 0),
@@ -110,7 +110,7 @@ export async function getAdminStats() {
 
 export async function getAdminPost(postId: number) {
   await ensureDatabase();
-  const rows = await getDb().select().from(posts).where(eq(posts.id, postId)).limit(1);
+  const rows = await getDb().select().from(posts).where(and(eq(posts.id, postId),eq(posts.workspaceId,1))).limit(1);
   if (!rows[0]) return null;
   const path = rows[0].spaceId ? await getSpacePath(rows[0].spaceId) : [];
   return { ...rows[0], spacePath: path.map((item) => item.name).join(" / ") };
@@ -244,7 +244,7 @@ const adminReaderSelection=`SELECT
 /** Authenticated reading uses the same shape as public reading without weakening public queries. */
 export async function getAdminReaderPost(identifier:string){
   await ensureDatabase();
-  return await env.DB.prepare(`${adminReaderSelection} WHERE p.public_id=? OR p.slug=? LIMIT 1`)
+  return await env.DB.prepare(`${adminReaderSelection} WHERE p.workspace_id=1 AND (p.public_id=? OR p.slug=?) LIMIT 1`)
     .bind(identifier,identifier).first<AdminReaderPost>();
 }
 
@@ -262,14 +262,14 @@ async function getAdjacentAdminPost(updatedAt:string,id:number,direction:"older"
     const allSpaces=readerContext.range==="private";
     const roots=allSpaces
       ? "SELECT id,printf('%010d/',sibling_rank),printf('/%d/',id) FROM ranked WHERE parent_id IS NULL"
-      : "SELECT id,'',printf('/%d/',id) FROM spaces WHERE id=?";
-    const scope=allSpaces||readerContext.includeDescendants?"":"WHERE h.id=?";
+      : "SELECT id,'',printf('/%d/',id) FROM spaces WHERE id=? AND workspace_id=1";
+    const scope=allSpaces||readerContext.includeDescendants?"":"AND h.id=?";
     const params:Array<string|number>=allSpaces?[]:[readerContext.spaceId!];
     if(scope)params.push(readerContext.spaceId!);
     const neighbor=await env.DB.prepare(`WITH RECURSIVE ranked AS (
         SELECT id,parent_id,row_number() OVER (
           PARTITION BY parent_id ORDER BY sort_order ASC,name COLLATE NOCASE ASC,id ASC
-        ) AS sibling_rank FROM spaces
+        ) AS sibling_rank FROM spaces WHERE workspace_id=1
       ), hierarchy(id,order_path,visited) AS (
         ${roots}
         UNION ALL
@@ -278,19 +278,19 @@ async function getAdjacentAdminPost(updatedAt:string,id:number,direction:"older"
         WHERE instr(h.visited,printf('/%d/',child.id))=0
       ), ordered AS (
         SELECT p.id,row_number() OVER (ORDER BY h.order_path ASC,p.sort_order ASC,p.id ASC) AS position
-        FROM posts p JOIN hierarchy h ON h.id=p.space_id ${scope}
+        FROM posts p JOIN hierarchy h ON h.id=p.space_id WHERE p.workspace_id=1 ${scope}
       )
       SELECT neighbor.id FROM ordered current
       JOIN ordered neighbor ON neighbor.position=current.position+?
       WHERE current.id=? LIMIT 1`).bind(...params,direction==="older"?1:-1,id).first<{id:number}>();
-    return neighbor?env.DB.prepare(`${adminReaderSelection} WHERE p.id=? LIMIT 1`).bind(neighbor.id).first<AdminReaderPost>():null;
+    return neighbor?env.DB.prepare(`${adminReaderSelection} WHERE p.id=? AND p.workspace_id=1 LIMIT 1`).bind(neighbor.id).first<AdminReaderPost>():null;
   }
   const older=direction==="older";
   const operator=older?"<":">";
   const order=older?"DESC":"ASC";
   const filter=adminReaderSqlFilter(readerContext);
   return await env.DB.prepare(`${adminReaderSelection}
-    WHERE (p.updated_at ${operator} ? OR (p.updated_at=? AND p.id ${operator} ?))${filter.sql}
+    WHERE p.workspace_id=1 AND (p.updated_at ${operator} ? OR (p.updated_at=? AND p.id ${operator} ?))${filter.sql}
     ORDER BY p.updated_at ${order},p.id ${order} LIMIT 1`)
     .bind(updatedAt,updatedAt,id,...filter.bindings).first<AdminReaderPost>();
 }
@@ -333,6 +333,7 @@ async function getAdjacentPublishedPost(
   return reader.first<PublicAdjacentPost>(
     `${adjacentPublicPostSelection}
       WHERE p.status = 'published'
+        AND p.workspace_id = 1
         AND p.space_id IS NULL
         AND (p.published_at ${operator} ? OR (p.published_at = ? AND p.id ${operator} ?))
       ORDER BY p.published_at ${order}, p.id ${order}
@@ -386,7 +387,7 @@ async function listPostsByCursor(filters: CursorFilters & { sort: "published" | 
   const query = filters.query?.trim() ?? "";
   const useFts = Array.from(query).length >= 3;
   const params: Array<string | number> = [];
-  const conditions: string[] = [];
+  const conditions: string[] = ["p.workspace_id = 1"];
   let from = "FROM posts p LEFT JOIN categories c ON p.category_id = c.id";
 
   if (useFts) {
