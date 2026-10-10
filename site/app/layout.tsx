@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import "./console/console.css";
 import ScrollIndicator from "./ScrollIndicator";
 import RouteTransition from "./RouteTransition";
 import { getSiteSettings } from "@/db/queries";

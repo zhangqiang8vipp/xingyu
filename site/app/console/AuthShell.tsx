@@ -1,9 +1,10 @@
 import Link from "next/link";
+import ConsoleStyleLoader from "./ConsoleStyleLoader";
 import type {ReactNode} from "react";
 
 type Props={eyebrow?:string;title:string;description:string;children:ReactNode};
 export default function AuthShell({eyebrow="XINGYU IDENTITY",title,description,children}:Props){
-  return <main className="xy-auth">
+  return <main className="xy-auth"><ConsoleStyleLoader/>
     <div className="xy-auth-layout">
       <aside className="xy-auth-story">
         <Link href="/" className="xy-auth-brand"><span aria-hidden="true">✦</span> 星屿 <small>XINGYU</small></Link>

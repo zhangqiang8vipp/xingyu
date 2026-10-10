@@ -7,7 +7,13 @@ const css=read("app/console/console.css");
 const layout=read("app/layout.tsx");
 
 test("new account console styles are loaded and scoped away from public blog and legacy admin",()=>{
-  assert.match(layout,/import "\.\/console\/console\.css"/);
+  assert.doesNotMatch(layout,/console\/console\.css/,
+    "public root must not bundle console styles into index CSS");
+  const loader=read("app/console/ConsoleStyleLoader.tsx");
+  assert.match(loader,/"use client"/);
+  assert.match(loader,/import "\.\/console\.css"/);
+  assert.match(read("app/console/ConsoleShell.tsx"),/<ConsoleStyleLoader\/>/);
+  assert.match(read("app/console/AuthShell.tsx"),/<ConsoleStyleLoader\/>/);
   assert.match(css,/\.xy-console/);
   assert.match(css,/\.xy-auth/);
   assert.match(css,/html\[data-theme="dark"\]/);

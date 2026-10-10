@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ConsoleStyleLoader from "./ConsoleStyleLoader";
 import type {ReactNode} from "react";
 
 type Area="workspace"|"organizations";
@@ -12,7 +13,7 @@ const entries=[
 export default function ConsoleShell({area,userName,isLegacyAdmin=false,children}:Props){
   const organization=area==="organizations";
   return <div className="xy-console">
-    <div className="xy-console-layout">
+    <ConsoleStyleLoader/><div className="xy-console-layout">
       <aside className="xy-console-rail" aria-label="控制台导航">
         <Link className="xy-console-brand" href="/" aria-label="星屿首页">
           <span className="xy-console-brand-mark" aria-hidden="true">✦</span>
