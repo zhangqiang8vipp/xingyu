@@ -210,6 +210,14 @@ test("public entry keeps rich reading assets behind interaction boundaries", asy
   assert.match(viteConfig, /replaceAll\("font-display:block", "font-display:swap"\)/);
   assert.ok(mainCss, "main public stylesheet is missing");
   const mainCssSize = (await stat(new URL(mainCss, stylesDirectory))).size;
+  if(mainCssSize > 270_000) {
+    const raw=await readFile(new URL(mainCss,stylesDirectory),"utf8");
+    const selectors=[".admin-shell",".admin-sidebar",".admin-account-main",
+      ".admin-login-form",".admin-signin",".xy-console",".site-nav",".editor-section",".integration-card"];
+    const counts=Object.fromEntries(selectors.map(token=>[token,raw.split(token).length-1]));
+    console.error("PUBLIC_CSS_DIAGNOSTIC",JSON.stringify({size:mainCssSize,counts,
+      prefix:raw.slice(0,140),suffix:raw.slice(-140)}));
+  }
   assert.ok(mainCssSize <= 270_000, `main public stylesheet exceeded 270 KB: ${mainCssSize} bytes`);
 });
 
