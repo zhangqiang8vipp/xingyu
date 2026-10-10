@@ -74,3 +74,28 @@ test("PAT: suspended user is immediately denied even if token is permanent",asyn
     assert.equal((await callMcpRaw(h,msg,{token:created.token})).status,401);
   }finally{await closeTestHarness(h);}
 });
+
+test("PAT active-token cap is atomic under concurrent creation",async()=>{
+  const h=await openTestHarness();
+  try{
+    const alice=await makeActiveUser(h,"pat-limit");
+    const now=Math.floor(Date.now()/1000);
+    for(let i=0;i<29;i++){
+      await h.db.prepare(
+        "INSERT INTO personal_access_tokens(user_id,name,token_hash,token_suffix,resource,scope,created_at) " +
+        "VALUES(?,?,?,?,?,?,?)"
+      ).bind(alice.id,"seed-"+i,"a".repeat(62)+i.toString().padStart(2,"0"),"0000",
+        h.origin+"/mcp","xingyu.read",now).run();
+    }
+    const submit=()=>jsonRequest(h,"/api/identity/tokens",{
+      method:"POST",cookie:alice.cookie,
+      body:{name:"Another device",scopes:["xingyu.read"],lifetime:"never"},
+    });
+    const results=await Promise.all([submit(),submit()]);
+    assert.deepEqual(results.map(response=>response.status).sort(),[201,409]);
+    const {total}=await h.db.prepare(
+      "SELECT COUNT(*) AS total FROM personal_access_tokens WHERE user_id=? AND revoked_at IS NULL"
+    ).bind(alice.id).first();
+    assert.equal(total,30);
+  }finally{await closeTestHarness(h);}
+});
