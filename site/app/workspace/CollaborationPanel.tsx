@@ -5,7 +5,7 @@ type Workspace={id:number;name:string;kind:string;role:string};
 type Member={userId:number;name:string;email:string|null;role:string;joinedAt:string};
 type Invite={id:number;email:string;role:string;expiresAt:number};
 type Reply={error?:string;members?:Member[];invitations?:Invite[];workspace?:Workspace;invitation?:Invite;ok?:boolean};
-const border="1px solid var(--border-color,#c6c8ca)";
+const border="1px solid var(--admin-line)";
 async function request(url:string,method="GET",data?:object):Promise<Reply>{
   const response=await fetch(url,{method,credentials:"same-origin",cache:"no-store",
     ...(data?{headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}:{})});
@@ -87,7 +87,7 @@ export default function CollaborationPanel({workspaces}:{workspaces:Workspace[]}
       window.location.reload();
     },"已退出工作区");
   }
-  return <section style={{border,borderRadius:14,padding:20,marginTop:18}}>
+  return <section className="editor-section" style={{marginTop:18}}>
     <h2>共享与协作</h2>
     <p>个人工作区保持私有。需要与他人合作时创建共享工作区，并通过邮箱邀请成员。</p>
     <form onSubmit={create} style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"end"}}>
@@ -96,7 +96,7 @@ export default function CollaborationPanel({workspaces}:{workspaces:Workspace[]}
           onChange={e=>setNewName(e.target.value)} placeholder="例如：产品研发团队"
           style={{display:"block",padding:9,marginTop:5}}/>
       </label>
-      <button type="submit" disabled={busy}>创建共享工作区</button>
+      <button className="new-button" type="submit" disabled={busy}>创建共享工作区</button>
     </form>
     <hr style={{margin:"22px 0",borderTop:border,borderBottom:0}}/>
     <label>选择要管理的工作区
@@ -110,7 +110,7 @@ export default function CollaborationPanel({workspaces}:{workspaces:Workspace[]}
     <>
       <h3>工作区成员</h3>
       <div style={{display:"grid",gap:10}}>
-        {members.map(member=><div key={member.userId} style={{border,borderRadius:10,padding:10,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+        {members.map(member=><div className="integration-card" key={member.userId} style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
           <div><strong>{member.name}</strong> <small>{member.email??""}</small><div><small>{member.role}</small></div></div>
           {canManage&&member.role!=="owner"&&!(selected.role==="admin"&&member.role==="admin")?
           <div style={{display:"flex",gap:7,alignItems:"center"}}>
@@ -118,7 +118,7 @@ export default function CollaborationPanel({workspaces}:{workspaces:Workspace[]}
               {selected.role==="owner"?<option value="admin">Admin</option>:null}
               <option value="editor">Editor</option><option value="viewer">Viewer</option>
             </select></label>
-            <button type="button" disabled={busy} onClick={()=>void remove(member)}>移除</button>
+            <button className="admin-account-danger" type="button" disabled={busy} onClick={()=>void remove(member)}>移除</button>
           </div>:null}
         </div>)}
       </div>
@@ -132,13 +132,13 @@ export default function CollaborationPanel({workspaces}:{workspaces:Workspace[]}
             {selected.role==="owner"?<option value="admin">Admin</option>:null}
             <option value="editor">Editor</option><option value="viewer">Viewer</option>
           </select></label>
-          <button type="submit" disabled={busy}>发送邀请</button>
+          <button className="new-button" type="submit" disabled={busy}>发送邀请</button>
         </form>
         <h3 style={{marginTop:20}}>待接受的邀请</h3>
         {!invitations.length?<p>暂无等待接受的邀请。</p>:
         <ul>{invitations.map(i=><li key={i.id} style={{marginBottom:8}}>
           {i.email} · {i.role}
-          <button type="button" disabled={busy} style={{marginLeft:10}}
+          <button className="admin-account-danger" type="button" disabled={busy} style={{marginLeft:10}}
             onClick={()=>void run(()=>request(root+"/invitations/"+i.id,"DELETE"),"邀请已撤销",true)}>撤销</button>
         </li>)}</ul>}
       </section>:null}

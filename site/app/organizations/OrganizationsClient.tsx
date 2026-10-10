@@ -10,7 +10,7 @@ type Assignment={unitId:number;userId:number};
 type Invitation={id:number;email:string;role:"admin"|"member";expiresAt:number};
 type Reply={error?:string;organization?:Org;organizations?:Org[];members?:Member[];units?:Unit[];
   assignments?:Assignment[];invitations?:Invitation[];unit?:Unit;ok?:boolean};
-const edge="1px solid var(--border-color,#c8c8c8)";
+const edge="1px solid var(--admin-line)";
 async function call(path:string,method="GET",body?:object):Promise<Reply>{
   const res=await fetch(path,{method,credentials:"same-origin",cache:"no-store",
     ...(body?{headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{})});
@@ -41,7 +41,7 @@ function illegalParent(parentId:number,unitId:number,units:Unit[]) {
   }
   return false;
 }
-const opt={padding:"8px 10px",maxWidth:"100%"} as const;
+const opt={padding:"8px 10px",maxWidth:"100%",color:"var(--admin-ink)",background:"var(--admin-control)"} as const;
 export default function OrganizationsClient({initialOrganizations}:{initialOrganizations:Org[]}){
   const [organizations,setOrganizations]=useState(initialOrganizations);
   const [selectedId,setSelectedId]=useState(initialOrganizations[0]?.id??0);
@@ -156,14 +156,14 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
   }
   const noShareNotice="组织成员与部门分组本身不授予工作区阅读权限。需要共享内容，请到工作区单独邀请成员。";
   return <section style={{display:"grid",gap:18}}>
-    <section style={{border:edge,borderRadius:14,padding:18}}>
+    <section className="editor-section">
       <h2>我的组织</h2>
       <form onSubmit={e=>void create(e)} style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"end"}}>
         <label>创建新组织
           <input required maxLength={100} value={createName} onChange={e=>setCreateName(e.target.value)}
             placeholder="例如：星屿科技" style={{...opt,display:"block",marginTop:6}}/>
         </label>
-        <button type="submit" disabled={busy}>创建</button>
+        <button className="new-button" type="submit" disabled={busy}>创建</button>
       </form>
       {organizations.length>0?<div style={{marginTop:16,display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
         <label htmlFor="org-picker">当前组织</label>
@@ -177,10 +177,10 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
       {notice?<p role="status">{notice}</p>:null}
     </section>
     {selected?<><p style={{margin:0,fontSize:13,opacity:0.8}}>{noShareNotice}</p>
-    <section style={{border:edge,borderRadius:14,padding:18}}>
+    <section className="editor-section">
       <h2>组织成员</h2>
       <div style={{display:"grid",gap:8}}>
-        {members.map(member=><div key={member.userId} style={{border:edge,borderRadius:8,padding:10,display:"flex",gap:12,justifyContent:"space-between",alignItems:"center",flexWrap:"wrap"}}>
+        {members.map(member=><div className="integration-card" key={member.userId} style={{display:"flex",gap:12,justifyContent:"space-between",alignItems:"center",flexWrap:"wrap"}}>
           <div><strong>{member.name}</strong><div style={{fontSize:12}}>{member.email??"邮箱未展示"} · {member.role}</div></div>
           {canManage&&member.role!=="owner"&&(selected.role==="owner"||member.role==="member")?
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -189,7 +189,7 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
               {selected.role==="owner"?<option value="admin">Admin</option>:null}
               <option value="member">Member</option>
             </select>
-            <button type="button" disabled={busy} onClick={()=>removeMember(member)}>移除</button>
+            <button className="admin-account-danger" type="button" disabled={busy} onClick={()=>removeMember(member)}>移除</button>
           </div>:null}
         </div>)}
       </div>
@@ -206,19 +206,19 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
               <option value="member">Member</option>
             </select>
           </label>
-          <button type="submit" disabled={busy}>发送邀请</button>
+          <button className="new-button" type="submit" disabled={busy}>发送邀请</button>
         </form>
         <h3 style={{marginTop:20}}>待接受邀请</h3>
         {invitations.length===0?<p>没有待接受邀请。</p>:
           <ul>{invitations.map(i=><li key={i.id} style={{marginBottom:8}}>
             {i.email} · {i.role}
-            <button style={{marginLeft:10}} disabled={busy} onClick={()=>
+            <button className="admin-account-danger" style={{marginLeft:10}} disabled={busy} onClick={()=>
               void run(()=>call(root+"/invitations/"+i.id,"DELETE"),"邀请已撤销")}>撤销邀请</button>
           </li>)}</ul>}
       </>:null}
     </section>
     <TeamWorkspacePanel key={selected.id} organization={selected} members={members}/>
-    <section style={{border:edge,borderRadius:14,padding:18}}>
+    <section className="editor-section">
       <h2>部门架构</h2>
       <p>部门可多级嵌套；成员可以同时属于多个部门。移动部门不会改变任何工作区访问权限。</p>
       {canManage?<form onSubmit={createUnit} style={{display:"flex",gap:8,alignItems:"end",flexWrap:"wrap"}}>
@@ -232,13 +232,13 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
             {ordered.map(({unit,depth})=><option key={unit.id} value={unit.id}>{"　".repeat(Math.min(depth,10))}{unit.name}</option>)}
           </select>
         </label>
-        <button type="submit" disabled={busy}>创建部门</button>
+        <button className="new-button" type="submit" disabled={busy}>创建部门</button>
       </form>:null}
       <div style={{display:"grid",gap:9,marginTop:18}}>
         {ordered.length===0?<p>暂无部门。可以先创建技术部、产品部、运营部等。</p>:null}
         {ordered.map(({unit,depth})=>{
           const assigned=assignments.filter(a=>a.unitId===unit.id);
-          return <div key={unit.id} style={{marginLeft:Math.min(depth,10)*16,padding:12,border:edge,borderRadius:10}}>
+          return <div className="integration-card" key={unit.id} style={{marginLeft:Math.min(depth,10)*16}}>
             <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",justifyContent:"space-between"}}>
               <strong>{depth>0?"└ ":""}{unit.name}</strong>
               {canManage?<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
@@ -251,7 +251,7 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
                       .map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
                 </label>
-                <button type="button" disabled={busy} onClick={()=>deleteUnit(unit)}>删除</button>
+                <button className="admin-account-danger" type="button" disabled={busy} onClick={()=>deleteUnit(unit)}>删除</button>
               </div>:null}
             </div>
             <div style={{marginTop:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
