@@ -13,7 +13,7 @@ async function api(path:string,init?:RequestInit):Promise<ApiEnvelope>{
   if(!res.ok)throw new Error(data.error||"请求失败");
   return data;
 }
-export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:Workspace[]}){
+export default function WorkspaceClient({initialWorkspaces,onDirtyChange}:{initialWorkspaces:Workspace[];onDirtyChange?:(dirty:boolean)=>void}){
   const [workspaceId,setWorkspaceId]=useState(initialWorkspaces[0]?.id??0);
   const [spaces,setSpaces]=useState<Space[]>([]);
   const [posts,setPosts]=useState<PostItem[]>([]);

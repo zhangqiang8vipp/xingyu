@@ -4,12 +4,12 @@ import {getSiteSettings} from "@/db/queries";
 import {listUserWorkspaces} from "@/db/workspace-access";
 import AdminAccountFrame from "@/features/admin/AdminAccountFrame";
 import AccountStyleLoader from "@/features/admin/AccountStyleLoader";
-import WorkspaceClient from "./WorkspaceClient";
-import CollaborationPanel from "./CollaborationPanel";
-import ConnectionsPanel from "./ConnectionsPanel";
+import WorkspaceHub, {type WorkspaceView} from "./WorkspaceHub";
 
 export const dynamic="force-dynamic";
-export default async function WorkspacePage(){
+export default async function WorkspacePage({searchParams}:{searchParams:Promise<{view?:string}>}){
+  const requested=(await searchParams).view;
+  const initialView:WorkspaceView=requested==="collaboration"||requested==="connections"?requested:"notes";
   const user=await currentIdentity();
   if(!user)redirect("/login");
   const [settings,workspaces]=await Promise.all([
@@ -17,8 +17,6 @@ export default async function WorkspacePage(){
   ]);
   return <><AccountStyleLoader/><AdminAccountFrame area="workspace" brandName={settings.brandName}
     userName={user.displayName} isLegacyAdmin={user.userId===1}>
-    <WorkspaceClient initialWorkspaces={workspaces}/>
-    <CollaborationPanel workspaces={workspaces}/>
-    <ConnectionsPanel/>
+    <WorkspaceHub workspaces={workspaces} initialView={initialView}/>
   </AdminAccountFrame></>;
 }
