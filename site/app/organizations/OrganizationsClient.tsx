@@ -96,6 +96,7 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
       if(!r.organization)throw new Error("创建组织未返回结果");
       setOrganizations(old=>[...old,r.organization!]);
       setSelectedId(r.organization.id);
+      setNewUnitParent(0);setInviteRole("member");
       setCreateName("");
     },"组织已创建",false);
   }
@@ -148,6 +149,7 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
       await call(root+"/members/leave","POST");
       const remaining=organizations.filter(o=>o.id!==selectedId);
       setOrganizations(remaining);setSelectedId(remaining[0]?.id??0);
+      setNewUnitParent(0);setInviteRole("member");
       setMembers([]);setUnits([]);setAssignments([]);
     },"已退出组织",false);
   }
@@ -165,7 +167,7 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
       {organizations.length>0?<div style={{marginTop:16,display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
         <label htmlFor="org-picker">当前组织</label>
         <select id="org-picker" value={selectedId} style={opt}
-          onChange={e=>{setSelectedId(Number(e.target.value));setNotice("");setMembers([]);setUnits([]);setInvitations([]);}}>
+          onChange={e=>{setSelectedId(Number(e.target.value));setNotice("");setNewUnitParent(0);setInviteRole("member");setMembers([]);setUnits([]);setAssignments([]);setInvitations([]);}}>
           {organizations.map(o=><option key={o.id} value={o.id}>{o.name} · {o.role}</option>)}
         </select>
         {canManage?<button disabled={busy} type="button" onClick={renameOrg}>更改组织名称</button>:null}
