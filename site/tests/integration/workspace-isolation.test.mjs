@@ -35,6 +35,40 @@ test("two users stay isolated in web and OAuth MCP workspaces",async()=>{
     assert.equal(article.workspaceId,a.workspaceId);
     assert.ok(article.spaceId,"ordinary-user posts must always be in a private space");
 
+    // Authenticated R2 objects must never leak via another workspace ID or old public media routes.
+    const form=new FormData();
+    form.set("file",new File(["ALICE ATTACHMENT SECRET"],"alice-secret.txt",{type:"text/plain"}));
+    form.set("post_identifier",article.publicId);
+    const uploaded=await harness.dispatch("/api/workspaces/"+a.workspaceId+"/attachments",{
+      method:"POST",headers:{origin:harness.origin,cookie:a.cookie},body:form,
+    });
+    const uploadData=await uploaded.json();
+    assert.equal(uploaded.status,201,JSON.stringify(uploadData));
+    const attachmentId=uploadData.attachment.public_id;
+    const ownFile=await harness.dispatch("/api/workspaces/"+a.workspaceId+"/attachments/"+attachmentId,{
+      headers:{cookie:a.cookie},
+    });
+    assert.equal(ownFile.status,200);
+    assert.equal(await ownFile.text(),"ALICE ATTACHMENT SECRET");
+    const othersFile=await harness.dispatch("/api/workspaces/"+a.workspaceId+"/attachments/"+attachmentId,{
+      headers:{cookie:b.cookie},
+    });
+    assert.ok([403,404].includes(othersFile.status),"another user cannot fetch file through the owner's route");
+    const foreignFile=await harness.dispatch("/api/workspaces/"+b.workspaceId+"/attachments/"+attachmentId,{
+      headers:{cookie:b.cookie},
+    });
+    assert.equal(foreignFile.status,404,"guessed attachment id cannot bypass workspace filter");
+    const anonymousFile=await harness.dispatch("/api/workspaces/"+a.workspaceId+"/attachments/"+attachmentId);
+    assert.equal(anonymousFile.status,401);
+    const oldFile=await harness.dispatch("/api/attachments/"+attachmentId+"/alice-secret.txt");
+    assert.notEqual(oldFile.status,200,"legacy public attachment route cannot serve tenant files");
+    const objectKey=(await harness.db.prepare("SELECT object_key FROM attachments WHERE public_id=?")
+      .bind(attachmentId).first())?.object_key;
+    assert.match(objectKey??"",/^attachments\/ws\d+\//);
+    const guessedR2=await harness.dispatch("/api/media/"+objectKey);
+    assert.equal(guessedR2.status,404,"legacy R2 media route must not expose tenant paths");
+
+
     const forbidden=await jsonRequest(harness,"/api/workspaces/"+a.workspaceId+"/posts/"+article.publicId,{
       cookie:b.cookie,
     });

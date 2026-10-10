@@ -97,7 +97,7 @@ export default function WorkspaceClient({initialWorkspaces}:{initialWorkspaces:W
     }catch(e){setNotice(e instanceof Error?e.message:"上传失败");}finally{setBusy(false);}
   }
   async function logout(){
-    await fetch("/api/admin/logout",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin"});
+    await fetch("/api/identity/logout",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin"});
     window.location.replace("/login");
   }
   return <div style={{display:"grid",gap:18}}>
