@@ -347,7 +347,7 @@ export const identityLoginLimits = sqliteTable("identity_login_limits", {
 
 export const workspaces = sqliteTable("workspaces", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  kind: text("kind", { enum: ["personal", "organization"] }).notNull().default("personal"),
+  kind: text("kind", { enum: ["personal", "shared", "organization"] }).notNull().default("personal"),
   ownerUserId: integer("owner_user_id").notNull(),
   slug: text("slug").notNull(),
   name: text("name").notNull(),
@@ -374,3 +374,23 @@ export const emailVerifications = sqliteTable("email_verifications", {
   usedAt: integer("used_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("email_verifications_user_idx").on(table.userId, table.expiresAt)]);
+
+
+export const workspaceInvitations = sqliteTable("workspace_invitations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  workspaceId: integer("workspace_id").notNull(),
+  email: text("email").notNull(),
+  role: text("role", { enum: ["admin", "editor", "viewer"] }).notNull(),
+  tokenHash: text("token_hash").notNull(),
+  invitedBy: integer("invited_by").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  acceptedBy: integer("accepted_by"),
+  acceptedAt: integer("accepted_at"),
+  revokedAt: integer("revoked_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("workspace_invitations_token_uidx").on(table.tokenHash),
+  uniqueIndex("workspace_invitations_pending_uidx").on(table.workspaceId, table.email)
+    .where(sql`${table.acceptedAt} IS NULL AND ${table.revokedAt} IS NULL`),
+  index("workspace_invitations_workspace_idx").on(table.workspaceId,table.createdAt),
+]);
