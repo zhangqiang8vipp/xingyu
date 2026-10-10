@@ -53,7 +53,7 @@ export default function TeamWorkspacePanel({organization,members}:{organization:
     return()=>{alive=false;};
   },[root]);
   useEffect(()=>{
-    if(!selectedWorkspace){setGrants([]);setSpaces([]);setSelectedSpace(0);return;}
+    if(!selectedWorkspace)return;
     let alive=true;
     void Promise.all([
       req(root+"/workspaces/"+selectedWorkspace+"/grants"),
@@ -67,7 +67,7 @@ export default function TeamWorkspacePanel({organization,members}:{organization:
     return()=>{alive=false;};
   },[root,selectedWorkspace]);
   useEffect(()=>{
-    if(!selectedWorkspace||!selectedSpace){setAcl(null);return;}
+    if(!selectedWorkspace||!selectedSpace)return;
     let alive=true;
     void req("/api/workspaces/"+selectedWorkspace+"/spaces/"+selectedSpace+"/access")
       .then(data=>{if(alive)setAcl(data.access??null);})

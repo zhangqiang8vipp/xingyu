@@ -195,3 +195,7 @@ approval_mode = "prompt"
 ## 组织与部门（依赖协作 PR #16）
 
 同一星屿用户可加入多个组织，组织 Owner/Admin/Member 与工作区权限相互独立。使用 `/organizations` 管理组织、邮箱邀请和多级部门树；组织成员**不会自动获取任何个人或共享工作区的内容权限**。Schema 22→23 的迁移、验收与回滚见 [组织 V1 运行手册](../docs/runbooks/2026-10-10-organizations-v1.md)。
+
+## 团队授权与受限知识空间（依赖组织 PR #17）
+
+在 `/organizations` 创建跨部门团队、组织工作区，为团队明确授予 Viewer/Editor，再按需给知识空间启用受限 ACL。有效权限始终由工作区角色与所有受限祖先 ACL 共同决定，网站和 MCP 都实时校验。个人工作区永不因加入组织而公开。Schema 23→24 迁移/验收见 [团队与空间 ACL 手册](../docs/runbooks/2026-10-10-team-workspace-space-acl.md)。
