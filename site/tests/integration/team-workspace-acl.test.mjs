@@ -85,6 +85,19 @@ test("team grants inherit live workspace roles and revoke web/MCP access immedia
     const root=(await call(h,"/api/workspaces/"+w.id+"/spaces?parent_id=null",{cookie:owner.cookie})).data.spaces[0];
     const secret=await makePost(h,w.id,owner,"不应默认对整个组织公开",root.id);
 
+    const ownerDiscovery=await call(h,"/api/organizations/"+a.id+"/workspaces",{cookie:owner.cookie});
+    assert.equal(ownerDiscovery.status,200);
+    assert.deepEqual(ownerDiscovery.data.workspaces.map(item=>item.id),[w.id]);
+    const memberDiscovery=await call(h,"/api/organizations/"+a.id+"/workspaces",{cookie:bob.cookie});
+    assert.equal(memberDiscovery.status,200);
+    assert.deepEqual(memberDiscovery.data.workspaces,[],"organization membership cannot disclose unauthorized workspace names");
+    await h.db.prepare("UPDATE organization_memberships SET role='admin' WHERE organization_id=? AND user_id=?")
+      .bind(a.id,bob.id).run();
+    assert.deepEqual((await call(h,"/api/organizations/"+a.id+"/workspaces",{cookie:bob.cookie})).data.workspaces,[],
+      "organization admin status is not a workspace content grant");
+    await h.db.prepare("UPDATE organization_memberships SET role='member' WHERE organization_id=? AND user_id=?")
+      .bind(a.id,bob.id).run();
+
     assert.equal((await call(h,"/api/workspaces/"+w.id+"/posts",{cookie:bob.cookie})).status,404,
       "joining an organization must never implicitly grant workspace access");
     const deniedGrant=await call(h,"/api/organizations/"+a.id+"/workspaces/"+w.id+"/grants",{
@@ -100,7 +113,10 @@ test("team grants inherit live workspace roles and revoke web/MCP access immedia
     assert.equal(personalAttempt.status,404,"no organizational ACL can be placed on a personal workspace");
 
     await addTeamMember(h,a,alpha.id,owner,bob);
+    assert.deepEqual((await call(h,"/api/organizations/"+a.id+"/workspaces",{cookie:bob.cookie})).data.workspaces,[],
+      "joining a team without workspace grants does not grant discovery");
     await grant(h,a,w.id,alpha.id,owner,"viewer");
+    assert.deepEqual((await call(h,"/api/organizations/"+a.id+"/workspaces",{cookie:bob.cookie})).data.workspaces.map(item=>item.id),[w.id]);
     const wsList=await call(h,"/api/workspaces",{cookie:bob.cookie});
     assert.ok(wsList.data.workspaces.some(x=>x.id===w.id&&x.role==="viewer"));
     assert.equal((await call(h,"/api/workspaces/"+w.id+"/posts/"+secret.publicId,{cookie:bob.cookie})).status,200);
@@ -125,6 +141,8 @@ test("team grants inherit live workspace roles and revoke web/MCP access immedia
       method:"DELETE",cookie:owner.cookie,
     });
     assert.equal(revoke.status,200);
+    assert.deepEqual((await call(h,"/api/organizations/"+a.id+"/workspaces",{cookie:bob.cookie})).data.workspaces,[],
+      "revoking a team grant immediately removes workspace names from discovery");
     assert.equal((await call(h,"/api/workspaces/"+w.id+"/posts/"+secret.publicId,{cookie:bob.cookie})).status,404);
     assert.equal((await callMcpTool(h,{name:"get_post",token,
       arguments:{workspace_id:w.id,identifier:secret.publicId,view:"content"}})).isError,true);
@@ -137,6 +155,8 @@ test("team grants inherit live workspace roles and revoke web/MCP access immedia
       method:"DELETE",cookie:owner.cookie,body:{userId:bob.id},
     });
     assert.equal(remove.status,200);
+    assert.deepEqual((await call(h,"/api/organizations/"+a.id+"/workspaces",{cookie:bob.cookie})).data.workspaces,[],
+      "removing a member from an authorized team immediately removes workspace discovery");
     assert.equal((await call(h,"/api/workspaces/"+w.id+"/posts",{cookie:bob.cookie})).status,404);
     await assert.rejects(h.db.prepare(
       "INSERT INTO team_memberships(organization_id,team_id,user_id) VALUES(?,?,?)",
@@ -262,6 +282,8 @@ test("organization removal and archive revoke team-derived and direct workspace 
     ).bind(o.id,bob.id).first()).n,0,"removing org member must clean team memberships");
     assert.equal((await call(h,"/api/workspaces/"+w.id+"/posts",{cookie:bob.cookie})).status,404);
     assert.equal((await call(h,"/api/workspaces/"+owner.workspaceId+"/posts",{cookie:owner.cookie})).status,200);
+    assert.equal((await call(h,"/api/organizations/"+o.id+"/workspaces",{cookie:bob.cookie})).status,404,
+      "removed organization members cannot discover its workspaces");
     await h.db.prepare("UPDATE organizations SET status='archived' WHERE id=?").bind(o.id).run();
     assert.equal((await call(h,"/api/workspaces/"+w.id+"/posts",{cookie:owner.cookie})).status,404,
       "archived organization must disable even its owner's organization workspace access");

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CursorPost } from "@/db/queries";
 import ModalPostLink from "@/features/reader/ModalPostLink";
 import { CONTENT_LIMITS } from "@/domain/site/config";
-import { formatLongDate, formatMonthDay } from "../content-utils";
+import { formatLongDate, formatMonthDay, formatPublicationYear as yearOf } from "../content-utils";
 
 type Props = {
   initialRows: CursorPost[];
@@ -143,5 +143,3 @@ function groupByYear(rows: CursorPost[]) {
   rows.forEach((post) => { const year = yearOf(post.publishedAt); groups.set(year, [...(groups.get(year) ?? []), post]); });
   return [...groups.entries()];
 }
-
-function yearOf(value: string | null | undefined) { return value ? String(new Date(value).getFullYear()) : "未定"; }

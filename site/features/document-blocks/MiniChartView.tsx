@@ -42,7 +42,7 @@ export default function MiniChartView({ block }: { block: ChartBlock }) {
       <div className="xy-chart-viewport">
         <svg className="xy-chart-svg" viewBox={`0 0 ${w} ${h}`} role="img"
           aria-label={`${chartLabel}，${chartTypeLabel[kind]}，共 ${items.length} 项数据`}>
-          <title>{chartLabel} · {chartTypeLabel[kind]}</title>
+          <title>{`${chartLabel} · ${chartTypeLabel[kind]}`}</title>
           {kind !== "pie" && (
             <>
               {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {

@@ -1,8 +1,33 @@
 import assert from "node:assert/strict";
 import { readFile, readdir, stat } from "node:fs/promises";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+test("publication dates and archive years stay identical across server and visitor timezones", () => {
+  const moduleUrl = new URL("../app/content-utils.ts", import.meta.url).href;
+  const script = `import { formatLongDate, formatShortDate, formatMonthDay, formatPublicationYear } from ${JSON.stringify(moduleUrl)};
+    console.log(JSON.stringify(['2026-10-08T16:30:00Z', '2026-12-31T16:30:00Z'].map(value =>
+      [formatLongDate(value), formatShortDate(value), formatMonthDay(value), formatPublicationYear(value)])));
+  `;
+  const expected = [["2026年10月9日", "2026年10月9日", "10/09", "2026"], ["2027年1月1日", "2027年1月1日", "01/01", "2027"]];
+  for (const TZ of ["UTC", "Asia/Shanghai", "America/Los_Angeles", "Pacific/Kiritimati"]) {
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+      encoding: "utf8", env: { ...process.env, TZ },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), expected, TZ);
+  }
+});
+
+test("publication date helpers preserve empty-value fallbacks", async () => {
+  const { formatLongDate, formatShortDate, formatMonthDay, formatPublicationYear } = await import("../app/content-utils.ts");
+  assert.equal(formatLongDate(null), "");
+  assert.equal(formatShortDate(undefined, "未定日期"), "未定日期");
+  assert.equal(formatMonthDay(""), "—");
+  assert.equal(formatPublicationYear(null), "未定");
+});
 
 test("Mermaid fits wide and tall diagrams and preserves centered zoom anchors", async () => {
   const { fitDiagramZoom, diagramZoomScroll } = await import("../features/markdown/mermaid-viewport.ts");

@@ -9,8 +9,13 @@ test("public Connect is a marketing route and never uses live PAT or OAuth APIs"
   assert.match(page, /xy-marketing-page/);
   assert.match(page, /connect-marketing\.css/);
   assert.match(page, /getContentPage\("connect"\)/);
-  assert.match(page, /个人访问令牌/);
-  assert.match(page, /OAuth 自动授权/);
+  assert.match(page, /ConnectMethodPicker/);
+  const picker = file("app/connect/ConnectMethodPicker.tsx");
+  assert.match(picker, /个人访问令牌/);
+  assert.match(picker, /OAuth 自动授权/);
+  assert.match(picker, /aria-pressed/);
+  assert.doesNotMatch(picker, /\/api\/identity\/(?:tokens|connections)/);
+  assert.doesNotMatch(picker, /\bfetch\(/);
   assert.match(page, /connect-hero-title/);
   assert.match(page, /AdminPreviewBridge kind="connect"/);
   assert.doesNotMatch(page, /ConnectExperience|PersonalTokensPanel|ConnectionsPanel/);

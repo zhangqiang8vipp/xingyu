@@ -6,6 +6,24 @@ import { XINGYU_DOCUMENT_BLOCK_CATALOG, getXingyuBlockShortList, xingyuBlockMcpI
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
+test("chart SVG titles survive React server rendering as escaped text", async () => {
+  const [{ default: ts }, { default: React }, { renderToStaticMarkup }] = await Promise.all([
+    import("typescript"), import("react"), import("react-dom/server"),
+  ]);
+  const compiled = ts.transpileModule(await source("features/document-blocks/MiniChartView.tsx"), {
+    compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const moduleText = `import React from ${JSON.stringify(import.meta.resolve("react"))};\n${compiled}`;
+  const { default: MiniChartView } = await import(`data:text/javascript;base64,${Buffer.from(moduleText).toString("base64")}`);
+  for (const [kind, label] of [["bar", "柱状图"], ["line", "折线图"], ["pie", "饼图"]]) {
+    const html = renderToStaticMarkup(React.createElement(MiniChartView, { block: {
+      version: 1, type: "chart", kind, title: "学习 <记录>", items: [{ label: "一", value: 1 }, { label: "二", value: 2 }],
+    } }));
+    assert.ok(html.includes(`<title>学习 &lt;记录&gt; · ${label}</title>`));
+    assert.ok(!html.includes("<title></title>"));
+  }
+});
+
 test("XINGYU writing showcase has valid copyable examples for every registered block", async () => {
   const guide = await source("../docs/guides/xingyu-writing-showcase.md");
   const examples = [...guide.matchAll(/```xingyu-block\r?\n([\s\S]*?)```/g)];

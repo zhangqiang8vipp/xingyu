@@ -1,21 +1,33 @@
 export type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
+// Public publication dates follow the site's calendar, regardless of Worker or visitor timezone.
+const publicationTimeZone = "Asia/Shanghai";
+
 const longDateFormatter = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: publicationTimeZone,
   year: "numeric",
   month: "long",
   day: "numeric",
 });
 
 const shortDateFormatter = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: publicationTimeZone,
   year: "numeric",
   month: "short",
   day: "numeric",
 });
 
 const monthDayFormatter = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: publicationTimeZone,
   month: "2-digit",
   day: "2-digit",
 });
+
+const yearFormatter = new Intl.DateTimeFormat("en", { year: "numeric", timeZone: publicationTimeZone });
+
+export function formatPublicationYear(value: string | null | undefined, fallback = "未定") {
+  return value ? yearFormatter.format(new Date(value)) : fallback;
+}
 
 /** Reuse formatters: constructing Intl.DateTimeFormat repeatedly is relatively expensive. */
 export function formatLongDate(value: string | null | undefined, fallback = "") {

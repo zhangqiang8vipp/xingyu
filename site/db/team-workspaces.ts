@@ -109,9 +109,11 @@ export async function listOrganizationWorkspaces(userId:number,orgId:number) {
     "SELECT ow.workspace_id AS id,w.name,w.kind FROM organization_workspaces ow "+
     "JOIN workspaces w ON w.id=ow.workspace_id AND w.status='active' AND w.kind='organization' "+
     "JOIN organizations o ON o.id=ow.organization_id AND o.status='active' "+
-    "WHERE ow.organization_id=? ORDER BY w.id",
-  ).bind(orgId).all();
-  // Org membership is allowed to learn names of organizational workspaces, not their contents.
+    "WHERE ow.organization_id=? AND EXISTS("+
+    "SELECT 1 FROM workspace_effective_grants g WHERE g.workspace_id=w.id AND g.user_id=?) ORDER BY w.id",
+  ).bind(orgId,userId).all();
+  // Discovery follows the same live grants as content access; membership alone
+  // must not disclose the names of other organizational workspaces.
   return rows.results??[];
 }
 export async function createOrganizationWorkspace(userId:number,orgId:number,nameInput:unknown) {
