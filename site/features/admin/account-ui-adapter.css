@@ -91,3 +91,45 @@
 @media(prefers-reduced-motion:reduce){
   .admin-account-main *{transition:none!important}
 }
+
+
+/* Unified account IA; inherits the original admin palette. */
+.account-hub{min-width:0;display:grid;gap:18px}
+.account-intro{padding:26px 28px;display:flex;gap:22px;align-items:center;justify-content:space-between;border:1px solid var(--admin-line);border-radius:22px;background:var(--admin-panel);box-shadow:var(--admin-shadow)}
+.account-overline{color:var(--admin-accent);font-size:10px;font-weight:750;letter-spacing:.15em}
+.account-intro h2{margin:7px 0 8px;color:var(--admin-ink);font-size:23px;letter-spacing:-.04em}
+.account-intro p{max-width:570px;margin:0;color:var(--admin-copy);font-size:13px;line-height:1.65}
+.account-intro-stats{display:flex;gap:14px;flex:none}
+.account-intro-stats>span{min-width:94px;padding:12px 14px;display:grid;gap:3px;text-align:center;border:1px solid var(--admin-line);border-radius:15px;background:var(--admin-control)}
+.account-intro-stats strong{color:var(--admin-ink);font-size:24px;line-height:1.2}
+.account-intro-stats small{color:var(--admin-muted);font-size:10px}
+.account-section-tabs{display:flex;align-items:stretch;gap:6px;padding:5px;overflow-x:auto;border:1px solid var(--admin-line);border-radius:16px;background:var(--admin-control)}
+.admin-account-main .account-section-tab{min-width:150px;max-width:none!important;flex:1;padding:13px 15px!important;display:grid;gap:3px;text-align:left;white-space:nowrap;border:1px solid transparent!important;border-radius:12px!important;background:transparent!important}
+.account-section-tab strong{color:var(--admin-copy);font-size:13px}
+.account-section-tab small{color:var(--admin-muted);font-size:10px}
+.admin-account-main .account-section-tab[aria-pressed="true"]{border-color:var(--admin-line)!important;background:var(--admin-panel)!important;box-shadow:var(--admin-shadow)}
+.account-section-tab[aria-pressed="true"] strong{color:var(--admin-ink)}
+.account-hub-body{min-width:0}
+.workspace-editor .admin-account-columns{gap:16px}
+.workspace-editor .editor-section{padding:22px}
+.workspace-folder-list{display:grid;gap:4px;margin-top:12px}
+.admin-account-main .workspace-folder-list button{max-width:none;min-height:39px;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;text-align:left;border:0;border-radius:10px;background:transparent}
+.admin-account-main .workspace-folder-list button[aria-pressed="true"]{color:var(--admin-accent);background:var(--admin-accent-soft)}
+.workspace-folder-list small{color:var(--admin-muted)}
+.account-list-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.account-list-title h2{margin:0!important}
+.account-empty{min-height:260px;display:grid;align-content:center;justify-items:center;gap:10px;text-align:center}
+.account-empty p{margin:0}
+.account-unsaved{margin:-8px 0 0;color:var(--admin-accent);font-size:12px}
+.organization-dashboard{display:grid;gap:18px}
+.organization-dashboard>.editor-section{margin:0}
+.organization-page-section{min-width:0;display:grid;gap:18px}
+.admin-account-main .organization-page-section>.editor-section{margin:0}
+@media(max-width:800px){
+  .account-intro{padding:19px;align-items:flex-start;flex-direction:column}
+  .account-intro-stats{width:100%}
+  .account-intro-stats>span{flex:1}
+  .admin-account-main .account-section-tab{min-width:126px;padding:10px!important}
+  .account-section-tab small{display:none}
+  .workspace-editor .editor-section{padding:16px}
+}

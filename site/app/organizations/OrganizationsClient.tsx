@@ -1,6 +1,7 @@
 "use client";
 import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
 import TeamWorkspacePanel from "./TeamWorkspacePanel";
+import AccountSectionTabs from "@/features/admin/AccountSectionTabs";
 
 type Role="owner"|"admin"|"member";
 type Org={id:number;name:string;slug:string;ownerUserId:number;role:Role};
@@ -59,6 +60,7 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
   const [invitations,setInvitations]=useState<Invitation[]>([]);
   const [notice,setNotice]=useState("");
   const [busy,setBusy]=useState(false);
+  const [section,setSection]=useState<"overview"|"members"|"teams"|"units">("overview");
   const ordered=useMemo(()=>flatten(units),[units]);
   const refresh=useCallback(async()=>{
     if(!selectedId)return;
@@ -155,7 +157,7 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
     },"已退出组织",false);
   }
   const noShareNotice="组织成员与部门分组本身不授予工作区阅读权限。需要共享内容，请到工作区单独邀请成员。";
-  return <section style={{display:"grid",gap:18}}>
+  return <section className="organization-dashboard">
     <section className="editor-section">
       <h2>我的组织</h2>
       <form onSubmit={e=>void create(e)} style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"end"}}>
@@ -176,8 +178,10 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
       </div>:<p>尚未加入组织，先创建一个组织即可开始管理成员和部门。</p>}
       {notice?<p role="status">{notice}</p>:null}
     </section>
-    {selected?<><p style={{margin:0,fontSize:13,opacity:0.8}}>{noShareNotice}</p>
-    <section className="editor-section">
+    {selected?<><section className="organization-page-section"><AccountSectionTabs label="组织功能" active={section} onChange={setSection} tabs={[{id:"overview",label:"总览"},{id:"members",label:"组织成员"},{id:"teams",label:"团队与知识库"},{id:"units",label:"部门架构"}]}/>
+    <p style={{margin:0,fontSize:13,opacity:0.8}}>{noShareNotice}</p>
+    {section==="overview"?<section className="editor-section"><h2>{selected.name}</h2><p>组织管理集中在上方四个入口。成员决定组织身份，团队负责协作，知识库授权单独控制。</p><div className="account-intro-stats"><span><strong>{members.length}</strong><small>组织成员</small></span><span><strong>{units.length}</strong><small>部门</small></span></div><p>选择「组织成员」发送邀请；选择「团队与知识库」设置共享权限；选择「部门架构」安排组织结构。</p></section>:null}
+    {section==="members"?<section className="editor-section">
       <h2>组织成员</h2>
       <div style={{display:"grid",gap:8}}>
         {members.map(member=><div className="integration-card" key={member.userId} style={{display:"flex",gap:12,justifyContent:"space-between",alignItems:"center",flexWrap:"wrap"}}>
@@ -216,9 +220,9 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
               void run(()=>call(root+"/invitations/"+i.id,"DELETE"),"邀请已撤销")}>撤销邀请</button>
           </li>)}</ul>}
       </>:null}
-    </section>
-    <TeamWorkspacePanel key={selected.id} organization={selected} members={members}/>
-    <section className="editor-section">
+    </section>:null}
+    {section==="teams"?<TeamWorkspacePanel key={selected.id} organization={selected} members={members}/>:null}
+    {section==="units"?<section className="editor-section">
       <h2>部门架构</h2>
       <p>部门可多级嵌套；成员可以同时属于多个部门。移动部门不会改变任何工作区访问权限。</p>
       {canManage?<form onSubmit={createUnit} style={{display:"flex",gap:8,alignItems:"end",flexWrap:"wrap"}}>
@@ -275,6 +279,6 @@ export default function OrganizationsClient({initialOrganizations}:{initialOrgan
           </div>;
         })}
       </div>
-    </section></>:null}
+    </section>:null}</section></>:null}
   </section>;
 }

@@ -148,8 +148,9 @@ export default function AdminSidebar({
         {ACCOUNT_LINKS.map(item=><Link key={item.area} href={item.href}
           data-icon={item.icon} title={item.label} aria-current={accountArea===item.area?"page":undefined}
           className={accountArea===item.area?"selected":undefined}><span>{item.label}</span></Link>)}
-        {isLegacyAdmin?<Link data-icon="⌂" href="/admin" title="原写作后台">
-          <span>原写作后台</span></Link>:null}
+        <Link data-icon="↗" href="/workspace?view=connections" title="AI 连接"><span>AI 连接</span></Link>
+        {isLegacyAdmin?<Link data-icon="⌂" href="/admin" title="站点内容管理">
+          <span>站点内容管理</span></Link>:null}
       </div> : NAV_GROUPS.map((group) => <div className="admin-nav-block" key={group.id}>
         <div className="admin-nav-group">{group.label}</div>
         {group.items.map((item) => <NavButton
@@ -169,7 +170,7 @@ export default function AdminSidebar({
         {ACCOUNT_LINKS.map(item=><Link key={item.area} href={item.href}
           aria-current={accountArea===item.area?"page":undefined}
           className={accountArea===item.area?"selected":undefined}>{item.label}</Link>)}
-        <Link href="/">返回博客</Link>
+        <Link href="/workspace?view=connections">AI 连接</Link>
       </nav> : <>
       {moreOpen ? <div className="admin-more-sheet">
         {moreItems.map((item) => <NavButton
