@@ -189,7 +189,7 @@ export async function deleteAttachment(publicId: string, expectedVersion?: numbe
   await ensureDatabase();
   const record = await getDb().select().from(attachments)
     .where(eq(attachments.publicId, publicId)).limit(1);
-  if (!record[0]) throw new AttachmentError("附件不存在或已经删除", 404);
+  if (!record[0] || record[0].workspaceId !== 1) throw new AttachmentError("附件不存在或已经删除", 404);
 
   let nextVersion: number | null = null;
   if (record[0].postId !== null) {

@@ -109,7 +109,7 @@ async function initialize() {
       throw new Error("D1 posts.sort_order is missing or incompatible with browsing order");
     }
     const nonUnique = (objects.results ?? []).filter(({ type, name, sql: definition }) =>
-      type === "index" && requiredMigrationObjects.index.some((required) => required === name)
+      type === "index" && Object.hasOwn(requiredUniqueIndexes,name)
       && !/^CREATE\s+UNIQUE\s+INDEX\b/i.test(definition ?? ""));
     if (nonUnique.length > 0) {
       throw new Error(`D1 schema has non-unique required indexes: ${nonUnique.map(({ name }) => name).join(", ")}`);

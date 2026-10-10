@@ -253,6 +253,7 @@ test("the versioned migration chain reconstructs the runtime database schema", a
     assert.equal(search.results?.length, 1, "the migration-built FTS triggers must index posts");
     const cache = await migrationDb.prepare("SELECT revision FROM public_cache_state WHERE id = 1").first();
     assert.ok(cache?.revision > 1, "the migration-built public cache triggers must advance the revision");
+    await migrationDb.prepare("INSERT INTO spaces(id,parent_id,name,slug,workspace_id) VALUES(42,NULL,'Schema private','schema-private-test',1)").run();
     await migrationDb.prepare(
       "INSERT INTO posts (public_id, title, slug, category_id, space_id, status) VALUES ('private-schema-test', 'private', 'private-schema-test', 1, 42, 'published')",
     ).run();
