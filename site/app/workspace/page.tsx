@@ -1,18 +1,23 @@
-import { redirect } from "next/navigation";
-import { currentIdentity } from "@/server/auth/identity";
-import { listUserWorkspaces } from "@/db/workspace-access";
-import ConsoleShell from "@/app/console/ConsoleShell";
+import {redirect} from "next/navigation";
+import {currentIdentity} from "@/server/auth/identity";
+import {getSiteSettings} from "@/db/queries";
+import {listUserWorkspaces} from "@/db/workspace-access";
+import AdminAccountFrame from "@/features/admin/AdminAccountFrame";
 import WorkspaceClient from "./WorkspaceClient";
-import ConnectionsPanel from "./ConnectionsPanel";
 import CollaborationPanel from "./CollaborationPanel";
+import ConnectionsPanel from "./ConnectionsPanel";
+
 export const dynamic="force-dynamic";
 export default async function WorkspacePage(){
   const user=await currentIdentity();
   if(!user)redirect("/login");
-  const workspaces=await listUserWorkspaces(user.userId);
-  return <ConsoleShell area="workspace" userName={user.displayName} isLegacyAdmin={user.userId===1}>
+  const [settings,workspaces]=await Promise.all([
+    getSiteSettings(),listUserWorkspaces(user.userId),
+  ]);
+  return <AdminAccountFrame area="workspace" brandName={settings.brandName}
+    userName={user.displayName} isLegacyAdmin={user.userId===1}>
     <WorkspaceClient initialWorkspaces={workspaces}/>
     <CollaborationPanel workspaces={workspaces}/>
     <ConnectionsPanel/>
-  </ConsoleShell>;
+  </AdminAccountFrame>;
 }

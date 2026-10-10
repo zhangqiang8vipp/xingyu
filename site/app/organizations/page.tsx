@@ -1,14 +1,19 @@
-import { redirect } from "next/navigation";
-import { currentIdentity } from "@/server/auth/identity";
-import { listMyOrganizations } from "@/db/organization-access";
-import ConsoleShell from "@/app/console/ConsoleShell";
+import {redirect} from "next/navigation";
+import {currentIdentity} from "@/server/auth/identity";
+import {getSiteSettings} from "@/db/queries";
+import {listMyOrganizations} from "@/db/organization-access";
+import AdminAccountFrame from "@/features/admin/AdminAccountFrame";
 import OrganizationsClient from "./OrganizationsClient";
+
 export const dynamic="force-dynamic";
-export default async function OrganizationsPage() {
+export default async function OrganizationsPage(){
   const user=await currentIdentity();
   if(!user)redirect("/login");
-  const organizations=await listMyOrganizations(user.userId);
-  return <ConsoleShell area="organizations" userName={user.displayName} isLegacyAdmin={user.userId===1}>
+  const [settings,organizations]=await Promise.all([
+    getSiteSettings(),listMyOrganizations(user.userId),
+  ]);
+  return <AdminAccountFrame area="organizations" brandName={settings.brandName}
+    userName={user.displayName} isLegacyAdmin={user.userId===1}>
     <OrganizationsClient initialOrganizations={organizations}/>
-  </ConsoleShell>;
+  </AdminAccountFrame>;
 }

@@ -1,11 +1,11 @@
 import Link from "next/link";
-import AuthShell from "@/app/console/AuthShell";
+import IdentityAdminPanel from "@/features/admin/IdentityAdminPanel";
 import VerifyEmailAction from "./VerifyEmailAction";
 export const dynamic="force-dynamic";
 export default async function VerifyEmailPage({searchParams}:{searchParams:Promise<{token?:string}>}){
   const token=(await searchParams).token??"";
-  return <AuthShell title="验证邮箱" description="确认是你本人发起的注册操作后，完成邮箱验证，即可进入个人知识空间。">
+  return <IdentityAdminPanel title="验证邮箱" description="确认这是你本人发起的注册操作后，点击下方按钮完成验证。">
     <VerifyEmailAction token={token}/>
-    <p className="xy-auth-links"><Link href="/login">前往登录</Link></p>
-  </AuthShell>;
+    <p><Link href="/login">前往登录</Link></p>
+  </IdentityAdminPanel>;
 }

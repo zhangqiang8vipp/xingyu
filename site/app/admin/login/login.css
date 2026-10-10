@@ -170,3 +170,22 @@ html[data-theme="dark"] .admin-login-locked span { color: #8f8f97; }
     border-radius: 25px;
   }
 }
+
+
+/* Account pages use the existing admin-signin styles, not a second auth theme. */
+.admin-signin .admin-login-form>p{margin:7px 0 0;color:var(--muted);font-size:12px;line-height:1.7}
+.admin-signin .admin-login-form>p a{color:var(--blue);font-weight:650}
+.admin-signin .admin-login-form [role="status"]{
+  padding:10px 12px;border:1px solid var(--admin-line);
+  border-radius:10px;color:var(--admin-accent);background:var(--admin-accent-soft)
+}
+.admin-signin .admin-login-form [role="alert"]{color:#b63e4a}
+.admin-signin .admin-login-form button[type="button"]{
+  color:var(--ink);border:1px solid var(--admin-line);
+  background:var(--admin-control)
+}
+html[data-theme="dark"] .admin-signin .admin-login-form>p{color:var(--admin-copy)}
+html[data-theme="dark"] .admin-signin .admin-login-form button[type="button"]{color:var(--admin-ink)}
+.admin-signin .admin-login-form :is(a,button,input):focus-visible{
+  outline:2px solid var(--admin-accent);outline-offset:2px
+}

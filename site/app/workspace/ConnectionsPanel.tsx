@@ -30,13 +30,13 @@ export default function ConnectionsPanel(){
     }catch(e){setError(e instanceof Error?e.message:"撤销失败");}
     finally{setBusy("");}
   }
-  return <section className="xy-card xy-connections" style={{border:"1px solid #aaa",borderRadius:14,padding:20,marginTop:18}}>
+  return <section className="editor-section" style={{marginTop:18}}>
     <h2>已连接的 AI 客户端</h2><p>这些连接通过独立的 MCP OAuth 授权，与邮箱登录不是同一个令牌体系。</p>
     {error?<p role="alert">{error}</p>:null}
-    {connections.length===0?<p className="xy-empty">暂无已授权连接。</p>:
+    {connections.length===0?<p>暂无已授权连接。</p>:
       <ul>{connections.map(item=><li key={item.clientId} style={{marginBottom:12}}>
-        <span className="xy-connection-meta"><strong>{item.clientName}</strong><span> · {item.scopes}</span></span>
-        <button className="xy-danger" type="button" disabled={Boolean(busy)} onClick={()=>revoke(item.clientId)}
+        <strong>{item.clientName}</strong> · {item.scopes}
+        <button className="admin-account-danger" type="button" disabled={Boolean(busy)} onClick={()=>revoke(item.clientId)}
           style={{marginLeft:12}}>{busy===item.clientId?"撤销中…":"撤销连接"}</button>
       </li>)}</ul>}
   </section>;

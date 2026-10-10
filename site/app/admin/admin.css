@@ -593,3 +593,98 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
   .activation-proof header,.activation-proof>div{display:grid}
   .activation-proof em{text-align:left}
 }
+
+
+/*
+ * New multi-user areas reuse the existing AdminSidebar, editor-section,
+ * integration-card and palette. This is only a responsive adapter for their
+ * forms/content; the admin design tokens are owned by globals.css.
+ */
+.admin-account-shell{color:var(--admin-ink);background:var(--admin-canvas)}
+.admin-account-main{max-width:1160px}
+.admin-account-main .admin-header{margin-bottom:24px}
+.admin-account-content{min-width:0;display:grid;gap:18px}
+.admin-account-content>*{min-width:0}
+.admin-account-main .editor-section{margin:0;min-width:0;color:var(--admin-ink);border-color:var(--admin-line);background:var(--admin-panel);box-shadow:var(--admin-shadow)}
+.admin-account-main .editor-section h2{margin:0 0 12px;font-size:18px;font-weight:720;letter-spacing:-.035em}
+.admin-account-main .editor-section h3{margin:18px 0 10px;font-size:14px}
+.admin-account-main .editor-section :is(p,small){color:var(--admin-copy);line-height:1.65}
+.admin-account-main .integration-card{min-width:0;border-color:var(--admin-line);background:var(--admin-control);box-shadow:none;overflow-wrap:anywhere}
+.admin-account-main .integration-card :is(strong,b){color:var(--admin-ink)}
+.admin-account-main .admin-account-columns{min-width:0;grid-template-columns:minmax(220px,1fr) minmax(0,2fr)}
+.admin-account-main .admin-account-columns>*{min-width:0}
+.admin-account-main :is(input:not([type="file"]):not([type="checkbox"]),select,textarea){
+  min-height:39px;max-width:100%;padding:9px 11px!important;
+  border:1px solid var(--admin-line-strong)!important;border-radius:10px!important;
+  color:var(--admin-ink)!important;background:var(--admin-control)!important;
+  outline:none;transition:border-color .15s,box-shadow .15s
+}
+.admin-account-main :is(input:not([type="file"]):not([type="checkbox"]),select,textarea):focus-visible{
+  border-color:var(--admin-accent)!important;box-shadow:0 0 0 3px var(--admin-accent-soft)!important
+}
+.admin-account-main input[type="checkbox"]{accent-color:var(--admin-accent)}
+.admin-account-main textarea{width:100%;min-height:220px;resize:vertical}
+.admin-account-main label{color:var(--admin-copy);font-size:12px;font-weight:650}
+.admin-account-main form{min-width:0}
+.admin-account-main button:not(.new-button):not(.admin-account-article){
+  min-height:34px;max-width:100%;padding:7px 11px;
+  border:1px solid var(--admin-line-strong);border-radius:10px;
+  color:var(--admin-ink);background:var(--admin-control);
+  font-size:12px;font-weight:650;transition:background .15s,border-color .15s
+}
+.admin-account-main button:not(.new-button):not(.admin-account-article):hover:enabled{
+  background:var(--admin-control-hover);border-color:var(--admin-line-strong)
+}
+.admin-account-main button:disabled{opacity:.48;cursor:not-allowed}
+.admin-account-main .new-button{height:39px;background:var(--admin-ink);color:var(--admin-panel)}
+.admin-account-main .admin-account-danger{color:#b63e4a!important;border-color:rgba(185,69,86,.24)!important}
+.admin-account-main .admin-account-article{
+  display:flex!important;align-items:center;justify-content:space-between;
+  gap:9px;padding:11px!important;border-bottom:1px solid var(--admin-line)!important;
+  color:var(--admin-ink);border-radius:9px;overflow-wrap:anywhere
+}
+.admin-account-main .admin-account-article:hover,
+.admin-account-main .admin-account-article[aria-pressed="true"]{
+  background:var(--admin-accent-soft)!important;color:var(--admin-accent)!important
+}
+.admin-account-main .admin-account-article small{color:var(--admin-muted)}
+.admin-account-main [role="status"],.admin-account-main [role="alert"]{
+  padding:10px 13px;border:1px solid var(--admin-line);border-radius:11px;
+  background:var(--admin-control);color:var(--admin-copy);font-size:12px;
+  overflow-wrap:anywhere
+}
+.admin-account-main [role="alert"]{color:#b63e4a}
+.admin-account-main :is(a,button,input,select,textarea):focus-visible{
+  outline:2px solid var(--admin-accent);outline-offset:2px
+}
+.admin-account-main .admin-account-switcher>label{min-width:0}
+.admin-account-main .admin-account-switcher select{width:auto}
+.admin-account-main .admin-account-article-list{min-width:0}
+.admin-account-main .admin-account-article-list input{margin-bottom:10px}
+.admin-account-main li{overflow-wrap:anywhere;font-size:12px}
+.admin-account-main .integration-card>div{min-width:0}
+@media(max-width:800px){
+  .admin-account-main{padding-top:86px}
+  .admin-account-main .admin-account-columns{grid-template-columns:minmax(0,1fr)}
+  .admin-account-shell .admin-dock{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .admin-account-shell .admin-dock a{
+    height:46px;padding:5px 2px;display:flex;align-items:center;
+    justify-content:center;border:0;border-radius:13px;
+    color:var(--admin-copy);background:transparent;font-size:11px
+  }
+  .admin-account-shell .admin-dock a.selected{
+    color:var(--admin-accent);background:var(--admin-accent-soft)
+  }
+  .admin-account-main .admin-account-switcher{align-items:stretch}
+  .admin-account-main .admin-account-switcher select{width:100%}
+  .admin-account-main .editor-section{padding:18px}
+}
+@media(max-width:520px){
+  .admin-account-main .integration-card{margin-left:0!important}
+  .admin-account-main .editor-section{padding:16px}
+  .admin-account-main :is(input,textarea,select){min-width:0}
+  .admin-account-main .admin-account-switcher>label{width:100%}
+}
+@media(prefers-reduced-motion:reduce){
+  .admin-account-main *{transition:none!important}
+}

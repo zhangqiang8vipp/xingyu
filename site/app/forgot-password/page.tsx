@@ -1,9 +1,9 @@
 import Link from "next/link";
-import AuthShell from "@/app/console/AuthShell";
+import IdentityAdminPanel from "@/features/admin/IdentityAdminPanel";
 import ForgotPasswordForm from "./ForgotPasswordForm";
 export default function ForgotPasswordPage(){
-  return <AuthShell title="找回密码" description="输入已注册的邮箱，我们将发送一个 30 分钟内有效的重置链接。">
+  return <IdentityAdminPanel title="找回密码" description="请输入已注册的邮箱。验证邮件将在 30 分钟内有效。">
     <ForgotPasswordForm/>
-    <p className="xy-auth-links"><Link href="/login">返回登录</Link></p>
-  </AuthShell>;
+    <p><Link href="/login">返回登录</Link></p>
+  </IdentityAdminPanel>;
 }
