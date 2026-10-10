@@ -53,6 +53,7 @@ export async function createAttachment(input: {
   bytes: Uint8Array;
   postId?: number | null;
   workspaceId?: number;
+  actorUserId?: number;
   audit?: { summary: string; clientLabel: string };
 }) {
   await ensureDatabase();
@@ -85,11 +86,13 @@ export async function createAttachment(input: {
       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
       WHERE EXISTS (SELECT 1 FROM workspaces WHERE id = ? AND status = 'active')
         AND (? IS NULL OR EXISTS (SELECT 1 FROM posts WHERE id = ? AND workspace_id = ?))
+        AND (? IS NULL OR EXISTS (SELECT 1 FROM workspace_memberships WHERE workspace_id = ? AND user_id = ? AND status = 'active' AND role IN ('owner','admin','editor')))
       RETURNING id, public_id AS publicId, post_id AS postId, object_key AS objectKey,
         original_name AS originalName, content_type AS contentType, size, sha256,
         created_at AS createdAt`).bind(
       workspaceId, publicId, postId, objectKey, checked.name, checked.contentType,
       input.bytes.byteLength, sha256, unboundAt, workspaceId, postId, postId, workspaceId,
+      input.actorUserId ?? null, workspaceId, input.actorUserId ?? null,
     );
   const statements = [insert];
   if (input.audit) {
@@ -127,7 +130,7 @@ export async function createAttachment(input: {
     console.error(JSON.stringify({ event: "attachment_audit_receipt_missing", publicId, objectKey }));
     throw new Error(`附件 ${publicId} 已写入，但审计回执缺失；请联系管理员核查`);
   }
-  return { ...record, activity: auditRow ? { id: auditRow.id!, createdAt: auditRow.created_at! } : undefined };
+  return { ...record, workspaceId, activity: auditRow ? { id: auditRow.id!, createdAt: auditRow.created_at! } : undefined };
 }
 
 export async function getAttachment(publicId: string) {
@@ -341,15 +344,17 @@ export function prepareMarkdownAttachmentBinding(
 }
 
 export function attachmentIdsFromMarkdown(markdown: string) {
-  const matches = markdown.matchAll(/\/api\/attachments\/(att_[a-f0-9]{32})(?:\/|[)\s"']|$)/gi);
-  return [...new Set(Array.from(matches, (match) => match[1].toLowerCase()))];
+  const oldLinks = [...markdown.matchAll(/\/api\/attachments\/(att_[a-f0-9]{32})(?:\/|[)\s"']|$)/gi)];
+  const scopedLinks = [...markdown.matchAll(/\/api\/workspaces\/\d+\/attachments\/(att_[a-f0-9]{32})(?:\/|[)\s"']|$)/gi)];
+  return [...new Set([...oldLinks,...scopedLinks].map(match => match[1].toLowerCase()))];
 }
 
-export function attachmentUrl(record: { publicId: string; originalName: string }) {
+export function attachmentUrl(record: { publicId: string; originalName: string; workspaceId?: number }) {
+  if (record.workspaceId && record.workspaceId !== 1) return `/api/workspaces/${record.workspaceId}/attachments/${record.publicId}`;
   return `/api/attachments/${record.publicId}/${encodeURIComponent(record.originalName)}`;
 }
 
-export function attachmentMarkdown(record: { publicId: string; originalName: string; contentType: string; size: number }) {
+export function attachmentMarkdown(record: { publicId: string; originalName: string; contentType: string; size: number; workspaceId?: number }) {
   const url = attachmentUrl(record);
   const escapedName = record.originalName.replaceAll("[", "\\[").replaceAll("]", "\\]");
   if (record.contentType.startsWith("image/")) return `![${escapedName}](${url})`;

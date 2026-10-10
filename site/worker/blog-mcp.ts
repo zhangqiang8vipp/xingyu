@@ -7,12 +7,13 @@ import { registerDraftTools } from "./mcp/draft-tools";
 import { registerPublishTools } from "./mcp/publish-tools";
 import { registerReadTools } from "./mcp/read-tools";
 import { registerSpaceTools } from "./mcp/space-tools";
+import { registerWorkspaceTools } from "./mcp/workspace-tools";
 
 const MCP_PATH = "/mcp";
 
 function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth) {
   const server = new McpServer(
-    { name: "xingyu-blog-writer", version: "1.2.0" },
+    { name: "xingyu-blog-writer", version: "2.0.0" },
     {
       instructions: [
         "这是星屿博客的线上写作 MCP。默认先用 create_draft 创建草稿；只有用户明确要求上线时才调用 publish_post。",
@@ -28,11 +29,15 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
     },
   );
   const context = { server, origin, clientLabel, auth };
-  // Writing and attachments first so short client tool lists still include them.
-  registerDraftTools(context);
-  registerReadTools(context);
-  registerPublishTools(context);
-  registerSpaceTools(context);
+  if (auth.userId) {
+    registerWorkspaceTools(context);
+  } else {
+    // Development-only single-owner compatibility; production never accepts these identities.
+    registerDraftTools(context);
+    registerReadTools(context);
+    registerPublishTools(context);
+    registerSpaceTools(context);
+  }
   return server;
 }
 

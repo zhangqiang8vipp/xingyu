@@ -16,7 +16,7 @@ export async function scopedUploadAttachment(userId:number,workspaceId:number,in
   const post=input.postIdentifier?await scopedPost(userId,workspaceId,input.postIdentifier):null;
   validateAttachmentInput(input.name,input.contentType,input.bytes.length,MAX_MCP_ATTACHMENT_BYTES);
   return createAttachment({
-    workspaceId,name:input.name,contentType:input.contentType,bytes:input.bytes,
+    workspaceId,actorUserId:userId,name:input.name,contentType:input.contentType,bytes:input.bytes,
     postId:post?.id??null,
     audit:{summary:input.summary??"上传附件",clientLabel:input.clientLabel??"web:"+userId},
   });

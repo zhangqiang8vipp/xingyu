@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { activeSubject } from "@/server/auth/identity-session";
 import { sha256Bytes, constantTimeBytesEqual } from "@/db/admin-session";
 import { ALL_SCOPES, findAccessToken, hashSecret, mcpResourceFor, parseScopeList, touchAccessToken } from "@/db/oauth";
 import { oauthLog } from "./oauth/errors";
@@ -17,7 +18,8 @@ export async function authenticateMcp(request: Request): Promise<McpAuth | Respo
   }
   const bearer = match[1];
   const expected = env.MCP_WRITE_TOKEN;
-  if (expected && await bearerMatches(bearer, expected)) {
+  // Legacy bearer is never accepted by the multi-user production service.
+  if (env.APP_ENV !== "production" && expected && await bearerMatches(bearer, expected)) {
     return {
       authType: "legacy",
       clientId: "legacy-chatgpt",
@@ -36,7 +38,16 @@ export async function authenticateMcp(request: Request): Promise<McpAuth | Respo
       oauthLog("mcp.auth.failed", { reason: "resource_mismatch", client_id: row.clientId });
       return unauthorizedChallenge(origin);
     }
+    const userId = await activeSubject(row.subject);
+    if (!userId) {
+      // Historical single-owner subjects may run only in isolated development.
+      if (env.APP_ENV !== "production" && row.subject === "xingyu-owner") {
+        return {authType:"oauth",clientId:row.clientId,subject:row.subject,scopes:parseScopeList(row.scope),tokenId:row.id};
+      }
+      return unauthorizedChallenge(origin);
+    }
     return {
+      userId,
       authType: "oauth",
       clientId: row.clientId,
       subject: row.subject,

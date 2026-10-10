@@ -1,4 +1,5 @@
 import { ensureDatabase } from "@/db/bootstrap";
+import { activeSubject } from "@/server/auth/identity-session";
 import {
   ACCESS_TOKEN_TTL_SECONDS,
   consumeAuthorizationCode,
@@ -54,6 +55,7 @@ async function exchangeCode(origin: string, params: URLSearchParams) {
     throw new OAuthError("invalid_grant", 400, "PKCE 校验失败");
   }
 
+  if (!(await activeSubject(consumed.code.subject))) throw new OAuthError("invalid_grant", 400, "账号已停用或需重新连接");
   const issued = await issueTokens({
     clientId,
     subject: consumed.code.subject,
@@ -86,6 +88,7 @@ async function rotateRefresh(origin: string, params: URLSearchParams) {
   }
   if (row.resource !== mcpResourceFor(origin)) throw new OAuthError("invalid_target", 400, "resource 必须绑定 MCP 端点");
 
+  if (!(await activeSubject(row.subject))) throw new OAuthError("invalid_grant", 400, "账号已停用或需重新连接");
   const issued = await issueTokens({
     clientId,
     subject: row.subject,

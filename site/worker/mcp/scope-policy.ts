@@ -2,6 +2,7 @@ export type McpAuth = {
   authType: "legacy" | "oauth";
   clientId: string;
   subject: string;
+  userId?: number;
   scopes: string[];
   tokenId?: number;
 };
