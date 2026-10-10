@@ -3,6 +3,7 @@ import Link from "next/link";
 import { currentIdentity } from "@/server/auth/identity";
 import { listUserWorkspaces } from "@/db/workspace-access";
 import WorkspaceClient from "./WorkspaceClient";
+import ConnectionsPanel from "./ConnectionsPanel";
 export const dynamic="force-dynamic";
 export default async function WorkspacePage(){
   const user=await currentIdentity();
@@ -17,5 +18,6 @@ export default async function WorkspacePage(){
       </nav>
     </header>
     <WorkspaceClient initialWorkspaces={workspaces}/>
+    <ConnectionsPanel/>
   </main>;
 }

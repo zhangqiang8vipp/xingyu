@@ -11,7 +11,7 @@ export async function GET(request:Request,{params}:Params){
       headers:{
         "Content-Type":meta.contentType,
         "Content-Length":String(meta.size),
-        "Content-Disposition":"attachment; filename*=UTF-8''"+encoded,
+        "Content-Disposition":(meta.contentType.startsWith("image/")?"inline":"attachment")+"; filename*=UTF-8''"+encoded,
         "Cache-Control":"private, no-store",
         "X-Content-Type-Options":"nosniff",
         "X-Robots-Tag":"noindex,nofollow",

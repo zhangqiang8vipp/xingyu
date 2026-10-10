@@ -10,7 +10,7 @@ const normHash=raw=>createHash("sha256").update(raw).digest("hex");
 function credential(password=PASSWORD){
   const salt=randomBytes(16);
   return ["pbkdf2-sha256","310000",salt.toString("base64url"),
-    pbkdf2Sync(password,salt,310000,32).toString("base64url")].join("$");
+    pbkdf2Sync(password,salt,310000,32,"sha256").toString("base64url")].join("$");
 }
 function getCookie(response){
   const values=response.headers.getSetCookie?.()??[response.headers.get("set-cookie")??""];
