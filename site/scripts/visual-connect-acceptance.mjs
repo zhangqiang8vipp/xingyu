@@ -42,11 +42,11 @@ async function startBrowserProxy(worker) {
       const method = incoming.method ?? "GET";
       const chunks = [];
       for await (const chunk of incoming) chunks.push(Buffer.from(chunk));
-      const request = new Request(target, {
+      // Wrangler's Worker handle accepts URL + init, not a Node Request object.
+      const response = await worker.fetch(target.href, {
         method, headers,
         ...(["GET", "HEAD"].includes(method) ? {} : { body: Buffer.concat(chunks) }),
       });
-      const response = await worker.fetch(request);
       const sentHeaders = {};
       response.headers.forEach((value, name) => {
         if (name !== "transfer-encoding" && name !== "connection") sentHeaders[name] = value;
