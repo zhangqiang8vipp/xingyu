@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { env } from "cloudflare:workers";
-import { pbkdf2Sync, scryptSync } from "node:crypto";
+import { scryptSync } from "node:crypto";
+import { derivePasswordKey } from "./password-kdf";
 import { ensureDatabase } from "@/db/bootstrap";
 import {
   ADMIN_SESSION_COOKIE,
@@ -92,7 +93,7 @@ async function verifyPbkdf2Password(password: string, encoded: string) {
     const salt = base64UrlToBytes(saltText);
     const expected = base64UrlToBytes(expectedText);
     if (salt.length < 16 || expected.length !== 32) return false;
-    const derived = new Uint8Array(pbkdf2Sync(password, salt, iterations, 32, "sha256"));
+    const derived = await derivePasswordKey(password, salt, iterations);
     return constantTimeBytesEqual(derived, expected);
   } catch {
     return false;

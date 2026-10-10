@@ -15,7 +15,7 @@ test("owner keeps the existing password; old admin password-only access retires 
     const ownerCookie=identityCookie(signin);
     const creds=await h.db.prepare("SELECT password_hash,legacy_admin FROM user_credentials WHERE user_id=1").first();
     assert.equal(creds.legacy_admin,0);
-    assert.match(creds.password_hash,/^pbkdf2-sha256\$310000\$/);
+    assert.match(creds.password_hash,/^scrypt-v2\$32768\$8\$3\$/);
     assert.equal((await jsonRequest(h,"/api/admin/diagnostics",{cookie:oldCookie})).status,401);
     assert.equal((await jsonRequest(h,"/api/admin/diagnostics",{cookie:ownerCookie})).status,200);
     assert.equal((await jsonRequest(h,"/api/admin/login",{method:"POST",body:{password:TEST_ADMIN_PASSWORD}})).status,403);
