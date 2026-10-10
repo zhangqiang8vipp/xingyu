@@ -10,8 +10,12 @@
   },
   "vars": {
     "APP_ENV": "production",
+    "INSTANCE_ID": "production:xingyu-blog",
     "DB_SCHEMA_MODE": "migration-only",
-    "CSP_MODE": "report-only"
+    "CSP_MODE": "report-only",
+    "REGISTRATION_ENABLED": "true",
+    "PUBLIC_SITE_URL": "https://zhangwansen.click",
+    "EMAIL_FROM": "XINGYU <accounts@mail.zhangwansen.click>"
   },
   "d1_databases": [
     {
@@ -20,6 +24,13 @@
       "database_id": "ef27f3c6-349a-44ea-ae09-0cc9dccca691",
       "migrations_dir": "drizzle",
       "migrations_pattern": "drizzle/[0-9][0-9][0-9][0-9]_*.sql"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "VIEW_RATE_LIMITER",
+      "namespace_id": "1901",
+      "simple": { "limit": 240, "period": 60 }
     }
   ],
   "r2_buckets": [

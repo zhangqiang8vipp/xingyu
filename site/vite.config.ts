@@ -19,6 +19,7 @@ export default defineConfig(async ({ command, mode }) => {
     vars: {
       APP_ENV: appEnvironment,
       DB_SCHEMA_MODE: "migration-only",
+      INSTANCE_ID: appEnvironment === "development" ? "development:local" : "production:local-preview",
     },
     d1_databases: d1
       ? [

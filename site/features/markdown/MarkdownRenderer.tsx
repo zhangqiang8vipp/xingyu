@@ -12,6 +12,8 @@ import { visit } from "unist-util-visit";
 import MarkdownMermaid from "./MarkdownMermaid";
 import MarkdownCodeCopyButton from "./MarkdownCodeCopyButton";
 import MarkdownKatexStyles from "./MarkdownKatexStyles";
+import XingyuBlockView from "../document-blocks/XingyuBlockView";
+import { parseXingyuBlock } from "../document-blocks/schema";
 
 const calloutNames = new Set(["tip", "note", "warning", "quote"]);
 const calloutLabels: Record<string, string> = { tip: "提示", note: "笔记", warning: "注意", quote: "摘录" };
@@ -111,7 +113,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ children, previewToken
       rehypePlugins={[
         rehypeRaw,
         [rehypeSanitize, markdownSchema],
-        [rehypeHighlight, { detect: true, plainText: ["mermaid", "plaintext", "text", "txt"] }],
+        [rehypeHighlight, { detect: true, plainText: ["mermaid", "xingyu-block", "plaintext", "text", "txt"] }],
         rehypeKatex,
       ]}
       components={{
@@ -137,6 +139,11 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ children, previewToken
         const source = readNodeText(preChildren).replace(/\n$/, "");
         const language = languageFromPreNode(node) || codeLanguage(preChildren);
         if (language === "mermaid") return <>{preChildren}</>;
+        if (language === "xingyu-block") {
+          const block = parseXingyuBlock(source);
+          if (block) return <XingyuBlockView block={block} />;
+          // Malformed/unknown blocks remain visible as ordinary fenced code.
+        }
         return <div className="md-code-block"><span className="md-code-language">{languageLabel(language)}</span><pre {...props}>{preChildren}</pre><MarkdownCodeCopyButton value={source} /></div>;
       },
       code({ className, children: codeChildren, ...props }) {

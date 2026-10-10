@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { eq, or } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { getDb } from ".";
 import { ensureDatabase } from "./bootstrap";
 import { isUniqueConstraintError } from "./constraint-error";
@@ -50,7 +50,7 @@ export function validatePostInput(input: PostPayload) {
 
 async function validateSpace(spaceId: number | null) {
   if (spaceId === null) return;
-  const rows = await getDb().select({ id: spaces.id }).from(spaces).where(eq(spaces.id, spaceId)).limit(1);
+  const rows = await getDb().select({ id: spaces.id }).from(spaces).where(and(eq(spaces.id, spaceId),eq(spaces.workspaceId,1))).limit(1);
   if (!rows[0]) throw new PostWriteError("所选知识空间不存在");
 }
 
@@ -62,7 +62,7 @@ function attachmentEligibility(markdown: string, postId: number | null) {
   if (!ids.length) return { sql: "", bindings: [] as Array<string | number>, count: 0 };
   const ownerCondition = postId === null ? "post_id IS NULL" : "(post_id IS NULL OR post_id = ?)";
   return {
-    sql: `AND (SELECT COUNT(*) FROM attachments WHERE public_id IN (SELECT value FROM json_each(?)) AND ${ownerCondition}) = ?`,
+    sql: `AND (SELECT COUNT(*) FROM attachments WHERE public_id IN (SELECT value FROM json_each(?)) AND workspace_id=1 AND ${ownerCondition}) = ?`,
     bindings: [JSON.stringify(ids), ...(postId === null ? [] : [postId]), ids.length],
     count: ids.length,
   };
@@ -92,8 +92,8 @@ export async function createPostRecord(input: PostPayload, audit?: PostWriteAudi
     const insert = env.DB.prepare(`INSERT INTO posts
       (public_id, title, slug, excerpt, content, category_id, space_id, sort_order, status, featured, published_at, author_id, created_by, updated_by)
       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-      WHERE EXISTS (SELECT 1 FROM categories WHERE id = ?)
-        AND (? IS NULL OR EXISTS (SELECT 1 FROM spaces WHERE id = ?)) ${eligibility.sql}`).bind(
+      WHERE EXISTS (SELECT 1 FROM categories WHERE id = ? AND workspace_id=1)
+        AND (? IS NULL OR EXISTS (SELECT 1 FROM spaces WHERE id = ? AND workspace_id=1)) ${eligibility.sql}`).bind(
       publicId, input.title, input.slug, input.excerpt, input.content,
       input.categoryId, input.spaceId, input.sortOrder ?? 0, input.status, input.featured ? 1 : 0, publishedAt,
       ownerId, ownerId, ownerId,
@@ -142,7 +142,7 @@ export async function getWritablePost(identifier: string | number) {
   const condition = numericId
     ? eq(posts.id, numericId)
     : or(eq(posts.publicId, String(identifier)), eq(posts.slug, String(identifier)));
-  const rows = await getDb().select().from(posts).where(condition).limit(1);
+  const rows = await getDb().select().from(posts).where(and(condition,eq(posts.workspaceId,1))).limit(1);
   return rows[0] ?? null;
 }
 
@@ -157,7 +157,7 @@ export async function updatePostRecord(id: number, input: PostPayload, expectedV
   const current = await getDb()
     .select({ publicId: posts.publicId, publishedAt: posts.publishedAt, slug: posts.slug, sortOrder:posts.sortOrder, version: posts.version })
     .from(posts)
-    .where(eq(posts.id, id))
+    .where(and(eq(posts.id, id),eq(posts.workspaceId,1)))
     .limit(1);
   if (!current[0]) throw new PostWriteError("文章不存在", 404);
   if (current[0].version !== expectedVersion) {
@@ -247,7 +247,7 @@ export async function deleteAdminPost(postId: number, expectedVersion: number) {
   }
   await ensureDatabase();
   const current = await getDb().select({ version: posts.version }).from(posts)
-    .where(eq(posts.id, postId)).limit(1);
+    .where(and(eq(posts.id, postId),eq(posts.workspaceId,1))).limit(1);
   if (!current[0]) throw new PostWriteError("文章不存在", 404);
   if (current[0].version !== expectedVersion) {
     throw new PostWriteError("文章已被其他编辑者更新，请刷新列表后再删除", 409);
@@ -255,7 +255,7 @@ export async function deleteAdminPost(postId: number, expectedVersion: number) {
 
   // All dependent writes use the same version guard; a concurrent edit before
   // this transaction turns the entire sequence into no-ops.
-  const currentPost = "EXISTS (SELECT 1 FROM posts WHERE id = ? AND version = ?)";
+  const currentPost = "EXISTS (SELECT 1 FROM posts WHERE id = ? AND version = ? AND workspace_id=1)";
   const guarded = (table: string) => env.DB.prepare(
     `DELETE FROM ${table} WHERE post_id = ? AND ${currentPost}`,
   ).bind(postId, postId, expectedVersion);
@@ -265,7 +265,7 @@ export async function deleteAdminPost(postId: number, expectedVersion: number) {
     guarded("post_preview_tokens"),
     env.DB.prepare(`UPDATE attachments SET post_id = NULL, unbound_at = CURRENT_TIMESTAMP
       WHERE post_id = ? AND ${currentPost}`).bind(postId, postId, expectedVersion),
-    env.DB.prepare("DELETE FROM posts WHERE id = ? AND version = ?").bind(postId, expectedVersion),
+    env.DB.prepare("DELETE FROM posts WHERE id = ? AND version = ? AND workspace_id=1").bind(postId, expectedVersion),
     env.DB.prepare("SELECT changes() AS changed"),
   ];
   const result = await env.DB.batch(statements);

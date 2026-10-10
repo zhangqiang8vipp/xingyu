@@ -3,6 +3,16 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import test from "node:test";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+test("Mermaid fits wide and tall diagrams and preserves centered zoom anchors", async () => {
+  const { fitDiagramZoom, diagramZoomScroll } = await import("../features/markdown/mermaid-viewport.ts");
+  assert.equal(fitDiagramZoom(2000, 200, 400, 800), 352 / 2000);
+  assert.equal(fitDiagramZoom(200, 2000, 400, 800), 752 / 2000);
+  assert.equal(fitDiagramZoom(200, 100, 1000, 800), 1);
+  assert.equal(diagramZoomScroll(200, 1000, 0, 500, 1, 2), 0);
+  assert.equal(diagramZoomScroll(2000, 1000, 0, 500, 0.4, 1), 524);
+  assert.equal(diagramZoomScroll(2000, 1000, 524, 500, 1, 0.4), 0);
+});
 const clientManifest = async () => JSON.parse(await source("dist/client/.vite/manifest.json"));
 const clientStyles = async () => {
   const candidates = ["dist/client/assets/", "dist/client/_next/static/css/"];
@@ -283,6 +293,28 @@ test("admin previews unsaved content through the real public pages", async () =>
   assert.match(vditor, /previewMode="both"/);
 });
 
+test("first modal open uses one stable entrance during lazy chunk replacement", async () => {
+  const [link, reader, css] = await Promise.all([
+    source("features/reader/ModalPostLink.tsx"),
+    source("features/reader/ModalPostReader.tsx"),
+    source("app/globals.css"),
+  ]);
+  // Preserve initial lazy loading and the existing full-featured reader.
+  assert.match(link, /lazy\(\(\) => import\("\.\/ModalPostReader"\)\)/);
+  assert.match(link, /className="reader-open-once"/);
+  assert.match(link, /<Suspense fallback=\{<ReaderChunkFallback/);
+  assert.match(link, /readerScope=\{readerScope\}/);
+  assert.match(link, /key=\{`\$\{activePublicId\}/);
+  assert.match(reader, /className="reader-modal"/);
+  assert.match(reader, /className="reader-panel"/);
+
+  // The Suspense boundary may swap the fallback panel for the real panel,
+  // but entry animation belongs only to the persistent parent.
+  assert.match(css, /\.reader-open-once\s*\{[^}]*animation:\s*reader-backdrop-in/s);
+  assert.match(css, /\.reader-open-once \.reader-modal,\s*\.reader-open-once \.reader-panel\s*\{\s*animation:\s*none/s);
+  assert.match(css, /prefers-reduced-motion: reduce[\s\S]*\.reader-open-once\s*\{\s*animation:\s*none/);
+});
+
 test("Markdown Plus is rendered through one safe, shared pipeline", async () => {
   const [renderer, mermaid, katexStyles, rootLayout, post, modal, bridge, packageJson] = await Promise.all([
     source("features/markdown/MarkdownRenderer.tsx"), source("features/markdown/MarkdownMermaid.tsx"),
@@ -395,7 +427,7 @@ test("knowledge spaces are durable, arbitrarily nested and isolated from the pub
   assert.match(schema,/spaces = sqliteTable\("spaces"/);
   assert.match(schema,/parentId: integer\("parent_id"\)/);
   assert.match(schema,/spaceId: integer\("space_id"\)/);
-  assert.match(bootstrap,/schemaVersion = "19"/);
+  assert.match(bootstrap,/schemaVersion = "25"/);
   assert.match(bootstrap,/CREATE TABLE IF NOT EXISTS spaces/);
   assert.match(bootstrap,/ALTER TABLE posts ADD COLUMN space_id/);
   assert.match(migration,/CREATE TABLE `spaces`/);
@@ -589,7 +621,7 @@ test("admin diagnostics endpoint and cron health gate cover the core-relations a
     source("worker/index.ts"),
     source("db/bootstrap.ts"),
   ]);
-  assert.match(bootstrap,/export const schemaVersion = "19"/);
+  assert.match(bootstrap,/export const schemaVersion = "25"/);
   assert.match(health,/export async function collectSiteHealth/);
   for (const key of [
     "posts_missing_category", "posts_missing_space", "spaces_missing_parent",

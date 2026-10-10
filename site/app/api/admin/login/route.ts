@@ -1,8 +1,9 @@
-import { clearAdminLoginFailures, createLocalAdminSession, getAdminLoginLimit, isPasswordLoginConfigured, recordAdminLoginFailure, verifyLocalAdminPassword } from "@/server/auth/admin-auth";
+import { clearAdminLoginFailures, createLocalAdminSession, getAdminLoginLimit, isPasswordLoginConfigured, isLegacyAdminPasswordAllowed, recordAdminLoginFailure, verifyLocalAdminPassword } from "@/server/auth/admin-auth";
 
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) return Response.json({ error: "请求来源无效" }, { status: 403 });
+  if (!(await isLegacyAdminPasswordAllowed())) return Response.json({error:"请使用星屿邮箱账号登录"},{status:403,headers:{"Cache-Control":"no-store"}});
   if (!isPasswordLoginConfigured()) return Response.json({ error: "后台密码尚未配置" }, { status: 503, headers: { "Cache-Control":"no-store" } });
   const limit = await getAdminLoginLimit(request);
   if (!limit.allowed) return Response.json({ error: "尝试次数过多，请稍后再试" }, { status:429, headers:{ "Cache-Control":"no-store", "Retry-After":String(limit.retryAfter) } });

@@ -1,7 +1,6 @@
 import {
   base64UrlToBytes,
   bytesToBase64Url,
-  requestHasAdminSession,
   signAdminPayload,
   validSessionSecret,
 } from "@/db/admin-session";
@@ -23,7 +22,7 @@ import { isAuthorizationCodeResponse, readAuthorizeParams } from "./authorize-pa
 import { shouldAcceptRedirect } from "./redirect-policy";
 import { OAuthError, oauthLog } from "./errors";
 import { newAuthorizationCode } from "./tokens";
-import { newAccountSubject } from "./account-subject";
+import { identityFromRequest, userSubject } from "@/server/auth/identity-session";
 
 const SCOPE_LABELS: Record<string, string> = {
   "xingyu.read": "阅读博客内容、分类、空间与附件",
@@ -51,21 +50,23 @@ export async function handleAuthorize(request: Request) {
   });
 
   const checked = await validateAuthorizeParams(url.origin, params);
-  if (!(await requestHasAdminSession(request))) {
+  const identity = await identityFromRequest(request);
+  if (!identity) {
     const returnTo = `/oauth/authorize?${toSearch(checked.publicParams)}`;
-    return Response.redirect(new URL(`/admin/login?return_to=${encodeURIComponent(returnTo)}`, url.origin), 302);
+    return Response.redirect(new URL(`/login?return_to=${encodeURIComponent(returnTo)}`, url.origin), 302);
   }
 
   if (request.method === "GET") {
-    return consentPage(checked);
+    return consentPage(checked, identity.userId);
   }
 
   if (request.method !== "POST") {
     throw new OAuthError("invalid_request", 405, "只支持 GET 和 POST");
   }
 
+  if (request.headers.get("origin") !== url.origin) throw new OAuthError("access_denied",403,"授权请求来源无效");
   const decision = params.get("decision");
-  if (!(await verifyConsentToken(params.get("consent_token") ?? "", checked))) {
+  if (!(await verifyConsentToken(params.get("consent_token") ?? "", checked, identity.userId))) {
     throw new OAuthError("invalid_request", 400, "授权请求已过期，请重试");
   }
   if (decision !== "allow") {
@@ -78,7 +79,7 @@ export async function handleAuthorize(request: Request) {
     oauthLog("oauth.redirect_uri.registered", { client_id: checked.clientId, redirect_host: hostOf(checked.redirectUri) });
   }
 
-  const subject = newAccountSubject(params.get("connection_label"), params.get("login_hint"));
+  const subject = userSubject(identity.userId);
   const code = newAuthorizationCode();
   await insertAuthorizationCode({
     codeHash: await hashSecret(code),
@@ -162,8 +163,8 @@ async function validateAuthorizeParams(origin: string, params: URLSearchParams) 
   };
 }
 
-async function consentPage(checked: Awaited<ReturnType<typeof validateAuthorizeParams>>) {
-  const token = await signConsentToken(checked);
+async function consentPage(checked: Awaited<ReturnType<typeof validateAuthorizeParams>>, userId: number) {
+  const token = await signConsentToken(checked,userId);
   const publish = checked.scopes.includes("xingyu.publish");
   const items = checked.scopes.map((scope) => `<li>${escapeHtml(SCOPE_LABELS[scope] ?? scope)}</li>`).join("");
   const firstRun = checked.registerRedirect
@@ -219,7 +220,7 @@ async function consentPage(checked: Awaited<ReturnType<typeof validateAuthorizeP
   });
 }
 
-async function signConsentToken(checked: Awaited<ReturnType<typeof validateAuthorizeParams>>) {
+async function signConsentToken(checked: Awaited<ReturnType<typeof validateAuthorizeParams>>,userId:number) {
   if (!validSessionSecret()) throw new OAuthError("server_error", 503, "后台会话密钥尚未配置");
   const payload = bytesToBase64Url(new TextEncoder().encode(JSON.stringify({
     client_id: checked.clientId,
@@ -229,12 +230,13 @@ async function signConsentToken(checked: Awaited<ReturnType<typeof validateAutho
     state: checked.state,
     code_challenge: checked.codeChallenge,
     register_redirect: checked.registerRedirect,
+    user_id:userId,
     exp: Math.floor(Date.now() / 1000) + 600,
   })));
   return `${payload}.${await signAdminPayload(payload)}`;
 }
 
-async function verifyConsentToken(token: string, checked: Awaited<ReturnType<typeof validateAuthorizeParams>>) {
+async function verifyConsentToken(token: string, checked: Awaited<ReturnType<typeof validateAuthorizeParams>>,userId:number) {
   const dot = token.indexOf(".");
   if (dot < 1) return false;
   const payload = token.slice(0, dot);
@@ -243,9 +245,10 @@ async function verifyConsentToken(token: string, checked: Awaited<ReturnType<typ
   try {
     const json = JSON.parse(new TextDecoder().decode(base64UrlToBytes(payload))) as {
       client_id?: string; redirect_uri?: string; resource?: string; scope?: string; state?: string;
-      code_challenge?: string; register_redirect?: boolean; exp?: number;
+      code_challenge?: string; register_redirect?: boolean; user_id?:number; exp?: number;
     };
-    return json.client_id === checked.clientId
+    return json.user_id === userId
+      && json.client_id === checked.clientId
       && json.redirect_uri === checked.redirectUri
       && json.resource === checked.resource
       && json.scope === scopeListText(checked.scopes)

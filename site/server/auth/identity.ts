@@ -1,0 +1,134 @@
+import { env } from "cloudflare:workers";
+import { cookies } from "next/headers";
+import { bytesToBase64Url, sha256Bytes, adminRuntimeEnv, validSessionSecret } from "@/db/admin-session";
+import { IDENTITY_COOKIE, identityBySession, sessionDigest } from "./identity-session";
+import { ensurePersonalWorkspace } from "@/db/workspace-access";
+import { verifyLocalAdminPassword } from "./admin-auth";
+import { ensureDatabase } from "@/db/bootstrap";
+import { derivePasswordKey, deriveScryptPasswordKey } from "./password-kdf";
+
+const SESSION_SECONDS = 7 * 24 * 60 * 60;
+const ADMIN_EMAIL = "zhangqiang8vip@gmail.com";
+const LEGACY_PBKDF2_ITERATIONS = 310000;
+
+export function normalizeEmail(raw: string): string | null {
+  const email = raw.trim().toLowerCase();
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
+
+export async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const bytes = deriveScryptPasswordKey(password, salt);
+  return ["scrypt-v2", "32768", "8", "3", bytesToBase64Url(salt), bytesToBase64Url(bytes)].join("$");
+}
+
+export async function verifyPassword(password: string, encoded: string): Promise<boolean> {
+  if (encoded.startsWith("scrypt-v2$")) {
+    const parts = encoded.split("$");
+    if (parts.length !== 6 || parts[1] !== "32768" || parts[2] !== "8" || parts[3] !== "3") return false;
+    try {
+      const salt = decodeBase64(parts[4]);
+      const expected = decodeBase64(parts[5]);
+      if (salt.length !== 16 || expected.length !== 32) return false;
+      const found = deriveScryptPasswordKey(password, salt);
+      let mismatch = 0;
+      found.forEach((v, i) => { mismatch |= v ^ expected[i]; });
+      return mismatch === 0;
+    } catch { return false; }
+  }
+  const parts = encoded.split("$");
+  const [algo, iterationText, saltText, valueText] = parts;
+  const iterations = Number(iterationText);
+  if (parts.length !== 4 || algo !== "pbkdf2-sha256" || !/^\d+$/.test(iterationText) ||
+      !Number.isSafeInteger(iterations) || iterations < LEGACY_PBKDF2_ITERATIONS || iterations > 1_000_000) return false;
+  try {
+    const salt = new Uint8Array(decodeBase64(saltText));
+    const expected = decodeBase64(valueText);
+    if (salt.length !== 16 || expected.length !== 32) return false;
+    const found = await derivePasswordKey(password, salt, iterations);
+    let mismatch = 0;
+    found.forEach((v, i) => { mismatch |= v ^ expected[i]; });
+    return mismatch === 0;
+  } catch { return false; }
+}
+
+function decodeBase64(input: string): Uint8Array {
+  const base = input.replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(base + "=".repeat((4 - base.length % 4) % 4)), (c) => c.charCodeAt(0));
+}
+
+async function digest(value: string) {
+  return Array.from(await sha256Bytes(value), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function consumeLoginLimit(identifier:string,windowSeconds:number,maxAttempts:number,banSeconds:number){
+  const now=Math.floor(Date.now()/1000);
+  // One atomic UPSERT prevents concurrent requests from losing increments.
+  const row=await env.DB.prepare(
+    "INSERT INTO identity_login_limits(identifier,attempts,window_started,blocked_until,updated_at) VALUES(?,1,?,0,?) "+
+    "ON CONFLICT(identifier) DO UPDATE SET "+
+    "attempts=CASE WHEN ?-window_started>=? THEN 1 ELSE attempts+1 END, "+
+    "window_started=CASE WHEN ?-window_started>=? THEN ? ELSE window_started END, "+
+    "blocked_until=CASE WHEN blocked_until>? THEN blocked_until "+
+    "WHEN (CASE WHEN ?-window_started>=? THEN 1 ELSE attempts+1 END)>=? THEN ?+? ELSE 0 END, "+
+    "updated_at=? RETURNING attempts,blocked_until"
+  ).bind(identifier,now,now,now,windowSeconds,now,windowSeconds,now,now,now,windowSeconds,
+    maxAttempts,now,banSeconds,now).first<{attempts:number;blocked_until:number}>();
+  if(!row)throw new Error("登录限流数据库不可用");
+  return {allowed:row.attempts<maxAttempts&&row.blocked_until<=now,
+    retryAfter:row.blocked_until>now?row.blocked_until-now:0};
+}
+
+export async function identityRateLimit(request:Request,email:string){
+  await ensureDatabase();
+  const address=request.headers.get("cf-connecting-ip")??"unknown";
+  const ipKey=await digest("login-ip:"+address+":"+email);
+  const emailKey=await digest("login-account:"+email);
+  const perIp=await consumeLoginLimit(ipKey,900,5,1800);
+  const perAccount=await consumeLoginLimit(emailKey,3600,20,1800);
+  return {allowed:perIp.allowed&&perAccount.allowed,
+    retryAfter:Math.max(perIp.retryAfter,perAccount.retryAfter)};
+}
+
+export async function signInWithEmail(email: string, password: string) {
+  await ensureDatabase();
+  if (!validSessionSecret() || password.length < 12 || password.length > 256) return null;
+  const row = await env.DB.prepare(
+    "SELECT u.id, u.status, c.password_hash, c.legacy_admin FROM user_identities i JOIN users u ON u.id=i.user_id JOIN user_credentials c ON c.user_id=u.id WHERE i.provider='email' AND i.subject=?",
+  ).bind(email).first<{ id: number; status: string; password_hash: string | null; legacy_admin: number }>();
+  if (!row || row.status !== "active") return null;
+  const verified = row.password_hash
+    ? await verifyPassword(password, row.password_hash)
+    : row.legacy_admin === 1 && row.id === 1 && email === ADMIN_EMAIL && await verifyLocalAdminPassword(password);
+  if (!verified) return null;
+  if (!row.password_hash) {
+    const encoded = await hashPassword(password);
+    await env.DB.prepare("UPDATE user_credentials SET password_hash=?, legacy_admin=0, updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND password_hash IS NULL")
+      .bind(encoded, row.id).run();
+  }
+  const raw = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+  const hash = await sessionDigest(raw);
+  const expires = Math.floor(Date.now() / 1000) + SESSION_SECONDS;
+  await ensurePersonalWorkspace(row.id);
+  await env.DB.prepare("INSERT INTO user_sessions(session_hash,user_id,expires_at) VALUES(?,?,?)").bind(hash, row.id, expires).run();
+  (await cookies()).set(IDENTITY_COOKIE, raw, { httpOnly: true, secure: adminRuntimeEnv().APP_ENV !== "development", sameSite: "lax", path: "/", maxAge: SESSION_SECONDS });
+  return { userId: row.id };
+}
+
+export async function currentIdentity() {
+  return identityBySession((await cookies()).get(IDENTITY_COOKIE)?.value);
+}
+
+export async function logoutIdentity() {
+  const store = await cookies();
+  const token = store.get(IDENTITY_COOKIE)?.value;
+  if (token) await env.DB.prepare("UPDATE user_sessions SET revoked_at=? WHERE session_hash=?").bind(Math.floor(Date.now() / 1000), await sessionDigest(token)).run();
+  store.set(IDENTITY_COOKIE, "", { httpOnly: true, secure: adminRuntimeEnv().APP_ENV !== "development", sameSite: "lax", path: "/", maxAge: 0 });
+}
+
+export async function isOwnerIdentity() {
+  const user = await currentIdentity();
+  if (!user) return false;
+  const row = await env.DB.prepare("SELECT 1 AS yes FROM site_memberships WHERE user_id=? AND role='owner'").bind(user.userId).first();
+  return !!row;
+}

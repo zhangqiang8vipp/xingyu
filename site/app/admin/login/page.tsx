@@ -1,21 +1,22 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getAdminIdentity, isPasswordLoginConfigured } from "@/server/auth/admin-auth";
+import { getAdminIdentity, isPasswordLoginConfigured, isLegacyAdminPasswordAllowed } from "@/server/auth/admin-auth";
 import AdminLoginForm from "./AdminLoginForm";
 import { safeOAuthReturnTo } from "@/worker/oauth/authorize";
 import { getSiteSettings } from "@/db/queries";
 import ThemeToggle from "@/features/navigation/ThemeToggle";
-import "./login.css";
+import ExistingLoginStyleLoader from "@/features/admin/ExistingLoginStyleLoader";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ return_to?: string }> }) {
   const returnTo = safeOAuthReturnTo((await searchParams).return_to);
   if (await getAdminIdentity()) redirect(returnTo || "/admin");
+  if (!(await isLegacyAdminPasswordAllowed())) redirect("/login?return_to=%2Fadmin");
   const configured = isPasswordLoginConfigured();
   const settings=await getSiteSettings();
 
-  return <main className="signin admin-signin"><div className="admin-login-theme"><ThemeToggle /></div><div>
+  return <main className="signin admin-signin"><ExistingLoginStyleLoader/><div className="admin-login-theme"><ThemeToggle /></div><div>
     <span className="admin-mark">{settings.brandName.slice(0,1)}</span>
     <small>PRIVATE WRITING SPACE</small>
     <h1>{settings.brandName}写作后台</h1>

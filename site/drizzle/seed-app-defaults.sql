@@ -16,94 +16,25 @@ VALUES ('about', 'ABOUT · PERSONAL NOTES', '关于星屿，也关于为什么�
 保持好奇，持续创造，也为生活保留空白。');
 --> statement-breakpoint
 INSERT OR IGNORE INTO content_pages (slug, eyebrow, title, excerpt, content)
-VALUES ('connect', 'CONNECT · AI WRITING', '让 Codex，直接写进星屿。', '通过一条受控的 MCP 写作通道，AI 可以读取、起草和修改内容；发布、撤回与线上页面更新仍由你确认。', '## 在 Codex 中连接星屿
+VALUES ('connect', 'XINGYU / MCP CONNECT', '把星屿，连接到你的 AI。', '无论你的 AI 客户端支持 OAuth，还是需要手动填写 Token，都可以连接属于自己的星屿工作区。权限由你决定，连接由你管理。', '## 如何开始
 
-星屿提供标准的 Streamable HTTP MCP 入口。它不是另一个编辑器，而是让 Codex 等 AI Agent 直接使用博客现有的文章、分类与独立页面数据。
+星屿通过标准 Streamable HTTP MCP 接入 AI 客户端，服务地址是 https://zhangwansen.click/mcp 。
 
-```text
-https://zhangwansen.click/mcp
-```
+1. 如果客户端支持 OAuth，在客户端添加 MCP 地址，通过星屿账号登录并确认授权。
+2. 如果客户端需要手动 Bearer Token，登录星屿后打开「AI 连接」，为该客户端创建个人 Access Token。
+3. 在客户端配置中填写服务器地址及相应认证信息，先尝试读取有权限的工作区或文章。
 
-先把写作令牌保存在本机环境变量中。令牌只属于你的设备，不要写进仓库或分享给其他人。
+## 保护你的连接
 
-```powershell
-[Environment]::SetEnvironmentVariable(
-  "XINGYU_BLOG_MCP_TOKEN",
-  "你的写作令牌",
-  "User"
-)
-```
+个人 Token 可以分别命名、独立设置读取/写作/发布权限，并设置有限期或永久有效。永久不代表不可撤销，撤销及账号停用都会令密钥失效。
 
-然后在 Codex 的 `~/.codex/config.toml` 中加入：
+不要把 Token 放进公共代码仓库、聊天消息、公开日志或截图。使用单独的客户端凭据可以在设备遗失时只撤销该凭据，不影响其他连接。
 
-```toml
-[mcp_servers.xingyu_blog]
-url = "https://zhangwansen.click/mcp"
-bearer_token_env_var = "XINGYU_BLOG_MCP_TOKEN"
-default_tools_approval_mode = "writes"
+## 写作与发布
 
-[mcp_servers.xingyu_blog.tools.list_categories]
-approval_mode = "approve"
+推荐先搜索已有内容、创建草稿、确认变更后再写入。发布与撤回是独立敏感权限，不会因拥有普通读取或草稿权限而自动获得。
 
-[mcp_servers.xingyu_blog.tools.search_posts]
-approval_mode = "approve"
-
-[mcp_servers.xingyu_blog.tools.get_post]
-approval_mode = "approve"
-
-[mcp_servers.xingyu_blog.tools.get_page]
-approval_mode = "approve"
-
-[mcp_servers.xingyu_blog.tools.list_attachments]
-approval_mode = "approve"
-
-[mcp_servers.xingyu_blog.tools.download_attachment]
-approval_mode = "approve"
-
-[mcp_servers.xingyu_blog.tools.upload_attachment]
-approval_mode = "prompt"
-
-[mcp_servers.xingyu_blog.tools.create_draft]
-approval_mode = "prompt"
-
-[mcp_servers.xingyu_blog.tools.update_post]
-approval_mode = "prompt"
-
-[mcp_servers.xingyu_blog.tools.update_page]
-approval_mode = "prompt"
-
-[mcp_servers.xingyu_blog.tools.publish_post]
-approval_mode = "prompt"
-
-[mcp_servers.xingyu_blog.tools.unpublish_post]
-approval_mode = "prompt"
-```
-
-重启 Codex 后，先让它“列出星屿的文章分类”或“搜索标题包含某个关键词的文章”。只读操作可以直接完成；真正写入时，Codex 会展示将要修改的内容并等待确认。
-
-## 推荐的写作流程
-
-1. 先搜索，避免创建重复文章；
-2. 新文章默认创建为草稿；
-3. 修改前读取最新版本，使用稳定公开 ID 定位文章；
-4. 确认标题、摘要、分类和正文预览；
-5. 只有你明确要求上线时，才调用发布工具。
-
-更新已发布文章、修改独立页面、发布和撤回都属于重要操作。每次写入都会返回变更字段、摘要、时间和记录编号；重复提交相同内容不会再次写入。
-
-> AI 负责把内容送到正确的位置，是否公开仍然由你决定。
-
-## 你可以直接这样说
-
-- “搜索星屿里关于 Windows 环境的文章。”
-- “把这份 Markdown 写成草稿，分类放到开发手记。”
-- “读取这篇文章，重写开头，但先不要发布。”
-- “把这张图上传到刚才那篇草稿，并插入正文。”
-- “列出这篇文章已经上传的附件。”
-- “更新接入页面的 Codex 配置，并告诉我改了哪些字段。”
-- “确认无误，发布刚才的草稿。”
-
-星屿会继续扩展更多 Agent 的接入说明，但它们共享同一套原则：令牌留在本机、读取默认开放、写入需要确认、公开动作单独授权。');
+需要管理令牌、已授权 OAuth 客户端或撤销连接，请打开登录后的「AI 连接」。');
 --> statement-breakpoint
 INSERT OR IGNORE INTO oauth_clients
   (client_id, client_name, client_type, client_secret_hash, redirect_uris, allowed_scopes, token_endpoint_auth_method, enabled)

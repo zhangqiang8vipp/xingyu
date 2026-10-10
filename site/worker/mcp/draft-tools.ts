@@ -1,3 +1,4 @@
+import { getXingyuBlockShortList } from "@/features/document-blocks/catalog";
 import { z } from "zod";
 import { slugify, type PostPayload } from "@/domain/posts/post-input";
 import { createPostRecord, PostWriteError, updatePostRecord } from "@/db/post-write";
@@ -80,7 +81,7 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
 
   server.registerTool("create_draft", {
     title: "创建文章草稿",
-    description: "创建一篇新的 Markdown 草稿并生成操作回执。它永远不会直接发布文章。",
+    description: `创建一篇 Markdown 草稿并生成操作回执，永远不会直接发布。正文支持标准 Markdown 和可选的 xingyu-block 语言标记 JSON 组件（${getXingyuBlockShortList()}）；组件是保存在 content_markdown 中的受控数据，不是新的工具或 HTML。`,
     inputSchema: {
       title: z.string().trim().min(1).max(200),
       content_markdown: z.string().max(750_000).optional().default(""),
@@ -140,7 +141,7 @@ export function registerDraftTools({ server, origin, clientLabel, auth }: McpToo
 
   server.registerTool("update_post", {
     title: "更新文章内容",
-    description: "先用 get_post 读取正文与 version，在用户确认后携带 expected_version 更新文章。版本过期会拒绝覆盖并要求重新核对。已发布且不属于知识空间的文章会立即改变公开页面；知识空间文章仍保持私有。发布状态本身保持不变。",
+    description: `先用 get_post(view=content) 读取完整正文和 version，经用户确认后携带 expected_version 更新；可在 content_markdown 中插入以 xingyu-block 为语言标记的 JSON 结构化文档组件（支持 ${getXingyuBlockShortList()}）。版本过期拒绝覆盖。已发布且不属于知识空间的文章会立即改变公开页面；知识空间文章仍保持私有。发布状态本身保持不变。`,
     inputSchema: {
       identifier: IDENTIFIER_SCHEMA,
       expected_version: z.number().int().min(1).describe("必填：从 get_post 的 content 视图读取的文章 version；旧版本会拒绝覆盖"),

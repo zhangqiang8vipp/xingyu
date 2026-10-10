@@ -2,9 +2,11 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import { handleBlogMcpRequest, isBlogMcpPath } from "./blog-mcp";
+import { handleWorkspaceUpload } from "@/server/workspace-upload";
 import { handleOAuthRequest, isOAuthPath } from "./oauth";
 import { enqueueExpiredUnboundAttachments, UNBOUND_ATTACHMENT_RETENTION_DAYS } from "@/db/attachment-cleanup";
 import { cleanupExpiredPostViews, POST_VIEWS_RETENTION_DAYS } from "@/db/view-tracking";
+import { ensureDatabase } from "@/db/bootstrap";
 import { schemaVersion } from "@/db/bootstrap";
 import { collectSiteHealth } from "@/db/health";
 import { cspHeaderFor, cspModeLabel, summarizeCspReport, CSP_REPORT_PATH } from "@/domain/security/csp";
@@ -77,6 +79,7 @@ async function readCspReport(request: Request, limit = 8192): Promise<unknown> {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestStartedAt = performance.now();
+    await ensureDatabase();
     const url = new URL(request.url);
     const identityBearing=hasRequestIdentity(request);
     if (url.pathname === CSP_REPORT_PATH && request.method === "POST") {
@@ -119,6 +122,16 @@ const worker = {
       return handleBlogMcpRequest(request, env, ctx);
     }
 
+    // Keep multipart workspace uploads out of Vinext's Server Action request
+    // classifier. The shared handler still requires same-origin and membership.
+    const uploadRoute = request.method === "POST"
+      ? /^\/api\/workspaces\/([1-9]\d*)\/attachments\/?$/.exec(url.pathname)
+      : null;
+    if (uploadRoute) {
+      const uploaded = await handleWorkspaceUpload(request, uploadRoute[1]);
+      return addSecurityHeaders(uploaded,url,false,null,identityBearing,false);
+    }
+
     if (cacheKey) {
       const cached = await edgeCache.match(cacheKey);
       if (cached) {
@@ -154,6 +167,15 @@ const worker = {
 
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil((async () => {
+      try {
+        await ensureDatabase();
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "scheduled_instance_guard_failed",
+          errorType: error instanceof Error ? error.name : typeof error,
+        }));
+        return;
+      }
       try {
         const enqueued = await enqueueExpiredUnboundAttachments(env.DB, UNBOUND_ATTACHMENT_RETENTION_DAYS);
         const pruned = await cleanupExpiredPostViews(env.DB, POST_VIEWS_RETENTION_DAYS);

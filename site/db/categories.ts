@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from ".";
 import { ensureDatabase } from "./bootstrap";
 import { isUniqueConstraintError } from "./constraint-error";
@@ -51,7 +51,7 @@ export async function updateCategory(categoryId: number, payload: CategoryInput)
     }
     if (payload.color !== undefined) values.color = payload.color || "#0071e3";
     if (Object.keys(values).length === 0) throw new CategoryServiceError("没有可更新的分类字段", 400);
-    const [category] = await getDb().update(categories).set(values).where(eq(categories.id, categoryId)).returning();
+    const [category] = await getDb().update(categories).set(values).where(and(eq(categories.id, categoryId),eq(categories.workspaceId,1))).returning();
     if (!category) throw new CategoryServiceError("分类不存在", 404);
     return category;
   } catch (error) {
@@ -63,10 +63,10 @@ export async function updateCategory(categoryId: number, payload: CategoryInput)
 
 export async function deleteCategory(categoryId: number) {
   await ensureDatabase();
-  const deleted = await env.DB.prepare(`DELETE FROM categories WHERE id = ?
+  const deleted = await env.DB.prepare(`DELETE FROM categories WHERE id = ? AND workspace_id=1
     AND NOT EXISTS (SELECT 1 FROM posts WHERE category_id = ?)`).bind(categoryId, categoryId).run();
   if (deleted.meta.changes > 0) return;
-  const remaining = await getDb().select({ id: categories.id }).from(categories).where(eq(categories.id, categoryId)).limit(1);
+  const remaining = await getDb().select({ id: categories.id }).from(categories).where(and(eq(categories.id, categoryId),eq(categories.workspaceId,1))).limit(1);
   if (remaining[0]) throw new CategoryServiceError("该分类仍有文章，暂时不能删除", 409);
   throw new CategoryServiceError("分类不存在", 404);
 }

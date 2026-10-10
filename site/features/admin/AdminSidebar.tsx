@@ -45,6 +45,14 @@ const NAV_GROUPS: Array<{ id: string; label: string; items: NavItem[] }> = [
 
 const MORE_SECTIONS = new Set<AdminSection>(["home", "about", "categories", "connect", "integrations"]);
 
+// The same sidebar serves personal/organization areas; no second console navigation theme.
+const ACCOUNT_LINKS = [
+  { href:"/workspace", icon:"◇", label:"知识空间", area:"workspace" },
+  { href:"/organizations", icon:"◎", label:"组织与团队", area:"organizations" },
+  { href:"/ai-connections", icon:"↗", label:"AI 连接", area:"ai-connections" },
+] as const;
+const EMPTY_STATS:AdminStats={total:0,published:0,drafts:0,views:0,privateArticles:0};
+
 function NavButton({
   item,
   selected,
@@ -85,22 +93,26 @@ export default function AdminSidebar({
   onSectionChange,
   onToggle,
   onSignOut,
+  accountArea,
+  isLegacyAdmin=false,
 }: {
   brandName: string;
   avatarUrl: string;
   authorName: string;
   userName: string;
-  section: AdminSection;
-  stats: AdminStats;
-  categoryCount: number;
+  section?: AdminSection;
+  stats?: AdminStats;
+  categoryCount?: number;
+  accountArea?: "workspace"|"organizations"|"ai-connections";
+  isLegacyAdmin?: boolean;
   collapsed: boolean;
-  onSectionChange: (section: AdminSection) => void;
+  onSectionChange?: (section: AdminSection) => void;
   onToggle: () => void;
   onSignOut: () => void;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
-  const moreActive = MORE_SECTIONS.has(section);
+  const moreActive = !accountArea && MORE_SECTIONS.has(section??"browse");
   const dockItems = NAV_GROUPS.flatMap((group) => group.items).filter((item) => item.dock);
   const moreItems = NAV_GROUPS.flatMap((group) => group.items).filter((item) => !item.dock);
 
@@ -115,7 +127,7 @@ export default function AdminSidebar({
 
   const select = (next: AdminSection) => {
     setMoreOpen(false);
-    onSectionChange(next);
+    onSectionChange?.(next);
   };
 
   return <aside className="admin-sidebar">
@@ -132,14 +144,21 @@ export default function AdminSidebar({
       <ThemeToggle />
     </div>
     <nav className="admin-nav-desktop">
-      {NAV_GROUPS.map((group) => <div className="admin-nav-block" key={group.id}>
+      {accountArea ? <div className="admin-nav-block">
+        <div className="admin-nav-group">协作</div>
+        {ACCOUNT_LINKS.map(item=><Link key={item.area} href={item.href}
+          data-icon={item.icon} title={item.label} aria-current={accountArea===item.area?"page":undefined}
+          className={accountArea===item.area?"selected":undefined}><span>{item.label}</span></Link>)}
+        {isLegacyAdmin?<Link data-icon="⌂" href="/admin" title="原写作后台">
+          <span>原写作后台</span></Link>:null}
+      </div> : NAV_GROUPS.map((group) => <div className="admin-nav-block" key={group.id}>
         <div className="admin-nav-group">{group.label}</div>
         {group.items.map((item) => <NavButton
           key={item.section}
           item={item}
           selected={section === item.section}
-          stats={stats}
-          categoryCount={categoryCount}
+          stats={stats??EMPTY_STATS}
+          categoryCount={categoryCount??0}
           onSelect={select}
         />)}
       </div>)}
@@ -147,13 +166,19 @@ export default function AdminSidebar({
       <button data-icon="⏻" title="安全退出" className="admin-desktop-utility" type="button" onClick={onSignOut}>安全退出</button>
     </nav>
     <div className="admin-more" ref={moreRef}>
+      {accountArea ? <nav className="admin-dock">
+        {ACCOUNT_LINKS.map(item=><Link key={item.area} href={item.href}
+          aria-current={accountArea===item.area?"page":undefined}
+          className={accountArea===item.area?"selected":undefined}>{item.label}</Link>)}
+        <Link href="/">返回博客</Link>
+      </nav> : <>
       {moreOpen ? <div className="admin-more-sheet">
         {moreItems.map((item) => <NavButton
           key={item.section}
           item={item}
           selected={section === item.section}
-          stats={stats}
-          categoryCount={categoryCount}
+          stats={stats??EMPTY_STATS}
+          categoryCount={categoryCount??0}
           onSelect={select}
         />)}
       </div> : null}
@@ -162,8 +187,8 @@ export default function AdminSidebar({
           key={item.section}
           item={item}
           selected={section === item.section}
-          stats={stats}
-          categoryCount={categoryCount}
+          stats={stats??EMPTY_STATS}
+          categoryCount={categoryCount??0}
           compact
           onSelect={select}
         />)}
@@ -174,8 +199,12 @@ export default function AdminSidebar({
           onClick={() => setMoreOpen((open) => !open)}
         ><span>更多</span></button>
       </nav>
+      </>}
     </div>
-    <div className="admin-user"><img src={avatarUrl} alt={`${authorName}管理员`} /><div><b>{userName}</b><small>管理员</small></div></div>
+    <div className="admin-user">{accountArea
+      ? <span aria-hidden="true">{userName.trim().slice(0,1)||"星"}</span>
+      : <img src={avatarUrl} alt={`${authorName}管理员`}/>}
+      <div><b>{userName}</b><small>{accountArea?"星屿账号":"管理员"}</small></div></div>
     <button className="admin-sidebar-collapse" type="button" onClick={onToggle} aria-expanded={!collapsed} aria-label={collapsed ? "展开管理栏" : "收起管理栏"} title={collapsed ? "展开管理栏" : "收起管理栏"}><span aria-hidden="true">{collapsed ? "›" : "‹"}</span></button>
   </aside>;
 }

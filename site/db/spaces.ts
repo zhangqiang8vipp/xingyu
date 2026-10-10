@@ -51,7 +51,7 @@ export async function listSpaceChildren(parentId:number|null){
       ORDER BY child.sort_order ASC,child.name COLLATE NOCASE ASC,child.id ASC LIMIT 3
     )) AS childPreview
     FROM spaces s
-    WHERE ((? IS NULL AND s.parent_id IS NULL) OR s.parent_id=?)
+    WHERE s.workspace_id=1 AND ((? IS NULL AND s.parent_id IS NULL) OR s.parent_id=?)
     ORDER BY s.sort_order ASC, s.name COLLATE NOCASE ASC, s.id ASC`)
     .bind(parentId,parentId).all<SpaceSummary>();
   const rows=(result.results??[]).map((row)=>({...row,childCount:Number(row.childCount),articleCount:Number(row.articleCount)}));
@@ -60,7 +60,7 @@ export async function listSpaceChildren(parentId:number|null){
   // direct count for callers that explicitly show direct articles.
   const totals=await env.DB.prepare(`WITH RECURSIVE hierarchy(root_id,id,updated_at) AS (
       SELECT id,id,updated_at FROM spaces
-      WHERE ((? IS NULL AND parent_id IS NULL) OR parent_id=?)
+      WHERE workspace_id=1 AND ((? IS NULL AND parent_id IS NULL) OR parent_id=?)
       UNION
       SELECT hierarchy.root_id,child.id,child.updated_at
       FROM spaces child JOIN hierarchy ON child.parent_id=hierarchy.id
@@ -88,9 +88,9 @@ export async function listSpaceChildren(parentId:number|null){
 export async function getSpaceRootStats(){
   await ensureDatabase();
   const row=await env.DB.prepare(`SELECT
-    (SELECT count(*) FROM spaces WHERE parent_id IS NULL) AS rootCount,
-    (SELECT count(*) FROM spaces) AS spaceCount,
-    (SELECT count(*) FROM posts WHERE space_id IS NOT NULL) AS articleCount`)
+    (SELECT count(*) FROM spaces WHERE parent_id IS NULL AND workspace_id=1) AS rootCount,
+    (SELECT count(*) FROM spaces WHERE workspace_id=1) AS spaceCount,
+    (SELECT count(*) FROM posts WHERE space_id IS NOT NULL AND workspace_id=1) AS articleCount`)
     .first<{rootCount:number;spaceCount:number;articleCount:number}>();
   return {
     rootCount:Number(row?.rootCount??0),
@@ -101,14 +101,14 @@ export async function getSpaceRootStats(){
 
 export async function getSpace(spaceId:number){
   await ensureDatabase();
-  const rows=await getDb().select().from(spaces).where(eq(spaces.id,spaceId)).limit(1);
+  const rows=await getDb().select().from(spaces).where(and(eq(spaces.id,spaceId),eq(spaces.workspaceId,1))).limit(1);
   return rows[0]??null;
 }
 
 export async function getSpacePath(spaceId:number){
   await ensureDatabase();
   const result=await env.DB.prepare(`WITH RECURSIVE ancestors(id) AS (
-      SELECT id FROM spaces WHERE id=?
+      SELECT id FROM spaces WHERE id=? AND workspace_id=1
       UNION
       SELECT s.parent_id FROM spaces s JOIN ancestors ON s.id=ancestors.id
       WHERE s.parent_id IS NOT NULL
@@ -375,6 +375,7 @@ export async function resolveSpace(reference:string|number){
   let current=null;
   for(const part of parts){
     const rows=await getDb().select().from(spaces).where(and(
+      eq(spaces.workspaceId,1),
       parentId===null?isNull(spaces.parentId):eq(spaces.parentId,parentId),
       sql`(${spaces.name} = ${part} OR ${spaces.slug} = ${part})`,
     )).limit(1);
@@ -415,7 +416,7 @@ export async function searchSpaces(query:string,limit=20,options?:{rootId?:numbe
         SELECT name FROM spaces child WHERE child.parent_id=s.id
         ORDER BY child.sort_order ASC,child.name COLLATE NOCASE ASC,child.id ASC LIMIT 3
       )) AS childPreview
-    FROM spaces s WHERE ${range}(s.name LIKE ? OR s.slug LIKE ?)
+    FROM spaces s WHERE s.workspace_id=1 AND ${range}(s.name LIKE ? OR s.slug LIKE ?)
     ORDER BY s.updated_at DESC,s.id DESC LIMIT ?`)
     .bind(...params,needle,needle,Math.max(1,Math.min(50,limit))).all<SpaceSummary>();
   return Promise.all((result.results??[]).map(async(space)=>({...space,path:await getSpacePath(space.id)})));
@@ -425,15 +426,15 @@ export async function listSpacePosts(input:{spaceId:number;includeDescendants?:b
   await ensureDatabase();
   const limit=Math.max(1,Math.min(50,input.limit??20));
   const params:Array<string|number>=input.allSpaces?[]:[input.spaceId];
-  const conditions:string[]=[];
+  const conditions:string[]=["p.workspace_id=1"];
   if(!input.allSpaces&&!input.includeDescendants){conditions.push("p.space_id=?");params.push(input.spaceId)}
   const roots=input.allSpaces
     ? "SELECT id,printf('%010d/',sibling_rank),printf('/%d/',id) FROM ranked WHERE parent_id IS NULL"
-    : "SELECT id,'',printf('/%d/',id) FROM spaces WHERE id=?";
+    : "SELECT id,'',printf('/%d/',id) FROM spaces WHERE id=? AND workspace_id=1";
   const hierarchy=`WITH RECURSIVE ranked AS (
       SELECT id,parent_id,row_number() OVER (
         PARTITION BY parent_id ORDER BY sort_order ASC,name COLLATE NOCASE ASC,id ASC
-      ) AS sibling_rank FROM spaces
+      ) AS sibling_rank FROM spaces WHERE workspace_id=1
     ), hierarchy(id,order_path,visited) AS (
       ${roots}
       UNION ALL
