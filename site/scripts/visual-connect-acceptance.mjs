@@ -6,14 +6,42 @@
  */
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { existsSync, mkdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { resolve, sep } from "node:path";
 import puppeteer from "puppeteer-core";
 import { openTestHarness, closeTestHarness, jsonRequest } from "../tests/integration/harness.mjs";
 import { makeActiveUser } from "../tests/integration/identity-fixtures.mjs";
 
-const outputDir = resolve(".visual-connect");
+const outputDir = resolve("visual-connect");
 mkdirSync(outputDir, { recursive: true });
+
+const clientRoot = resolve("dist/client");
+const publicRoot = resolve("public");
+const mime = {
+  ".js":"text/javascript; charset=utf-8", ".mjs":"text/javascript; charset=utf-8",
+  ".css":"text/css; charset=utf-8", ".html":"text/html; charset=utf-8",
+  ".svg":"image/svg+xml", ".png":"image/png", ".jpg":"image/jpeg",
+  ".jpeg":"image/jpeg", ".webp":"image/webp", ".woff2":"font/woff2",
+  ".woff":"font/woff", ".ico":"image/x-icon", ".json":"application/json",
+};
+function serveBuiltAsset(pathname, response) {
+  // Wrangler's direct Worker fetch bypasses Cloudflare's static asset router.
+  // Serve exactly the build output that production ASSETS would serve.
+  for (const root of [clientRoot, publicRoot]) {
+    let asset;
+    try { asset = resolve(root, "." + decodeURIComponent(pathname)); }
+    catch { return false; }
+    if (!asset.startsWith(root + sep) || !existsSync(asset) || !statSync(asset).isFile()) continue;
+    const ext = asset.slice(asset.lastIndexOf("."));
+    response.writeHead(200, {
+      "content-type": mime[ext] ?? "application/octet-stream",
+      "cache-control": "no-store",
+    });
+    response.end(readFileSync(asset));
+    return true;
+  }
+  return false;
+}
 
 function chromeExecutable() {
   const locations = [
@@ -32,6 +60,7 @@ async function startBrowserProxy(worker) {
     try {
       const base = "http://" + incoming.headers.host;
       const target = new URL(incoming.url ?? "/", base);
+      if (serveBuiltAsset(target.pathname, outgoing)) return;
       const headers = new Headers();
       const removed = new Set(["connection","host","keep-alive","transfer-encoding","upgrade","proxy-connection"]);
       for (const [name, value] of Object.entries(incoming.headers)) {
@@ -81,7 +110,7 @@ function watchErrors(page, name) {
   page.on("pageerror", e => failures.push("pageerror: " + e.message));
   page.on("response", r => {
     const url = new URL(r.url());
-    if (url.pathname.startsWith("/_next/") && r.status() >= 400) {
+    if ((url.pathname.startsWith("/_next/") || url.pathname.startsWith("/assets/")) && r.status() >= 400) {
       failures.push("asset HTTP " + r.status() + " " + url.pathname);
     }
   });
