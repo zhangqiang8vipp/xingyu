@@ -314,3 +314,28 @@ export const adminLoginAttempts = sqliteTable("admin_login_attempts", {
   blockedUntil: integer("blocked_until").notNull().default(0),
   updatedAt: integer("updated_at").notNull(),
 });
+
+
+export const userCredentials = sqliteTable("user_credentials", {
+  userId: integer("user_id").primaryKey(),
+  passwordHash: text("password_hash"),
+  legacyAdmin: integer("legacy_admin").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const userSessions = sqliteTable("user_sessions", {
+  sessionHash: text("session_hash").primaryKey(),
+  userId: integer("user_id").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  revokedAt: integer("revoked_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("user_sessions_user_expiry_idx").on(table.userId, table.expiresAt)]);
+
+export const identityLoginLimits = sqliteTable("identity_login_limits", {
+  identifier: text("identifier").primaryKey(),
+  attempts: integer("attempts").notNull().default(0),
+  windowStarted: integer("window_started").notNull(),
+  blockedUntil: integer("blocked_until").notNull().default(0),
+  updatedAt: integer("updated_at").notNull(),
+});

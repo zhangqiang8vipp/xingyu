@@ -7,7 +7,7 @@ import { assertStoredInstanceIdentity, requireRuntimeInstanceIdentity } from "./
 let ready: Promise<void> | null = null;
 
 /** 当前 worker 期望的 D1 schema 版本，供健康检查与迁移门禁共用。 */
-export const schemaVersion = "19";
+export const schemaVersion = "20";
 
 const requiredUniqueIndexes = {
   attachments_object_key_uidx: { table: "attachments", columns: ["object_key"] },
@@ -33,9 +33,9 @@ const requiredUniqueIndexes = {
 const requiredMigrationObjects = {
   table: [
     "admin_login_attempts", "app_meta", "attachment_cleanup_queue", "attachments", "categories",
-    "content_pages", "mcp_activity", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
+    "content_pages", "identity_login_limits", "mcp_activity", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
     "oauth_consents", "oauth_rate_limits", "oauth_refresh_tokens", "post_preview_tokens",
-    "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_identities", "users", "view_request_limits",
+    "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_credentials", "user_identities", "user_sessions", "users", "view_request_limits",
   ],
   index: Object.keys(requiredUniqueIndexes),
   trigger: [
@@ -153,11 +153,12 @@ async function initialize() {
       (SELECT COUNT(*) FROM categories) AS category_count,
       (SELECT COUNT(*) FROM content_pages WHERE slug IN ('about', 'connect')) AS page_count,
       (SELECT COUNT(*) FROM public_cache_state WHERE id = 1) AS cache_count,
-      (SELECT COUNT(*) FROM site_memberships WHERE role = 'owner') AS owner_count`).first<{
-        settings_count: number; category_count: number; page_count: number; cache_count: number; owner_count: number;
+      (SELECT COUNT(*) FROM site_memberships WHERE role = 'owner') AS owner_count,
+      (SELECT COUNT(*) FROM user_identities WHERE provider = 'email' AND subject = 'zhangqiang8vip@gmail.com' AND user_id = 1) AS owner_email_count`).first<{
+        settings_count: number; category_count: number; page_count: number; cache_count: number; owner_count: number; owner_email_count: number;
       }>();
     if (!requiredData || requiredData.settings_count !== 1 || requiredData.category_count < 1
-      || requiredData.page_count !== 2 || requiredData.cache_count !== 1 || requiredData.owner_count < 1) {
+      || requiredData.page_count !== 2 || requiredData.cache_count !== 1 || requiredData.owner_count < 1 || requiredData.owner_email_count !== 1) {
       throw new Error(`D1 required data is incomplete for version ${schemaVersion}`);
     }
     return;
@@ -388,6 +389,10 @@ async function initialize() {
     d1.prepare("CREATE INDEX IF NOT EXISTS user_identities_user_idx ON user_identities(user_id)"),
     d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS site_memberships_user_id_uidx ON site_memberships(user_id)"),
     d1.prepare("CREATE INDEX IF NOT EXISTS site_memberships_role_idx ON site_memberships(role)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS user_credentials (user_id INTEGER PRIMARY KEY NOT NULL, password_hash TEXT, legacy_admin INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS user_sessions (session_hash TEXT PRIMARY KEY NOT NULL, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL, revoked_at INTEGER, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    d1.prepare("CREATE INDEX IF NOT EXISTS user_sessions_user_expiry_idx ON user_sessions(user_id, expires_at)"),
+    d1.prepare("CREATE TABLE IF NOT EXISTS identity_login_limits (identifier TEXT PRIMARY KEY NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, window_started INTEGER NOT NULL, blocked_until INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)"),
     d1.prepare(`CREATE TABLE IF NOT EXISTS view_request_limits (
       identity_hash TEXT PRIMARY KEY,
       attempts INTEGER NOT NULL DEFAULT 0,
@@ -548,6 +553,8 @@ async function initialize() {
     d1.prepare("INSERT OR IGNORE INTO users (id, display_name, status) VALUES (1, '星屿管理员', 'active')"),
     d1.prepare("INSERT OR IGNORE INTO user_identities (user_id, provider, subject, name) VALUES (1, 'local', 'owner', '星屿管理员')"),
     d1.prepare("INSERT OR IGNORE INTO site_memberships (user_id, role) VALUES (1, 'owner')"),
+    d1.prepare("INSERT OR IGNORE INTO user_identities (user_id, provider, subject, email, name) VALUES (1, 'email', ?, ?, '星屿管理员')").bind("zhangqiang8vip@gmail.com", "zhangqiang8vip@gmail.com"),
+    d1.prepare("INSERT OR IGNORE INTO user_credentials (user_id, legacy_admin) VALUES (1, 1)"),
     d1.prepare(`UPDATE categories
       SET name = '随笔', slug = 'notes', color = '#8E8E93'
       WHERE slug = 'uncategorized'
@@ -584,6 +591,8 @@ async function initialize() {
       ])),
   ]);
 
+  const ownerEmailIdentity = await d1.prepare("SELECT user_id FROM user_identities WHERE provider = 'email' AND subject = ?").bind("zhangqiang8vip@gmail.com").first<{user_id:number}>();
+  if (ownerEmailIdentity?.user_id !== 1) throw new Error("Owner email identity does not belong to the existing site owner");
   const searchVersion = await d1.prepare("SELECT value FROM app_meta WHERE key = 'posts_fts_version'").first<{ value: string }>();
   if (searchVersion?.value !== "2") {
     await d1.prepare("INSERT INTO posts_fts(posts_fts) VALUES ('rebuild')").run();

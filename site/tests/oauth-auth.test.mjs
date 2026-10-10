@@ -23,7 +23,7 @@ test("OAuth tables and dual auth stay beside the existing MCP token", async () =
   ]);
   assert.match(schema, /oauthClients = sqliteTable\("oauth_clients"/);
   assert.match(schema, /oauthRefreshTokens = sqliteTable\("oauth_refresh_tokens"/);
-  assert.match(bootstrap, /schemaVersion = "19"/);
+  assert.match(bootstrap, /schemaVersion = "20"/);
   assert.match(bootstrap, /grok-xingyu/);
   assert.match(bootstrap, /chatgpt-xingyu/);
   assert.match(worker, /isOAuthPath/);
