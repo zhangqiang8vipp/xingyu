@@ -98,12 +98,12 @@ export async function scopedPost(userId:number,workspaceId:number,identifier:str
   if(!row)throw new WorkspaceContentError("文章不存在",404);
   return row;
 }
-export async function scopedPosts(userId:number,workspaceId:number,query="",limit=20,spaceId?:number|null) {
+export async function scopedPosts(userId:number,workspaceId:number,query="",limit=20,spaceId?:number|null,status:"all"|"draft"|"published"="all") {
   await workspaceGrant(userId,workspaceId);
   const size=Math.min(50,Math.max(1,limit));
-  const where=" WHERE workspace_id=?"+(spaceId===undefined?"":" AND space_id IS ?")+(query?" AND (title LIKE ? OR excerpt LIKE ?)":"");
+  const where=" WHERE workspace_id=?"+(spaceId===undefined?"":" AND space_id IS ?")+(status==="all"?"":" AND status=?")+(query?" AND (title LIKE ? OR excerpt LIKE ?)":"");
   const escaped=query.replace(/[\\%_]/g,c=>"\\"+c).slice(0,120);
-  const args:unknown[]=[workspaceId,...(spaceId===undefined?[]:[spaceId]),...(query?["%"+escaped+"%","%"+escaped+"%"]:[])];
+  const args:unknown[]=[workspaceId,...(spaceId===undefined?[]:[spaceId]),...(status==="all"?[]:[status]),...(query?["%"+escaped+"%","%"+escaped+"%"]:[])];
   const rows=await env.DB.prepare("SELECT id,public_id AS publicId,title,slug,excerpt,status,version,space_id AS spaceId,updated_at AS updatedAt FROM posts"+where+" ORDER BY updated_at DESC,id DESC LIMIT ?")
     .bind(...args,size).all();
   return rows.results??[];

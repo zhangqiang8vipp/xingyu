@@ -34,6 +34,13 @@ test("two users stay isolated in web and OAuth MCP workspaces",async()=>{
     assert.ok(article.publicId);
     assert.equal(article.workspaceId,a.workspaceId);
     assert.ok(article.spaceId,"ordinary-user posts must always be in a private space");
+    const marked=await jsonRequest(harness,"/api/workspaces/"+a.workspaceId+"/posts/"+article.publicId+"/status",{
+      method:"POST",cookie:a.cookie,body:{expected_version:article.version,status:"published"},
+    });
+    const markedData=await marked.json();
+    assert.equal(marked.status,200,JSON.stringify(markedData));
+    assert.equal(markedData.post.status,"published");
+    assert.ok(markedData.post.spaceId,"marked-as-complete personal content stays private");
 
     // Authenticated R2 objects must never leak via another workspace ID or old public media routes.
     const form=new FormData();
@@ -100,6 +107,20 @@ test("two users stay isolated in web and OAuth MCP workspaces",async()=>{
     });
     assert.equal(bHidden.isError,true,"article ID should not authorize cross-workspace content reads");
 
+    const publishedSearch=await callMcpTool(harness,{
+      name:"search_posts",token:aToken,arguments:{
+        workspace_id:a.workspaceId,query:"Alice private research",status:"published",
+      },
+    });
+    assert.equal(publishedSearch.isError,undefined,JSON.stringify(publishedSearch.structuredContent));
+    assert.equal(publishedSearch.structuredContent.posts.length,1);
+    assert.equal(publishedSearch.structuredContent.posts[0].public_id,article.publicId);
+    const draftSearch=await callMcpTool(harness,{
+      name:"search_posts",token:aToken,arguments:{
+        workspace_id:a.workspaceId,query:"Alice private research",status:"draft",
+      },
+    });
+    assert.deepEqual(draftSearch.structuredContent.posts,[],"MCP status filter executes inside workspace SQL");
     const aRead=await callMcpTool(harness,{
       name:"get_post",token:aToken,arguments:{
         workspace_id:a.workspaceId,identifier:article.publicId,view:"content",

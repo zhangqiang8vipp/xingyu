@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { identityFromRequest } from "@/server/auth/identity-session";
 import { workspaceGrant, WorkspaceAccessError } from "@/db/workspace-access";
 import { WorkspaceContentError } from "@/db/workspace-content";
@@ -20,7 +21,11 @@ export async function withWorkspace(request:Request,rawId:string,fn:(ctx:Context
     if(error instanceof WorkspaceContentError||error instanceof WorkspaceAccessError||error instanceof AttachmentError)
       return apiJson({error:error.message},error.status);
     console.error("workspace.api.error",error instanceof Error?error.name:"unknown");
-    return apiJson({error:"工作区操作失败"},500);
+    // Diagnostic details are available in isolated development only, never on the production public API.
+    const diagnostic=env.APP_ENV==="development"
+      ? {debug:error instanceof Error?error.name+": "+error.message:typeof error}
+      : {};
+    return apiJson({error:"工作区操作失败",...diagnostic},500);
   }
 }
 export async function readJson(request:Request,maxBytes=800000) {

@@ -48,25 +48,23 @@ export function registerWorkspaceReadTools({server,origin,auth}:McpToolContext) 
     return {space:{...node,children:await scopedSpaces(user,ws,node.id)}};
   }));
   server.registerTool("search_posts",{
-    title:"搜索工作区文章",description:"在选定工作区搜索文章。默认只返回目录，不读取全文；确认后用 get_post(view=content)。",
+    title:"搜索工作区文章",description:"在选定工作区搜索文章，按状态和指定空间精确过滤（空间不递归）；最多返回前 50 项。默认只返回目录，不读取全文；确认后用 get_post(view=content)。",
     inputSchema:{
       workspace_id:WORKSPACE_ID_SCHEMA,query:z.string().trim().max(200).optional().default(""),
       status:z.enum(["all","draft","published"]).optional().default("all"),
-      category:z.string().trim().max(100).optional(),
-      space:SPACE_SCHEMA.optional(),include_descendants:z.boolean().optional().default(true),
+      space:SPACE_SCHEMA.optional(),
       detail:z.enum(["minimal","summary"]).optional().default("minimal"),
       page_size:z.number().int().min(1).max(50).optional().default(20),
-      cursor:z.string().max(180).optional(),
     },
     outputSchema:{posts:z.array(generic).optional(),next_cursor:z.string().nullable().optional(),hint:z.string().optional(),...MCP_ERROR_OUTPUT_FIELDS},
     annotations:{readOnlyHint:true},
   },async({workspace_id,query,status,space,detail,page_size})=>workspaceCall(auth,workspace_id,"xingyu.read","read",async(ws,user)=>{
     const spaceId=space?(await scopedSpace(user,ws,space)).id:undefined;
-    const list=await scopedPosts(user,ws,query,page_size,spaceId);
-    const posts=list.filter(row=>status==="all"||row.status===status).map(row=>
+    const list=await scopedPosts(user,ws,query,page_size,spaceId,status);
+    const posts=list.map(row=>
       detail==="summary"?{...row,visibility:row.spaceId?"space":"public"}:
       {public_id:row.publicId,title:row.title,status:row.status,version:row.version,visibility:row.spaceId?"space":"public"});
-    return {posts,next_cursor:null,hint:"根据 public_id 确认目标后，再用 get_post(view=content) 获取全文。"};
+    return {posts,hint:"默认只返回目录，最多前 50 项；用更具体的关键词或空间缩小范围，再用 get_post(view=content) 获取全文。"};
   }));
   server.registerTool("get_post",{
     title:"读取工作区文章",description:"只有 view=content 才返回 Markdown 全文。读取前校验用户对文章所属工作区的权限。",
