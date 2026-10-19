@@ -66,6 +66,13 @@ test("Gemini dynamic MCP client registration validates public OAuth metadata", a
   });
   assert.equal(valid.clientName, "Gemini");
   assert.deepEqual(valid.scopes, ["xingyu.read", "xingyu.draft", "offline_access"]);
+  assert.deepEqual(valid.allowedScopes, valid.scopes);
+  const authCodeOnly = parseClientRegistration({
+    redirect_uris: ["http://127.0.0.1:9000/callback"],
+    grant_types: ["authorization_code"],
+  });
+  assert.deepEqual(authCodeOnly.scopes, ["xingyu.read", "xingyu.draft"]);
+  assert.deepEqual(authCodeOnly.allowedScopes, authCodeOnly.scopes);
   assert.throws(() => parseClientRegistration({
     client_name: "bad",
     redirect_uris: ["https://example.com/callback", "https://example.com/callback"],
