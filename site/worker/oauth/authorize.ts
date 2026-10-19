@@ -113,7 +113,7 @@ async function validateAuthorizeParams(origin: string, params: URLSearchParams) 
   const state = params.get("state") ?? "";
   const codeChallenge = params.get("code_challenge") ?? "";
   const method = (params.get("code_challenge_method") ?? "S256").trim();
-  const requested = parseScopeList(params.get("scope") ?? "xingyu.read xingyu.draft offline_access");
+  const requestedScope = params.get("scope");
   const expectedResource = mcpResourceFor(origin);
 
   if (!isAuthorizationCodeResponse(responseType)) {
@@ -129,6 +129,7 @@ async function validateAuthorizeParams(origin: string, params: URLSearchParams) 
   const client = await getOAuthClient(clientId);
   if (!client || !client.enabled) throw new OAuthError("invalid_client", 400, "未知或已停用的客户端");
   const allowed = parseScopeList(client.allowedScopes);
+  const requested = parseScopeList(requestedScope ?? allowed.filter((scope) => scope !== "xingyu.publish").join(" "));
   if (requested.some((scope) => !allowed.includes(scope) || !ALL_SCOPES.includes(scope))) {
     throw new OAuthError("invalid_scope", 400, "请求了未允许的权限");
   }
@@ -167,9 +168,9 @@ async function consentPage(checked: Awaited<ReturnType<typeof validateAuthorizeP
   const token = await signConsentToken(checked,userId);
   const publish = checked.scopes.includes("xingyu.publish");
   const items = checked.scopes.map((scope) => `<li>${escapeHtml(SCOPE_LABELS[scope] ?? scope)}</li>`).join("");
-  const firstRun = checked.registerRedirect
-    ? `<p class="note">首次连接：将登记回调 <code>${escapeHtml(checked.redirectUri)}</code>，之后必须完全匹配。</p>`
-    : "";
+  // Dynamic client names are unverified. Show the actual callback URL on
+  // every consent screen so a registered client cannot silently impersonate another.
+  const firstRun = `<p class="note">${checked.registerRedirect ? "首次连接：将登记回调" : "授权后将跳转至"} <code>${escapeHtml(checked.redirectUri)}</code>。请确认这是要连接的应用地址。</p>`;
   const warning = publish
     ? `<p class="warn">此客户端还将获得修改线上内容、发布文章和撤回文章的能力。具体发布操作仍需要星屿客户端的显式确认。</p>`
     : "";
