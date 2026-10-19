@@ -57,7 +57,7 @@ export function parseClientRegistration(value: unknown): ClientRegistration {
   const defaultScopes = grantTypes.includes("refresh_token")
     ? [...DEFAULT_SCOPES]
     : DEFAULT_SCOPES.filter((scope) => scope !== "offline_access");
-  let scopes = defaultScopes;
+  let scopes: string[] = defaultScopes;
   if (value.scope !== undefined) {
     if (typeof value.scope !== "string" || value.scope.length > 512) {
       throw new ClientRegistrationError("scope 必须是有效的空格分隔权限字符串");
