@@ -70,7 +70,7 @@ export default async function ConnectPage({ searchParams }: { searchParams: Page
       <ConnectMethodPicker />
 
       <div className="xy-market-client-strip">
-        <span>常见客户端</span><strong>ChatGPT</strong><strong>Grok</strong><strong>Cursor</strong><strong>Claude Desktop</strong><strong>自定义 Agent</strong>
+        <span>常见客户端</span><strong>Gemini</strong><strong>ChatGPT</strong><strong>Grok</strong><strong>Cursor</strong><strong>Claude Desktop</strong><strong>自定义 Agent</strong>
         <small>实际接入方式以客户端当前能力为准</small>
       </div>
     </section>
@@ -93,6 +93,7 @@ export default async function ConnectPage({ searchParams }: { searchParams: Page
         <span>这里介绍接入方法。真实密钥和授权记录只在登录后的「AI 连接」管理。</span>
       </div>
       <div className="xy-market-faq-list">
+        <details><summary>如何连接 Google Gemini？</summary><p>在 Gemini 网页版打开「设置 → 已连接的应用 → 自定义应用」，添加星屿 MCP 服务地址 <code>https://zhangwansen.click/mcp</code>，按 Gemini 页面提示完成 OAuth 授权。请使用 Google 官方支持的 MCP 自定义连接流程；如果 Gemini 端提示服务器不支持授权，请确认其当前支持的认证方式及账号可用性。</p><p><a href="https://support.google.com/gemini/answer/17209137?p=lm_custom_connections&amp;rd=1" target="_blank" rel="noreferrer">查看 Google 官方 Gemini 自定义连接说明 ↗</a></p></details>
         <details><summary>OAuth 和个人 Token 可以同时使用吗？</summary><p>可以。同一账号可以同时授权多个 OAuth 客户端，也能为不同设备生成多条个人 Token。它们最终进入同一个 MCP 服务。</p></details>
         <details><summary>个人 Token 能设置永久有效吗？</summary><p>可以。永久表示没有预设到期时间，但仍可以单独撤销；账号停用或权限被收回时，该 Token 也无法继续访问受保护资源。</p></details>
         <details><summary>为什么不用以前的全站共享 Token？</summary><p>共享密钥无法正确隔离多个用户。现在每个 Token 归真实账号所有，只保存哈希，并且独立设置权限与撤销。</p></details>
