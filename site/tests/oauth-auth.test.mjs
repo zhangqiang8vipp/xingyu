@@ -52,3 +52,49 @@ test("OAuth discovery and Grok public client follow the design contract", async 
   assert.match(authorize, /hiddenInputs\(checked.publicParams\)/);
   assert.match(adminAuth, /sameSite: "lax"/);
 });
+
+
+test("Gemini dynamic MCP client registration validates public OAuth metadata", async () => {
+  const { parseClientRegistration, ClientRegistrationError } = await import("../worker/oauth/registration-params.ts");
+  const valid = parseClientRegistration({
+    client_name: "Gemini",
+    redirect_uris: ["https://gemini.google.com/oauth/callback"],
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+    token_endpoint_auth_method: "none",
+    scope: "xingyu.read xingyu.draft offline_access",
+  });
+  assert.equal(valid.clientName, "Gemini");
+  assert.deepEqual(valid.scopes, ["xingyu.read", "xingyu.draft", "offline_access"]);
+  assert.deepEqual(valid.allowedScopes, valid.scopes);
+  const authCodeOnly = parseClientRegistration({
+    redirect_uris: ["http://127.0.0.1:9000/callback"],
+    grant_types: ["authorization_code"],
+  });
+  assert.deepEqual(authCodeOnly.scopes, ["xingyu.read", "xingyu.draft"]);
+  assert.deepEqual(authCodeOnly.allowedScopes, authCodeOnly.scopes);
+  assert.throws(() => parseClientRegistration({
+    client_name: "bad",
+    redirect_uris: ["https://example.com/callback", "https://example.com/callback"],
+  }), ClientRegistrationError);
+  assert.throws(() => parseClientRegistration({
+    client_name: "bad",
+    redirect_uris: ["https://example.com/callback"],
+    token_endpoint_auth_method: "client_secret_basic",
+  }), ClientRegistrationError);
+  assert.throws(() => parseClientRegistration({
+    client_name: "bad",
+    redirect_uris: ["https://example.com/callback"],
+    scope: "xingyu.admin",
+  }), ClientRegistrationError);
+});
+
+test("OAuth discovery advertises dynamic registration endpoint", async () => {
+  const [metadata, routes] = await Promise.all([
+    source("worker/oauth/metadata.ts"),
+    source("worker/oauth/index.ts"),
+  ]);
+  assert.ok(metadata.includes("registration_endpoint: `${origin}/oauth/register`"));
+  assert.match(routes, /pathname === "\/oauth\/register"/);
+  assert.match(routes, /handleClientRegistration/);
+});
