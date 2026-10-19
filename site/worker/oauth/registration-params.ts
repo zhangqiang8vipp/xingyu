@@ -76,11 +76,9 @@ export function parseClientRegistration(value: unknown): ClientRegistration {
 
   // Registration does not grant consent. The user still approves each requested
   // scope on the authorization screen; publish remains a separate explicit grant.
-  const allowedScopes = grantTypes.includes("refresh_token")
-    ? [...SUPPORTED_SCOPES]
-    : SUPPORTED_SCOPES.filter((scope) => scope !== "offline_access");
-
-  return { clientName, redirectUris, grantTypes, responseTypes, scopes, allowedScopes };
+  // Restrict the persisted grants to what the client requested at registration.
+  // The user must still grant these scopes on the consent screen.
+  return { clientName, redirectUris, grantTypes, responseTypes, scopes, allowedScopes: scopes };
 }
 
 function parseStringList(value: unknown, fallback: string[], field: string) {
