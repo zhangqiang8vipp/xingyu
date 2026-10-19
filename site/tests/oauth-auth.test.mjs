@@ -87,7 +87,7 @@ test("OAuth discovery advertises dynamic registration endpoint", async () => {
     source("worker/oauth/metadata.ts"),
     source("worker/oauth/index.ts"),
   ]);
-  assert.match(metadata, /registration_endpoint: `${origin}\/oauth\/register`/);
+  assert.ok(metadata.includes("registration_endpoint: `${origin}/oauth/register`"));
   assert.match(routes, /pathname === "\/oauth\/register"/);
   assert.match(routes, /handleClientRegistration/);
 });
