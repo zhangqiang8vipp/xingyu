@@ -96,6 +96,7 @@ export default function AdminSidebar({
   onSignOut,
   accountArea,
   isLegacyAdmin=false,
+  isPersonalAccount=false,
 }: {
   brandName: string;
   avatarUrl: string;
@@ -106,6 +107,7 @@ export default function AdminSidebar({
   categoryCount?: number;
   accountArea?: "workspace"|"organizations"|"ai-connections";
   isLegacyAdmin?: boolean;
+  isPersonalAccount?: boolean;
   collapsed: boolean;
   onSectionChange?: (section: AdminSection) => void;
   onToggle: () => void;
@@ -114,8 +116,9 @@ export default function AdminSidebar({
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const moreActive = !accountArea && MORE_SECTIONS.has(section??"browse");
-  const dockItems = NAV_GROUPS.flatMap((group) => group.items).filter((item) => item.dock);
-  const moreItems = NAV_GROUPS.flatMap((group) => group.items).filter((item) => !item.dock);
+  const visibleGroups = isPersonalAccount ? NAV_GROUPS.filter((group) => group.id === "content").map((group) => ({ ...group, items: group.items.filter((item) => item.section !== "spaces") })) : NAV_GROUPS;
+  const dockItems = visibleGroups.flatMap((group) => group.items).filter((item) => item.dock);
+  const moreItems = visibleGroups.flatMap((group) => group.items).filter((item) => !item.dock);
 
   useEffect(() => {
     if (!moreOpen) return;
