@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAdminIdentity } from "@/server/auth/admin-auth";
+import { currentIdentity } from "@/server/auth/identity";
+import PersonalKnowledgeClient from "@/features/admin/PersonalKnowledgeClient";
 import { listMcpConnections } from "@/db/integrations";
 import { getBetaActivationSignal } from "@/db/activation";
 import { getAdminStats, getCategories, getContentPage, getSiteSettings } from "@/db/queries";
@@ -11,7 +13,12 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminPage({searchParams}:{searchParams:Promise<{edit?:string;section?:string;visibility?:string;q?:string;category?:string;status?:string;spaceId?:string}>}) {
   const admin = await getAdminIdentity();
-  if (!admin) redirect("/admin/login");
+  if (!admin) {
+    const user = await currentIdentity();
+    if (!user) redirect("/login?return_to=%2Fadmin");
+    if (user.userId === 1) redirect("/admin/login");
+    return <PersonalKnowledgeClient userName={user.displayName} />;
+  }
   const search=await searchParams;
   const editId=Number(search.edit);
   const params=new URLSearchParams();
