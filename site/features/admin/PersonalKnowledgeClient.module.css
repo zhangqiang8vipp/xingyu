@@ -17,7 +17,7 @@
 .notice{background:#eaf4ee;border:1px solid #c9e0d1;color:#2d6548}
 .layout{max-width:1400px;margin:0 auto;padding:0 clamp(20px,5vw,72px);display:grid;grid-template-columns:minmax(270px,340px) minmax(0,1fr);gap:18px;align-items:start}
 .library,.editor{background:#fff;border:1px solid #e2e7e2;border-radius:16px;box-shadow:0 8px 28px rgba(25,48,35,.035);overflow:hidden}
-.tabs{display:grid;grid-template-columns:1fr 1fr;padding:8px;gap:5px;border-bottom:1px solid #edf0ed}
+.tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:8px;gap:5px;border-bottom:1px solid #edf0ed}
 .tabs button{border:0;border-radius:9px;background:transparent;padding:11px 8px;color:#66736b;font:inherit;font-size:12px;cursor:pointer}
 .tabs button span{margin-left:5px;font-size:10px;color:#839188}
 .tabs button.activeTab{background:#edf4ef;color:#285846;font-weight:700}
@@ -29,6 +29,10 @@
 .postList li{margin:0}
 .postButton,.selectedPost{display:flex;width:100%;flex-direction:column;align-items:flex-start;text-align:left;gap:6px;border:1px solid transparent;border-radius:10px;padding:12px;margin:2px 0;background:transparent;color:#25332b;cursor:pointer}
 .postButton:hover{background:#f7f9f7}
+.fileLink{display:flex;flex-direction:column;align-items:flex-start;gap:6px;border:1px solid transparent;border-radius:10px;padding:12px;margin:2px 0;background:transparent;color:#25332b;text-decoration:none;overflow-wrap:anywhere}
+.fileLink:hover{background:#f7f9f7}
+.fileLink strong{font-size:13px;font-weight:650;line-height:1.5}
+.fileLink span,.fileLink small{font-size:10px;color:#698074;line-height:1.6}
 .selectedPost{background:#edf4ef;border-color:#d7e6dc}
 .postButton strong,.selectedPost strong{font-size:13px;font-weight:650;line-height:1.5}
 .postButton span,.selectedPost span{font-size:10px;color:#698074}
