@@ -65,7 +65,7 @@ export default function AdminArticlesPanel({
         <tbody>{loading?<tr><td colSpan={6} className="table-empty">正在读取文章…</td></tr>:posts.length===0?<tr><td colSpan={6} className="table-empty">没有符合条件的文章</td></tr>:posts.map((post)=><tr key={post.id}>
           <td data-label="文章"><div className="title-cell"><span>{post.id}</span><div><b>{post.title}</b><small>/{post.slug}</small></div></div></td>
           <td data-label="分类">{post.categoryName}</td>
-          <td data-label="状态"><i className={`status ${post.status}`}/>{isPersonalAccount ? (post.visibility === "public" ? "公开文章" : "私人草稿") : post.status==="published"?"已发布":"草稿"}</td>
+          <td data-label="状态"><i className={`status ${post.status}`}/>{isPersonalAccount ? (post.visibility === "public" ? "公开文章" : "个人文章") : post.status==="published"?"已发布":"草稿"}</td>
           <td data-label="浏览">{post.viewCount.toLocaleString()}</td>
           <td data-label="发布">{post.publishedAt?new Date(post.publishedAt).toLocaleDateString("zh-CN"):"—"}</td>
           <td data-label="操作"><div className="row-actions"><button onClick={()=>onBrowse(post.id)}>浏览</button>{!isPersonalAccount && <button onClick={()=>onShare(post)}>分享预览</button>}{(!isPersonalAccount || post.canEdit) && <><button onClick={()=>onEdit(post.id)}>编辑</button><button className="danger" onClick={()=>onRemove(post)}>删除</button></>}</div></td>
