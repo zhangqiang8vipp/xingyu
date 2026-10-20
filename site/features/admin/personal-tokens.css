@@ -40,6 +40,9 @@
 .xy-pat-tags .xy-pat-tag-off { background:rgba(154,100,95,.12);color:#b64848; }
 .xy-pat-token-aside { display:grid;justify-items:end;gap:9px;text-align:right; }
 .xy-pat-token-aside small { color:var(--admin-muted);font-size:10px; }
+.xy-pat-row-actions { display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px 13px; }
+.xy-pat-copy { border:1px solid var(--admin-line-strong)!important;border-radius:9px!important;background:var(--admin-control)!important;color:var(--admin-ink)!important;cursor:pointer;padding:7px 10px!important;font-size:11px!important;font-weight:700; }
+.xy-pat-copy:disabled { opacity:.48;cursor:not-allowed; }
 .xy-pat-danger { border:0!important;background:transparent!important;color:#c04754!important;cursor:pointer;padding:6px 0!important;font-size:11px!important; }
 .xy-pat-empty { margin:14px 0;padding:24px;border-radius:14px;background:var(--admin-control);color:var(--admin-copy);font-size:12px; }
 .xy-pat-empty a { color:var(--admin-accent,#0071e3);text-decoration:none;font-weight:740; }
