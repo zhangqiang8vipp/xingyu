@@ -126,8 +126,8 @@ export async function scopedPosts(userId:number,workspaceId:number,query="",limi
   const ownerGuard=userId===1?"":" AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))";
   const ownerArgs=userId===1?[]:[userId,userId];
   const where=" WHERE workspace_id=?"+ownerGuard+guard+(spaceId===undefined?"":" AND space_id IS ?")+
-    (status==="all"?"":" AND status=?")+(query?" AND (title LIKE ? ESCAPE '\\' OR excerpt LIKE ? ESCAPE '\\')":"");
-  const escaped=query.replace(/[\\%_]/g,c=>"\\"+c).slice(0,120);
+    (status==="all"?"":" AND status=?")+(query?" AND (title LIKE ? ESCAPE '\\\\' OR excerpt LIKE ? ESCAPE '\\\\')":"");
+  const escaped=query.replace(/[\\%_]/g,c=> "\\"+c).slice(0,120);
   const args:unknown[]=[workspaceId,...ownerArgs,...(visible??[]),...(spaceId===undefined?[]:[spaceId]),...(status==="all"?[]:[status]),
     ...(query?["%"+escaped+"%","%"+escaped+"%"]:[])];
   const rows=await env.DB.prepare(
@@ -135,6 +135,75 @@ export async function scopedPosts(userId:number,workspaceId:number,query="",limi
     "FROM posts"+where+" ORDER BY updated_at DESC,id DESC LIMIT ?",
   ).bind(...args,size).all();
   return rows.results??[];
+}
+
+function decodeScopedCursor(cursor?:string) {
+  if(!cursor||cursor.length>180)return null;
+  try {
+    const normalized=cursor.replace(/-/g,"+").replace(/_/g,"/");
+    const decoded=atob(normalized+"=".repeat((4-normalized.length%4)%4));
+    const separator=decoded.lastIndexOf("|");
+    const value=decoded.slice(0,separator);
+    const id=Number(decoded.slice(separator+1));
+    if(separator<1||!value||!Number.isSafeInteger(id)||id<1)return null;
+    return {value,id};
+  } catch { return null; }
+}
+function encodeScopedCursor(value:string,id:number) {
+  return btoa(value+"|"+id).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/g,"");
+}
+export async function scopedPostsPage(userId:number,workspaceId:number,filters:{
+  query?:string;limit?:number;cursor?:string;category?:string;status?:"all"|"draft"|"published";
+}={}) {
+  await workspaceGrant(userId,workspaceId);
+  const visible=await accessibleSpaceIds(userId,workspaceId);
+  if(visible!==null&&visible.length===0)return {rows:[],hasMore:false,nextCursor:null};
+  const size=Math.min(50,Math.max(1,filters.limit??20));
+  const query=(filters.query??"").trim().slice(0,120);
+  const conditions=["p.workspace_id=?"];
+  const params:unknown[]=[workspaceId];
+  if(userId!==1) {
+    conditions.push("(p.author_id=? OR p.created_by=? OR (p.author_id IS NULL AND p.created_by IS NULL))");
+    params.push(userId,userId);
+  }
+  if(visible!==null) {
+    conditions.push("p.space_id IN ("+visible.map(()=>"?").join(",")+")");
+    params.push(...visible);
+  }
+  if(filters.status&&filters.status!=="all") {
+    conditions.push("p.status=?");
+    params.push(filters.status);
+  }
+  if(filters.category&&filters.category!=="all") {
+    conditions.push("c.slug=?");
+    params.push(filters.category);
+  }
+  if(query) {
+    const escaped=query.replace(/[\\%_]/g,c=>"\\"+c);
+    conditions.push("(p.title LIKE ? ESCAPE '\\\\' OR p.excerpt LIKE ? ESCAPE '\\\\' OR p.slug LIKE ? ESCAPE '\\\\')");
+    params.push("%"+escaped+"%","%"+escaped+"%","%"+escaped+"%");
+  }
+  const cursor=decodeScopedCursor(filters.cursor);
+  if(cursor) {
+    conditions.push("(p.updated_at < ? OR (p.updated_at = ? AND p.id < ?))");
+    params.push(cursor.value,cursor.value,cursor.id);
+  }
+  const sql="SELECT p.id,p.version,p.public_id AS publicId,p.title,p.slug,p.excerpt,p.status,p.featured,"+
+    "p.view_count AS viewCount,p.published_at AS publishedAt,p.updated_at AS updatedAt,p.category_id AS categoryId,"+
+    "c.name AS categoryName,c.slug AS categorySlug,c.color AS categoryColor,p.space_id AS spaceId,s.name AS spacePath "+
+    "FROM posts p LEFT JOIN categories c ON c.id=p.category_id AND c.workspace_id=p.workspace_id "+
+    "LEFT JOIN spaces s ON s.id=p.space_id AND s.workspace_id=p.workspace_id "+
+    "WHERE "+conditions.join(" AND ")+" ORDER BY p.updated_at DESC,p.id DESC LIMIT ?";
+  const result=await env.DB.prepare(sql).bind(...params,size+1).all<{
+    id:number;version:number;publicId:string;title:string;slug:string;excerpt:string;status:Status;featured:number;
+    viewCount:number;publishedAt:string|null;updatedAt:string;categoryId:number;categoryName:string|null;
+    categorySlug:string|null;categoryColor:string|null;spaceId:number|null;spacePath:string|null;
+  }>();
+  const allRows=(result.results??[]).map(row=>({...row,featured:Boolean(row.featured)}));
+  const hasMore=allRows.length>size;
+  const rows=allRows.slice(0,size);
+  const last=rows[rows.length-1];
+  return {rows,hasMore,nextCursor:hasMore&&last?.updatedAt?encodeScopedCursor(last.updatedAt,last.id):null};
 }
 async function categoryId(workspaceId:number,ref?:string|null) {
   const category=ref?await env.DB.prepare("SELECT id FROM categories WHERE workspace_id=? AND (slug=? OR name=? OR id=?) LIMIT 1").bind(workspaceId,ref,ref,/^\d+$/.test(ref)?Number(ref):-1).first<{id:number}>()
@@ -168,7 +237,10 @@ async function checkAttachmentReferences(workspaceId:number,content:string,postI
 function attachSql(postId:number,workspaceId:number,attachmentId:string) {
   return env.DB.prepare("UPDATE attachments SET post_id=?,unbound_at=NULL WHERE public_id=? AND workspace_id=? AND post_id IS NULL").bind(postId,attachmentId,workspaceId);
 }
-export async function scopedCreateDraft(userId:number,workspaceId:number,input:{title:string;content?:string;excerpt?:string;category?:string;space?:string|null;slug?:string;featured?:boolean;sortOrder?:number},clientLabel:string,summary:string) {
+export async function scopedCreateDraft(userId:number,workspaceId:number,input:{
+  title:string;content?:string;excerpt?:string;category?:string;space?:string|null;slug?:string;
+  featured?:boolean;sortOrder?:number;status?:Status;publishedAt?:string|null;
+},clientLabel:string,summary:string) {
   await workspaceGrant(userId,workspaceId,"write");
   const title=text(input.title,200,"标题");
   const content=input.content??"";const excerpt=input.excerpt??"";
@@ -181,10 +253,11 @@ export async function scopedCreateDraft(userId:number,workspaceId:number,input:{
   const base=safeSlug(input.slug||title)||"note";
   const slug=(workspaceId===1&&userId===1&&spaceId===null)?base:("w"+workspaceId+"-"+base.slice(0,60)+"-"+crypto.randomUUID().slice(0,8));
   const order=input.sortOrder??0;if(!Number.isSafeInteger(order))throw new WorkspaceContentError("排序无效");
-  const insert=env.DB.prepare("INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,sort_order,status,featured,author_id,created_by,updated_by) SELECT ?,?,?,?,?,?,?,?,?, 'draft',?,?,?,? WHERE EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id")
-    .bind(workspaceId,publicId,title,slug,excerpt,content,catId,spaceId,order,input.featured?1:0,userId,userId,userId,workspaceId,userId);
-  const audit=env.DB.prepare(auditSql("create_draft")).bind(summary,clientLabel,publicId);
-  const results=await env.DB.batch([insert,audit]);
+  const status:Status=input.status==="published"?"published":"draft";
+  const publishedAt=status==="published"?(input.publishedAt??new Date().toISOString()):(input.publishedAt??null);
+  const insert=env.DB.prepare("INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,sort_order,status,published_at,featured,author_id,created_by,updated_by) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id")
+    .bind(workspaceId,publicId,title,slug,excerpt,content,catId,spaceId,order,status,publishedAt,input.featured?1:0,userId,userId,userId,workspaceId,userId);
+  const audit=env.DB.prepare(auditSql("create_draft"))  const results=await env.DB.batch([insert,audit]);
   const newId=(results[0]?.results?.[0] as {id?:number}|undefined)?.id;
   if(!newId)throw new WorkspaceAccessError();
   if(ids.length) await env.DB.batch(ids.map(att=>attachSql(newId,workspaceId,att)));
@@ -192,7 +265,7 @@ export async function scopedCreateDraft(userId:number,workspaceId:number,input:{
 }
 export async function scopedUpdatePost(userId:number,workspaceId:number,identifier:string,input:{
   expectedVersion:number;title?:string;content?:string;excerpt?:string;category?:string;
-  space?:string|null;slug?:string;featured?:boolean;sortOrder?:number;
+  space?:string|null;slug?:string;featured?:boolean;sortOrder?:number;status?:Status;publishedAt?:string|null;
 },clientLabel:string,summary:string) {
   await workspaceGrant(userId,workspaceId,"write");
   const post=await scopedPost(userId,workspaceId,identifier);
@@ -210,10 +283,12 @@ export async function scopedUpdatePost(userId:number,workspaceId:number,identifi
     : post.slug;
   const order=input.sortOrder??post.sortOrder;
   if(!Number.isSafeInteger(order))throw new WorkspaceContentError("排序无效");
+  const status:Status=input.status==="draft"||input.status==="published"?input.status:post.status;
+  const publishedAt=status==="published"?(input.publishedAt??post.publishedAt??new Date().toISOString()):(input.publishedAt??post.publishedAt);
   const statements=[];
   if(post.slug!==newSlug)statements.push(env.DB.prepare("INSERT OR IGNORE INTO post_slug_history(post_id,slug) SELECT id,slug FROM posts WHERE id=? AND workspace_id=? AND version=?").bind(post.id,workspaceId,post.version));
-  statements.push(env.DB.prepare("UPDATE posts SET title=?,slug=?,excerpt=?,content=?,category_id=?,space_id=?,sort_order=?,featured=?,updated_by=?,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND workspace_id=? AND version=? AND EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id")
-    .bind(title,newSlug,excerpt,content,catId,spaceId,order,input.featured===undefined?post.featured:input.featured?1:0,userId,post.id,workspaceId,post.version,workspaceId,userId));
+  statements.push(env.DB.prepare("UPDATE posts SET title=?,slug=?,excerpt=?,content=?,category_id=?,space_id=?,sort_order=?,status=?,published_at=?,featured=?,updated_by=?,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND workspace_id=? AND version=? AND EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id")
+    .bind(title,newSlug,excerpt,content,catId,spaceId,order,status,publishedAt,input.featured===undefined?post.featured:input.featured?1:0,userId,post.id,workspaceId,post.version,workspaceId,userId));
   const updateIndex=statements.length-1;
   statements.push(env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,before_status,after_status,changed_fields,summary,client_label) SELECT workspace_id,'update_post',id,public_id,title,status,status,'[]',?,? FROM posts WHERE id=? AND version=? AND workspace_id=? AND changes()=1").bind(summary,clientLabel,post.id,post.version+1,workspaceId));
   const results=await env.DB.batch(statements);
@@ -235,6 +310,29 @@ export async function scopedStatusChange(userId:number,workspaceId:number,identi
   const results=await env.DB.batch([update,audit]);
   if(!results[0]?.results?.length)throw new WorkspaceContentError("版本冲突或权限已变化",409);
   return scopedPost(userId,workspaceId,post.id);
+}
+export async function scopedDeletePost(userId:number,workspaceId:number,identifier:string,expectedVersion:number) {
+  await workspaceGrant(userId,workspaceId,"write");
+  const post=await scopedPost(userId,workspaceId,identifier);
+  if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new WorkspaceContentError("文章版本无效",409);
+  if(post.version!==expectedVersion)throw new WorkspaceContentError("文章已被更新，请刷新后再删除",409);
+  await assertSpacePermission(userId,workspaceId,post.spaceId,"write");
+  const exists="EXISTS (SELECT 1 FROM posts WHERE id=? AND version=? AND workspace_id=?)";
+  const guarded=(table:string)=>env.DB.prepare("DELETE FROM "+table+" WHERE post_id=? AND "+exists)
+    .bind(post.id,post.id,expectedVersion,workspaceId);
+  const result=await env.DB.batch([
+    guarded("post_slug_history"),
+    guarded("post_views"),
+    guarded("post_preview_tokens"),
+    env.DB.prepare("UPDATE attachments SET post_id=NULL,unbound_at=CURRENT_TIMESTAMP WHERE post_id=? AND "+exists)
+      .bind(post.id,post.id,expectedVersion,workspaceId),
+    env.DB.prepare("DELETE FROM posts WHERE id=? AND workspace_id=? AND version=? AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))")
+      .bind(post.id,workspaceId,expectedVersion,userId,userId),
+    env.DB.prepare("SELECT changes() AS changed"),
+  ]);
+  const deleted=result[5]?.results?.[0] as {changed?:number}|undefined;
+  if(Number(deleted?.changed??0)!==1)throw new WorkspaceContentError("文章已被更新，请刷新后再删除",409);
+  return {id:post.id,deleted:true};
 }
 export async function scopedActivity(userId:number,workspaceId:number,limit=20) {
   await workspaceGrant(userId,workspaceId);
