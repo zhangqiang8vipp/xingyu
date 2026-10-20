@@ -1,4 +1,5 @@
 import { createAttachment, AttachmentError, attachmentMarkdown, attachmentUrl } from "@/db/attachments";
+import { AttachmentCleanupRequiredError } from "@/db/attachment-cleanup";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
 import { scopedPost, WorkspaceContentError } from "@/db/workspace-content";
 
@@ -63,6 +64,9 @@ export async function handleAttachmentUpload(request: Request, access: Attachmen
     };
     return Response.json({ ...attachment, attachment }, { status: 201, headers });
   } catch (error) {
+    if (error instanceof AttachmentCleanupRequiredError) {
+      return Response.json({ error: error.message, attachmentId: error.publicId }, { status: 503, headers });
+    }
     if (error instanceof AttachmentError) return Response.json({ error: error.message }, { status: error.status, headers });
     if (error instanceof WorkspaceContentError) return Response.json({ error: error.message }, { status: error.status, headers });
     console.error("attachment upload failed", error instanceof Error ? error.name : "unknown");
