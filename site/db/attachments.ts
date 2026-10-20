@@ -223,11 +223,11 @@ export async function deleteAttachment(
       const markdown = attachmentMarkdown(record[0]);
       const content = removeAttachmentReference(post[0].content, { url: attachmentUrl(record[0]), markdown });
       const result = await env.DB.batch([
-        env.DB.prepare(\`DELETE FROM attachments WHERE public_id = ? AND post_id = ? AND workspace_id = ?
-          AND EXISTS (SELECT 1 FROM posts WHERE id = ? AND version = ? AND workspace_id = ?)\`)
+        env.DB.prepare(`DELETE FROM attachments WHERE public_id = ? AND post_id = ? AND workspace_id = ?
+          AND EXISTS (SELECT 1 FROM posts WHERE id = ? AND version = ? AND workspace_id = ?)`)
           .bind(publicId, record[0].postId, workspaceId, record[0].postId, expectedVersion, workspaceId),
-        env.DB.prepare(\`UPDATE posts SET content = ?, updated_at = ?, version = version + 1
-          WHERE id = ? AND version = ? AND workspace_id = ? AND changes() = 1\`)
+        env.DB.prepare(`UPDATE posts SET content = ?, updated_at = ?, version = version + 1
+          WHERE id = ? AND version = ? AND workspace_id = ? AND changes() = 1`)
           .bind(content, new Date().toISOString(), record[0].postId, expectedVersion, workspaceId),
         env.DB.prepare("SELECT changes() AS changed"),
       ]);
@@ -238,8 +238,8 @@ export async function deleteAttachment(
       nextVersion = expectedVersion + 1;
     } else {
       const result = await env.DB.batch([
-        env.DB.prepare(\`DELETE FROM attachments WHERE public_id = ? AND post_id = ? AND workspace_id = ?
-          AND NOT EXISTS (SELECT 1 FROM posts WHERE id = ? AND workspace_id = ?)\`)
+        env.DB.prepare(`DELETE FROM attachments WHERE public_id = ? AND post_id = ? AND workspace_id = ?
+          AND NOT EXISTS (SELECT 1 FROM posts WHERE id = ? AND workspace_id = ?)`)
           .bind(publicId, record[0].postId, workspaceId, record[0].postId, workspaceId),
         env.DB.prepare("SELECT changes() AS changed"),
       ]);
