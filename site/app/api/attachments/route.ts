@@ -48,6 +48,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!(await isAdminRequest(request))) {
+    if(request.headers.get("origin")!==new URL(request.url).origin)return Response.json({error:"无效请求来源"},{status:403,headers:{"Cache-Control":"no-store"}});
     const user=await identityFromRequest(request);
     if(!user||user.userId===1)return unauthorized();
     try{
