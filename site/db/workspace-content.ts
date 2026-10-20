@@ -122,17 +122,19 @@ export async function scopedPosts(userId:number,workspaceId:number,query="",limi
   const visible=await accessibleSpaceIds(userId,workspaceId);
   if(visible!==null&&visible.length===0)return [];
   const size=Math.min(50,Math.max(1,limit));
-  const guard=visible===null?"":" AND space_id IN ("+visible.map(()=>"?").join(",")+")";
-  const ownerGuard=userId===1?"":" AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))";
+  const guard=visible===null?"":" AND p.space_id IN ("+visible.map(()=>"?").join(",")+")";
+  const ownerGuard=userId===1?"":" AND (p.author_id=? OR p.created_by=? OR (p.author_id IS NULL AND p.created_by IS NULL))";
   const ownerArgs=userId===1?[]:[userId,userId];
-  const where=" WHERE workspace_id=?"+ownerGuard+guard+(spaceId===undefined?"":" AND space_id IS ?")+
-    (status==="all"?"":" AND status=?")+(query?" AND (title LIKE ? ESCAPE '\\' OR excerpt LIKE ? ESCAPE '\\')":"");
+  const where=" WHERE p.workspace_id=?"+ownerGuard+guard+(spaceId===undefined?"":" AND p.space_id IS ?")+
+    (status==="all"?"":" AND p.status=?")+(query?" AND (p.title LIKE ? ESCAPE '\\' OR p.excerpt LIKE ? ESCAPE '\\')":"");
   const escaped=query.replace(/[\\%_]/g,c=>"\\"+c).slice(0,120);
   const args:unknown[]=[workspaceId,...ownerArgs,...(visible??[]),...(spaceId===undefined?[]:[spaceId]),...(status==="all"?[]:[status]),
     ...(query?["%"+escaped+"%","%"+escaped+"%"]:[])];
   const rows=await env.DB.prepare(
-    "SELECT id,public_id AS publicId,title,slug,excerpt,status,version,space_id AS spaceId,updated_at AS updatedAt "+
-    "FROM posts"+where+" ORDER BY updated_at DESC,id DESC LIMIT ?",
+    "SELECT p.id,p.public_id AS publicId,p.title,p.slug,p.excerpt,p.status,p.version,p.space_id AS spaceId,p.updated_at AS updatedAt,"+
+    "p.category_id AS categoryId,c.name AS categoryName,c.slug AS categorySlug,c.color AS categoryColor "+
+    "FROM posts p LEFT JOIN categories c ON c.id=p.category_id AND c.workspace_id=p.workspace_id"+where+
+    " ORDER BY p.updated_at DESC,p.id DESC LIMIT ?",
   ).bind(...args,size).all();
   return rows.results??[];
 }
