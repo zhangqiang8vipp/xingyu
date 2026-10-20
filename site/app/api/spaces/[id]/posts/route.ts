@@ -4,7 +4,7 @@ import { ensurePersonalWorkspace } from "@/db/workspace-access";
 import { identityFromRequest } from "@/server/auth/identity-session";
 import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 import { apiJson } from "@/server/workspace-http";
-import { SpaceWriteError, getSpace, listSpacePosts } from "@/db/spaces";
+import { getSpace, listSpacePosts } from "@/db/spaces";
 import { spacePathSql } from "@/db/space-path-sql";
 
 export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){
