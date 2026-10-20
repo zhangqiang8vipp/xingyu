@@ -617,3 +617,8 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
   .personal-console .personal-tabs { margin-left:0; }
   .personal-console .personal-search { width:100%; }
 }
+
+.personal-console .personal-vditor { min-height:360px; margin:10px 0 18px; border:1px solid #dedee1; border-radius:12px; overflow:hidden; background:#fff; }
+.personal-console .personal-vditor .vditor { border:0; }
+.personal-console .personal-vditor .vditor-toolbar { border-bottom:1px solid #ececf0; }
+.personal-console .personal-vditor .vditor-content { min-height:320px; }
