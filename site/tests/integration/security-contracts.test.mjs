@@ -223,7 +223,7 @@ test("MCP read results pass output schema validation in the official client", as
   }
 });
 
-test("anonymous admin page requests redirect to the admin login page", async () => {
+test("anonymous admin page requests redirect to shared login and return to the admin portal", async () => {
   const harness = await openTestHarness();
   try {
     const response = await jsonRequest(harness, "/admin", { redirect: "manual" });
@@ -236,11 +236,9 @@ test("anonymous admin page requests redirect to the admin login page", async () 
 
     const location = response.headers.get("location");
     assert.ok(location, "the redirect must carry a Location header");
-    assert.equal(
-      new URL(location, harness.origin).pathname,
-      "/admin/login",
-      "the redirect target must be the admin login page",
-    );
+    const target = new URL(location, harness.origin);
+    assert.equal(target.pathname, "/login", "anonymous users use the shared account login page");
+    assert.equal(target.searchParams.get("return_to"), "/admin", "successful login returns to the admin portal");
   } finally {
     await closeTestHarness(harness);
   }
