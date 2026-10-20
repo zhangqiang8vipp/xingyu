@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { listArchivePosts } from "@/db/queries";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
 import { scopedCreateDraft, scopedPostsPage, WorkspaceContentError } from "@/db/workspace-content";
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
         category: params.get("category") ?? "all",
         status: params.get("status") === "draft" || params.get("status") === "published" ? params.get("status") : "all",
       });
-      const stats = await (await import("cloudflare:workers")).env.DB.prepare(
+      const stats = await env.DB.prepare(
         "SELECT COUNT(*) AS total,SUM(CASE WHEN status='published' THEN 1 ELSE 0 END) AS published,"+
         "SUM(CASE WHEN status='draft' THEN 1 ELSE 0 END) AS drafts,COALESCE(SUM(view_count),0) AS views "+
         "FROM posts WHERE workspace_id=? AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))"
