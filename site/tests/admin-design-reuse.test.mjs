@@ -30,7 +30,9 @@ test("account workspaces reuse the existing AdminSidebar instead of introducing 
   const wp=read("app/workspace/page.tsx"), org=read("app/organizations/page.tsx");
   assert.match(wp,/redirect\("\/admin"\)/);
   assert.match(org,/redirect\("\/admin"\)/);
-  assert.match(read("app/admin/page.tsx"),/PersonalKnowledgeClient/);
+  assert.match(read("app/admin/page.tsx"),/AdminClient/);
+  assert.match(read("app/admin/page.tsx"),/isPersonalAccount/);
+  assert.doesNotMatch(read("app/admin/page.tsx"),/PersonalKnowledgeClient/);
   assert.match(frame,/api\/identity\/logout/);
 });
 test("collaboration forms and organization management use original admin cards and controls",()=>{
