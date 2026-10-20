@@ -113,7 +113,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
       } else {
         const response = await fetch(`/api/posts?${params}`, { signal });
         const data = await readApiJson<{rows:AdminPost[];nextCursor:string|null}>(response);
-        if (!response?.aborted) { setPosts(data.rows ?? []); setNextCursor(data.nextCursor ?? null); }
+        if (!signal?.aborted) { setPosts(data.rows ?? []); setNextCursor(data.nextCursor ?? null); }
       }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) setMessage("文章列表读取失败，请稍后重试");
@@ -123,15 +123,33 @@ export default function AdminClient({ categories:initialCategories, settings, co
   }, [cursor, query, category, status, isPersonalAccount, categories]);
 
   const loadStats = useCallback(async () => {
+    if (isPersonalAccount) {
+      try {
+        const [mineResponse, publicResponse] = await Promise.all([
+          fetch("/api/knowledge/posts?type=mine&limit=50", { cache: "no-store" }),
+          fetch("/api/knowledge/posts?type=public&limit=50", { cache: "no-store" }),
+        ]);
+        if (!mineResponse.ok || !publicResponse.ok) return;
+        const [mineData, publicData] = await Promise.all([
+          readApiJson<{ posts: Record<string, unknown>[] }>(mineResponse),
+          readApiJson<{ posts: Record<string, unknown>[] }>(publicResponse),
+        ]);
+        const mine = mineData.posts ?? [];
+        const publicPosts = publicData.posts ?? [];
+        setStats({ total: mine.length + publicPosts.length, published: publicPosts.length, drafts: mine.length, views: publicPosts.reduce((sum, post) => sum + Number(post.viewCount ?? 0), 0), privateArticles: mine.length });
+      } catch { /* Keep the last known scoped counters when a refresh fails. */ }
+      return;
+    }
     const response = await fetch("/api/stats");
     if (response.ok) setStats((await readApiJson<{stats:AdminStats}>(response)).stats);
-  }, []);
+  }, [isPersonalAccount]);
 
   useEffect(() => {
     const refresh = () => { void loadStats(); };
     window.addEventListener("xingyu:spaces-changed", refresh);
+    if (isPersonalAccount) void loadStats();
     return () => window.removeEventListener("xingyu:spaces-changed", refresh);
-  }, [loadStats]);
+  }, [loadStats, isPersonalAccount]);
 
   useEffect(() => {
     const controller = new AbortController();
