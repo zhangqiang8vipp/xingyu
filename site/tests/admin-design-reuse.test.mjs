@@ -98,7 +98,7 @@ test("personal accounts use the same original admin console with only data and p
   assert.match(client,/import "@\/app\/admin\/admin\.css"/);
   for(const panel of ["AdminBrowsePanel","AdminArticlesPanel","AdminSpacesPanel","AdminFilesPanel","AdminSettingsPanel","AdminPageEditor","AdminCategoriesPanel","AdminIntegrationsPanel"])
     assert.ok(client.includes(panel),"the shared AdminClient must retain "+panel);
-  assert.match(sidebar,/const visibleGroups = NAV_GROUPS;/,"personal accounts keep the same original navigation structure");
+  assert.match(sidebar,/const visibleGroups = isPersonalAccount \? NAV_GROUPS\.filter\(\(group\) => group\.id !== "site"\) : NAV_GROUPS;/,"personal accounts use the original sidebar without site management");
   assert.match(client,/readOnly=\{isPersonalAccount\}/,"site-only controls are read-only for personal accounts");
   assert.match(client,/\/api\/knowledge\/posts\?type=mine/);
   assert.match(client,/\/api\/knowledge\/posts\?type=public/);
