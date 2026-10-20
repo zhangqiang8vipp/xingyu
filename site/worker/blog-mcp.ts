@@ -18,7 +18,7 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
     { name: "xingyu-blog-writer", version: "2.0.0" },
     {
       instructions: [
-        ...(auth.userId ? [
+        ...(auth.userId && auth.userId !== 1 ? [
           "这是星屿个人知识空间 MCP。默认先用 list_my_posts 查看本人文章；创建草稿用 create_my_draft，修改本人文章用 update_my_post。",
           "只能读取和编辑当前账号自己的私人文章。公开文章使用 search_public_posts 和 get_public_post；不能读取其他用户的私人文章或团队文章。",
           "个人附件使用 list_my_attachments、upload_my_attachment、download_my_attachment；公开附件使用 list_public_attachments 和 download_public_attachment。",
@@ -38,7 +38,7 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
     },
   );
   const context = { server, origin, clientLabel, auth };
-  if (auth.userId) {
+  if (auth.userId && auth.userId !== 1) {
     registerPersonalKnowledgeTools(context);
     registerOrganizationTools(context);
     registerPublicKnowledgeTools(context);
@@ -48,6 +48,10 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
     registerReadTools(context);
     registerPublishTools(context);
     registerSpaceTools(context);
+    if (auth.userId === 1) {
+      registerOrganizationTools(context);
+      registerPublicKnowledgeTools(context);
+    }
   }
   return server;
 }
