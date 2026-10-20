@@ -85,6 +85,12 @@ export async function POST(request: Request) {
       title: body.title,
       content: typeof body.content_markdown === "string" ? body.content_markdown : "",
       excerpt: typeof body.excerpt === "string" ? body.excerpt : "",
+      category: typeof body.category === "string" ? body.category : undefined,
+      slug: typeof body.slug === "string" ? body.slug : undefined,
+      featured: body.featured === true,
+      sortOrder: Number.isSafeInteger(body.sort_order) ? Number(body.sort_order) : undefined,
+      status: body.status === "published" ? "published" : "draft",
+      publishedAt: typeof body.published_at === "string" ? body.published_at : undefined,
     }, "web:" + user.userId, "个人知识空间创建草稿");
     return apiJson({ post: { ...post, visibility: "personal", canEdit: true }, workspaceId }, 201);
   } catch (error) {
