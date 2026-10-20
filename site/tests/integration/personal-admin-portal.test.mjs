@@ -293,13 +293,14 @@ test("personal article attachments are editable by their owner and inaccessible 
       String(created.data.post.id) + "\r\n",
       `--${boundary}--\r\n`,
     ].join("");
-    const uploadResponse = await h.dispatch(new URL("/api/attachments", h.origin).href, {
+    const uploadResponse = await h.server.fetch(new URL("/api/attachments", h.origin).href, {
       method: "POST",
       headers: { origin: h.origin, cookie: alice.cookie, "content-type": "multipart/form-data; boundary=" + boundary },
       body: multipart,
     });
-    const upload = await uploadResponse.json();
-    assert.equal(uploadResponse.status, 201, JSON.stringify(upload));
+    const uploadText = await uploadResponse.text();
+    assert.equal(uploadResponse.status, 201, "attachment upload should succeed: " + uploadText);
+    const upload = JSON.parse(uploadText);
     assert.equal(upload.attachment.name, "owner-note.txt");
 
     const list = await api(h, "/api/attachments?postId=" + created.data.post.id, { cookie: alice.cookie });
