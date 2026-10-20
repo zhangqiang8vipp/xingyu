@@ -28,8 +28,9 @@ test("account workspaces reuse the existing AdminSidebar instead of introducing 
   assert.match(side,/ACCOUNT_LINKS/);
   assert.match(side,/aria-current=\{accountArea===item\.area\?"page":undefined\}/);
   const wp=read("app/workspace/page.tsx"), org=read("app/organizations/page.tsx");
-  assert.match(wp,/<AdminAccountFrame area="workspace"/);
-  assert.match(org,/<AdminAccountFrame area="organizations"/);
+  assert.match(wp,/redirect\("\/admin"\)/);
+  assert.match(org,/redirect\("\/admin"\)/);
+  assert.match(read("app/admin/page.tsx"),/PersonalKnowledgeClient/);
   assert.match(frame,/api\/identity\/logout/);
 });
 test("collaboration forms and organization management use original admin cards and controls",()=>{
@@ -45,7 +46,7 @@ test("collaboration forms and organization management use original admin cards a
   assert.match(css,/--admin-panel/);
   assert.match(read("scripts/stage-account-styles.mjs"),/account-ui-adapter\.css/);
   for(const page of ["app/workspace/page.tsx","app/organizations/page.tsx"])
-    assert.match(read(page),/<AccountStyleLoader\/>/,page);
+    assert.match(read(page),/redirect\("\/admin"\)/,page);
   assert.doesNotMatch(css,/--xy-(?:accent|background|text)/,
     "never add a second palette to original authoring CSS");
 });
@@ -78,6 +79,7 @@ test("existing identity redirects, invitation privacy and workspace authorizatio
     assert.match(source,/referrer:"no-referrer"/);
     assert.match(source,/redirect\("\/login\?return_to="/);
   }
-  assert.match(read("app/workspace/page.tsx"),/listUserWorkspaces\(user\.userId\)/);
-  assert.match(read("app/organizations/page.tsx"),/listMyOrganizations\(user\.userId\)/);
+  assert.match(read("app/workspace/page.tsx"),/redirect\("\/admin"\)/);
+  assert.match(read("app/organizations/page.tsx"),/redirect\("\/admin"\)/);
+  assert.match(read("app/admin/page.tsx"),/PersonalKnowledgeClient/);
 });
