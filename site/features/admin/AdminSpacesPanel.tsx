@@ -161,7 +161,7 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     <header className="admin-header"><div><p>PRIVATE KNOWLEDGE</p><h1>知识空间</h1><span>顶级空间彼此独立，只承载私有知识入口。</span></div><button className="new-button" onClick={()=>beginDialog("create")}>＋ 新建顶级空间</button></header>
     <div className="spaces-root-summary"><span>{rootMeta.rootCount} 个顶级空间 · {rootMeta.articleCount} 篇私有文章</span><i/><span>{rootMeta.spaceCount} 个空间节点</span><i/>空间文章不会进入首页或公开归档</div>
     <div className="space-domain-grid">{roots.map((space)=><article className="space-domain-card" key={space.id} onClick={()=>selectSpace(space.id)}>
-      <div><i/><span>{space.childCount} 个子空间</span><SpaceActions space={space} onAction={beginDialog} isPersonalAccount={isPersonalAccount}/></div>
+      <div><i/><span>{space.childCount} 个子空间</span><SpaceActions space={space} onAction={beginDialog}/></div>
       <h2>{space.name}</h2><p>{space.childPreview||"尚未创建子空间"} · {space.totalArticleCount??space.articleCount} 篇知识文章</p><footer><span>最近更新 {new Date(space.latestActivityAt??space.updatedAt).toLocaleDateString("zh-CN")}</span><b>进入空间 ↗</b></footer>
     </article>)}</div>
     {!roots.length&&!loading&&<div className="space-empty"><i>◇</i><h2>建立第一个知识空间</h2><p>空间只在后台与 MCP 中可见，不会改变公开博客。</p><button onClick={()=>beginDialog("create")}>新建顶级空间</button></div>}
