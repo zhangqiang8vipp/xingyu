@@ -287,7 +287,7 @@ test("personal article attachments are editable by their owner and inaccessible 
     form.set("postId", String(created.data.post.id));
     const uploadResponse = await h.worker.fetch("/api/attachments", {
       method: "POST",
-      headers: { origin: h.origin, cookie: alice.cookie },
+      headers: { origin: h.origin, cookie: alice.cookie, "x-xingyu-test-debug": "1" },
       body: form,
     });
     const upload = await uploadResponse.json();
