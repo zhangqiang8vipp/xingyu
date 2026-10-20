@@ -54,7 +54,7 @@ test("OAuth discovery and Grok public client follow the design contract", async 
 });
 
 
-test("Gemini dynamic MCP client registration validates public OAuth metadata", async () => {
+test("Gemini dynamic MCP client registration allows all scopes by default but respects an explicit narrower scope", async () => {
   const { parseClientRegistration, ClientRegistrationError } = await import("../worker/oauth/registration-params.ts");
   const valid = parseClientRegistration({
     client_name: "Gemini",
@@ -67,11 +67,21 @@ test("Gemini dynamic MCP client registration validates public OAuth metadata", a
   assert.equal(valid.clientName, "Gemini");
   assert.deepEqual(valid.scopes, ["xingyu.read", "xingyu.draft", "offline_access"]);
   assert.deepEqual(valid.allowedScopes, valid.scopes);
+  // Gemini may register without a scope field, then request all server-supported scopes at authorization.
+  const geminiDefaults = parseClientRegistration({
+    client_name: "Gemini",
+    redirect_uris: ["https://oauth-redirect.googleusercontent.com/r/user_bound_custom-mcp"],
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+    token_endpoint_auth_method: "none",
+  });
+  assert.deepEqual(geminiDefaults.scopes, ["xingyu.read", "xingyu.draft", "xingyu.publish", "offline_access"]);
+  assert.deepEqual(geminiDefaults.allowedScopes, geminiDefaults.scopes);
   const authCodeOnly = parseClientRegistration({
     redirect_uris: ["http://127.0.0.1:9000/callback"],
     grant_types: ["authorization_code"],
   });
-  assert.deepEqual(authCodeOnly.scopes, ["xingyu.read", "xingyu.draft"]);
+  assert.deepEqual(authCodeOnly.scopes, ["xingyu.read", "xingyu.draft", "xingyu.publish"]);
   assert.deepEqual(authCodeOnly.allowedScopes, authCodeOnly.scopes);
   assert.throws(() => parseClientRegistration({
     client_name: "bad",
