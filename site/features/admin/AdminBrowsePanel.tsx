@@ -21,6 +21,7 @@ export default function AdminBrowsePanel({
   onWrite,
   onOpenArticles,
   onOpenSpaces,
+  isPersonalAccount=false,
 }:{
   settings:SiteSettingsForm;
   categories:AdminCategory[];
@@ -33,6 +34,7 @@ export default function AdminBrowsePanel({
   onWrite:()=>void;
   onOpenArticles:()=>void;
   onOpenSpaces:(spaceId?:number)=>void;
+  isPersonalAccount?:boolean;
 }){
   const [posts,setPosts]=useState<BlogHomePost[]>([]);
   const [loading,setLoading]=useState(true);
@@ -40,21 +42,44 @@ export default function AdminBrowsePanel({
   const load=useCallback(async(signal:AbortSignal)=>{
     setLoading(true);
     try{
-      const params=new URLSearchParams({
-        scope:visibility,
-        pageSize:String(Math.min(18,Math.max(8,settings.homePostLimit))),
-        status:"all",
-        category,
-      });
-      const response=await fetch(`/api/posts?${params}`,{signal});
-      if(!response.ok)throw new Error("browse failed");
-      setPosts((await readApiJson<{rows:BlogHomePost[]}>(response)).rows??[]);
+      if (isPersonalAccount) {
+        const kinds = visibility === "all" ? ["mine", "public"] : [visibility === "private" ? "mine" : "public"];
+        const responses = await Promise.all(kinds.map((kind) => fetch(`/api/knowledge/posts?type=${kind}&limit=50`, { signal, cache: "no-store" })));
+        if (responses.some((response) => !response.ok)) throw new Error("browse failed");
+        const payloads = await Promise.all(responses.map((response) => readApiJson<{posts:Record<string,unknown>[]}>(response)));
+        const rows = payloads.flatMap((payload, index) => (payload.posts ?? []).map((post) => {
+          const isPublic = kinds[index] === "public";
+          return {
+            id: Number(post.id), publicId: String(post.publicId), title: String(post.title), slug: String(post.slug),
+            excerpt: String(post.excerpt ?? ""), contentLength: typeof post.content === "string" ? post.content.length : undefined,
+            status: isPublic ? "published" as const : "draft" as const, viewCount: Number(post.viewCount ?? 0),
+            publishedAt: isPublic && typeof post.publishedAt === "string" ? post.publishedAt : null,
+            updatedAt: String(post.updatedAt ?? post.publishedAt ?? ""), categoryName: typeof post.categoryName === "string" ? post.categoryName : (isPublic ? "公开文章" : "个人文章"),
+            categorySlug: typeof post.categorySlug === "string" ? post.categorySlug : null,
+            categoryColor: typeof post.categoryColor === "string" ? post.categoryColor : "#8E8E93",
+            spaceId: isPublic ? null : Number(post.spaceId ?? 0), spacePath: isPublic ? null : "个人知识空间",
+            visibility: isPublic ? "public" as const : "personal" as const, canEdit: !isPublic,
+          };
+        }));
+        const filtered = rows.filter((post) => category === "all" || post.categorySlug === category);
+        setPosts(filtered.slice(0, Math.min(18, Math.max(8, settings.homePostLimit))));
+      } else {
+        const params=new URLSearchParams({
+          scope:visibility,
+          pageSize:String(Math.min(18,Math.max(8,settings.homePostLimit))),
+          status:"all",
+          category,
+        });
+        const response=await fetch(`/api/posts?${params}`,{signal});
+        if(!response.ok)throw new Error("browse failed");
+        setPosts((await readApiJson<{rows:BlogHomePost[]}>(response)).rows??[]);
+      }
     }catch(error){
       if(!(error instanceof DOMException&&error.name==="AbortError"))setPosts([]);
     }finally{
       if(!signal.aborted)setLoading(false);
     }
-  },[category,settings.homePostLimit,visibility]);
+  },[category,settings.homePostLimit,visibility,isPersonalAccount]);
 
   useEffect(()=>{
     const controller=new AbortController();
