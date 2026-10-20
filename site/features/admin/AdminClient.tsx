@@ -173,7 +173,8 @@ export default function AdminClient({ categories:initialCategories, settings, co
 
   useEffect(()=>{
     const restoreLocation=()=>{
-      const next=parseAdminLocation(new URLSearchParams(window.location.search));
+      const parsed=parseAdminLocation(new URLSearchParams(window.location.search));
+      const next = isPersonalAccount && !["browse","articles","files"].includes(parsed.section) ? { ...parsed, section: "articles" as AdminSection } : parsed;
       setSection(next.section);
       setBrowseCategory(next.browseCategory);
       setBrowseVisibility(next.browseVisibility);
@@ -339,13 +340,19 @@ export default function AdminClient({ categories:initialCategories, settings, co
   }
 
   async function remove(post: AdminPost) {
+    if (isPersonalAccount && !post.canEdit) return setMessage("公开文章只读；你只能删除自己的文章。");
     if (!window.confirm(`确定删除《${post.title}》吗？`)) return;
     try {
-      const response = await fetch(`/api/posts/${post.id}`, {
-        method: "DELETE", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ version: post.version }),
-      });
-      const data = await readApiJson<{ok:boolean}>(response);
+      const response = isPersonalAccount
+        ? await fetch(`/api/knowledge/posts/${encodeURIComponent(post.publicId)}`, {
+            method: "DELETE", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ expected_version: post.version }),
+          })
+        : await fetch(`/api/posts/${post.id}`, {
+            method: "DELETE", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ version: post.version }),
+          });
+      const data = await readApiJson<{ok:boolean;error?:string}>(response);
       if (!response.ok) return setMessage(data.error ?? "删除失败，请刷新列表后重试");
       setMessage("");
       await Promise.all([load(), loadStats()]);
@@ -357,13 +364,14 @@ export default function AdminClient({ categories:initialCategories, settings, co
   async function signOut() {
     if (signOutPath.startsWith("/api/")) {
       await fetch(signOutPath, { method: "POST" });
-      window.location.replace("/admin/login");
+      window.location.replace(isPersonalAccount ? "/login" : "/admin/login");
       return;
     }
     window.location.href = signOutPath;
   }
 
-  function changeSection(next:AdminSection){
+  function changeSection(requested:AdminSection){
+    const next = isPersonalAccount && !["browse","articles","files"].includes(requested) ? "articles" : requested;
     if(next===section)return;
     const nextSpaceId=next==="spaces"?null:spaceLandingId;
     if(next==="spaces"){
