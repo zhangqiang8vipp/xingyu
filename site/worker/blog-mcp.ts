@@ -33,6 +33,7 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
           "独立页面先用 get_page 读取；update_page 会立即改变公开页面，必须先展示变更字段和摘要并获得用户确认。",
         ]),
         xingyuBlockMcpInstructions(),
+        "写作时可自主采用 xingyu-block JSON 围栏代码块制作富展示；普通叙述继续用 Markdown。组件必须使用有来源的事实，不要编造数据或来源。",
         "调用任何写入工具前，先向用户说明目标文章、当前状态与变更摘要；普通账号的 MCP 不提供站点发布权限。",
       ].join(" "),
     },
