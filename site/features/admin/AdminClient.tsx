@@ -264,10 +264,10 @@ export default function AdminClient({ categories:initialCategories, settings, co
     if(returnTarget)openAdminReader(returnTarget);
   }
 
-  async function loadArticle(postId:number){
+  async function loadArticle(postId:number,identifierOverride?:string){
     if (isPersonalAccount) {
       const row = posts.find((post) => post.id === postId);
-      const identifier = row?.publicId ?? String(postId);
+      const identifier = identifierOverride ?? row?.publicId ?? String(postId);
       const response = await fetch(`/api/knowledge/posts/${encodeURIComponent(identifier)}`, { cache: "no-store" });
       const data = await readApiJson<{post:Record<string, unknown>}>(response);
       if (!response.ok || !data.post) return null;
@@ -287,6 +287,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
         status: post.visibility === "public" ? "published" : "draft",
         featured: false,
         publishedAt: typeof post.publishedAt === "string" ? post.publishedAt : null,
+        visibility: post.visibility === "public" ? "public" : "personal",
       };
     }
     const response=await fetch(`/api/posts/${postId}`);
@@ -300,6 +301,10 @@ export default function AdminClient({ categories:initialCategories, settings, co
       return;
     }
     const article=await loadArticle(postId);
+    if (isPersonalAccount && article?.visibility === "public") {
+      setMessage("公开文章只读；你只能编辑自己的文章。");
+      return;
+    }
     if(article){readerReturnRef.current=returnTarget??null;setStudio(null);setForm(article);setMessage("")}
   }
 
@@ -307,18 +312,17 @@ export default function AdminClient({ categories:initialCategories, settings, co
     window.dispatchEvent(new CustomEvent("xingyu:admin-reader-open",{detail:target}));
   }
 
-  async function browseById(postId:number,adminReaderContext?:AdminReaderContext){
-    const row = posts.find((post) => post.id === postId);
-    if (isPersonalAccount && row?.visibility === "public") {
-      window.open(`/posts/${row.publicId}/${row.slug}`, "_blank", "noopener,noreferrer");
-      return;
-    }
-    if (isPersonalAccount) {
-      await editById(postId);
-      return;
-    }
-    const article=await loadArticle(postId);
+  async function browseById(postId:number,adminReaderContext?:AdminReaderContext,identifierOverride?:string){
+    const article=await loadArticle(postId,identifierOverride);
     if(!article)return setMessage("文章暂时无法打开，请稍后再试");
+    if (isPersonalAccount) {
+      if (article.visibility === "public") {
+        window.open(`/posts/${article.publicId}/${article.slug}`, "_blank", "noopener,noreferrer");
+        return;
+      }
+      setStudio(null);setForm(article);setMessage("");
+      return;
+    }
     setStudio(null);setForm(null);setMessage("");
     window.dispatchEvent(new CustomEvent("xingyu:admin-reader-open",{detail:{publicId:article.publicId,adminReaderContext}}));
   }
@@ -425,7 +429,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
       <AdminSidebar brandName={settings.brandName} avatarUrl={settings.avatarUrl} authorName={settings.authorName} userName={userName} section={section} stats={stats} categoryCount={categories.length} collapsed={sidebarCollapsed} onSectionChange={changeSection} onToggle={toggleSidebar} onSignOut={()=>void signOut()} isPersonalAccount={isPersonalAccount}/>
       <div className="admin-workspace">
         <div className="admin-workspace-bar">
-          <AdminArticleSearch disabled={Boolean(form||studio)} articleCount={stats.total+stats.privateArticles} onBrowse={(postId)=>void browseById(postId)} isPersonalAccount={isPersonalAccount}/>
+          <AdminArticleSearch disabled={Boolean(form||studio)} articleCount={stats.total+stats.privateArticles} onBrowse={(postId,publicId)=>void browseById(postId,undefined,publicId)} isPersonalAccount={isPersonalAccount}/>
         </div>
       {section==="browse" ? <AdminBrowsePanel settings={settings} categories={categories} stats={stats} category={browseCategory} visibility={browseVisibility} onCategoryChange={changeBrowseCategory} onVisibilityChange={changeBrowseVisibility} onEdit={(postId)=>void editById(postId)} onWrite={()=>openNewArticle()} onOpenArticles={()=>changeSection("articles")} onOpenSpaces={(spaceId)=>openSpaces(spaceId??null)} isPersonalAccount={isPersonalAccount} /> : section==="home" ? <AdminSettingsPanel initial={settings} /> : section==="articles" ? <AdminArticlesPanel brandName={settings.brandName} stats={stats} posts={posts} categories={categories} loading={loading} message={message} query={query} category={category} status={status} batch={cursorStack.length+1} hasPrevious={cursorStack.length>0} hasNext={Boolean(nextCursor)} onQueryChange={changeArticleQuery} onCategoryChange={changeArticleCategory} onStatusChange={changeArticleStatus} onNew={()=>openNewArticle()} onBrowse={(postId)=>void browseById(postId,{range:"all",query,category,status:status as "all"|"draft"|"published",source:"articles"})} onShare={setSharePost} onEdit={(postId)=>void editById(postId)} onRemove={(post)=>void remove(post)} onPrevious={previousBatch} onNext={nextBatch} isPersonalAccount={isPersonalAccount}/> : section==="files" ? <AdminFilesPanel isPersonalAccount={isPersonalAccount}/> : section==="spaces" ? <AdminSpacesPanel initialSpaceId={spaceLandingId} createOnOpen={createSpaceOnOpen} onLocationChange={changeSpaceLocation} onCreateArticle={(spaceId,spacePath)=>openNewArticle(spaceId,spacePath)} onEditArticle={(postId)=>void editById(postId)} onBrowseArticle={(postId,readerContext)=>void browseById(postId,readerContext)} onShareArticle={setSharePost} /> : section==="connect" ? <AdminPageEditor initial={connectPage} settings={settings} kind="connect" label="接入" /> : section==="integrations" ? <AdminIntegrationsPanel initial={connections} initialActivation={activation} /> : section==="about" ? <AdminPageEditor initial={aboutPage} settings={settings} kind="about" label="关于" /> : <AdminCategoriesPanel initial={categories} onChange={setCategories} />}
       </div>
