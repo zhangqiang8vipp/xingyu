@@ -251,7 +251,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
       ? await fetch(form.publicId ? `/api/knowledge/posts/${encodeURIComponent(form.publicId)}` : "/api/knowledge/posts", {
           method: form.publicId ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: form.title, excerpt: form.excerpt, content_markdown: form.content, ...(form.publicId ? { expected_version: form.version } : {}) }),
+          body: JSON.stringify({ title: form.title, slug: form.slug, category: String(form.categoryId), excerpt: form.excerpt, content_markdown: form.content, ...(form.publicId ? { expected_version: form.version } : {}) }),
         })
       : await fetch(form.id ? `/api/posts/${form.id}` : "/api/posts", {
           method: form.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
