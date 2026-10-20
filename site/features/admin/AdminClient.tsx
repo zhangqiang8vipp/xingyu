@@ -275,7 +275,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
         featured: false,
         publishedAt: typeof post.publishedAt === "string" ? post.publishedAt : null,
         visibility: post.visibility === "public" ? "public" : "personal",
-      };
+      } as ArticleForm;
     }
     const response=await fetch(`/api/posts/${postId}`);
     const data=await readApiJson<{post:ArticleForm}>(response);
