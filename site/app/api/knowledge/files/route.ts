@@ -3,6 +3,7 @@ import { ensureDatabase } from "@/db/bootstrap";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
 import { attachmentUrl } from "@/db/attachments";
 import { identityFromRequest } from "@/server/auth/identity-session";
+import { isAdminRequest } from "@/server/auth/admin-auth";
 import { apiJson } from "@/server/workspace-http";
 
 type AttachmentRow = {
@@ -18,18 +19,35 @@ type AttachmentRow = {
 };
 
 export async function GET(request: Request) {
-  const user = await identityFromRequest(request);
-  if (!user) return apiJson({ error: "请先登录" }, 401);
-  if (user.userId === 1) return apiJson({ error: "站点管理员请使用站点管理后台" }, 403);
+  const admin = await isAdminRequest(request);
+  const user = admin ? null : await identityFromRequest(request);
+  if (!admin && !user) return apiJson({ error: "请先登录" }, 401);
 
   try {
     await ensureDatabase();
-    const workspaceId = await ensurePersonalWorkspace(user.userId);
     const params = new URL(request.url).searchParams;
     const query = (params.get("q") ?? "").trim().slice(0, 100).replace(/[%_]/g, "");
     const pattern = "%" + query + "%";
     const limit = Math.min(100, Math.max(1, Number(params.get("limit") ?? 50) || 50));
 
+    if (admin) {
+      const result = await env.DB.prepare(
+        "SELECT a.public_id AS publicId,a.workspace_id AS workspaceId,a.original_name AS originalName," +
+        "a.content_type AS contentType,a.size,a.created_at AS createdAt," +
+        "p.public_id AS postPublicId,p.title AS postTitle,p.slug AS postSlug,p.status AS postStatus,p.space_id AS postSpaceId " +
+        "FROM attachments a JOIN posts p ON p.id=a.post_id " +
+        "WHERE (a.original_name LIKE ? OR p.title LIKE ?) " +
+        "ORDER BY a.created_at DESC,a.id DESC LIMIT ?",
+      ).bind(pattern, pattern, limit).all<AttachmentRow>();
+      return apiJson({ files: (result.results ?? []).map((row) => ({
+        id: row.publicId, filename: row.originalName, contentType: row.contentType, size: row.size, createdAt: row.createdAt,
+        articlePublicId: row.postPublicId, articleTitle: row.postTitle, articleSlug: row.postSlug,
+        visibility: row.workspaceId === 1 && row.postStatus === "published" && row.postSpaceId === null ? "public" : "private",
+        url: attachmentUrl(row),
+      })) });
+    }
+    if (!user) return apiJson({ error: "请先登录" }, 401);
+    const workspaceId = await ensurePersonalWorkspace(user.userId);
     const [personal, publicFiles] = await Promise.all([
       env.DB.prepare(
         "SELECT a.public_id AS publicId,a.workspace_id AS workspaceId,a.original_name AS originalName," +
