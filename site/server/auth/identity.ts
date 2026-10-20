@@ -84,8 +84,12 @@ export async function identityRateLimit(request:Request,email:string){
   const address=request.headers.get("cf-connecting-ip")??"unknown";
   const ipKey=await digest("login-ip:"+address+":"+email);
   const emailKey=await digest("login-account:"+email);
-  const perIp=await consumeLoginLimit(ipKey,900,5,1800);
-  const perAccount=await consumeLoginLimit(emailKey,3600,20,1800);
+  // Independent atomic counters can run concurrently; keep both checks
+  // even when either one would deny the request.
+  const [perIp,perAccount]=await Promise.all([
+    consumeLoginLimit(ipKey,900,5,1800),
+    consumeLoginLimit(emailKey,3600,20,1800),
+  ]);
   return {allowed:perIp.allowed&&perAccount.allowed,
     retryAfter:Math.max(perIp.retryAfter,perAccount.retryAfter)};
 }
