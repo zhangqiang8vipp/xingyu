@@ -194,7 +194,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
     };
     window.addEventListener("popstate",restoreLocation);
     return()=>window.removeEventListener("popstate",restoreLocation);
-  },[]);
+  },[isPersonalAccount]);
 
   function toggleSidebar(){
     setSidebarCollapsed((current)=>{
