@@ -22,6 +22,7 @@ const NAV_GROUPS: Array<{ id: string; label: string; items: NavItem[] }> = [
       { section: "browse", icon: "◉", label: "浏览", count: (stats) => stats.total + stats.privateArticles, dock: true },
       { section: "articles", icon: "▤", label: "文章", count: (stats) => stats.total, dock: true },
       { section: "spaces", icon: "◇", label: "知识空间", short: "空间", count: (stats) => stats.privateArticles, dock: true },
+      { section: "files", icon: "▧", label: "文件", short: "文件", dock: true },
     ],
   },
   {
@@ -151,7 +152,7 @@ export default function AdminSidebar({
           className={accountArea===item.area?"selected":undefined}><span>{item.label}</span></Link>)}
         {isLegacyAdmin?<Link data-icon="⌂" href="/admin" title="原写作后台">
           <span>原写作后台</span></Link>:null}
-      </div> : NAV_GROUPS.map((group) => <div className="admin-nav-block" key={group.id}>
+      </div> : visibleGroups.map((group) => <div className="admin-nav-block" key={group.id}>
         <div className="admin-nav-group">{group.label}</div>
         {group.items.map((item) => <NavButton
           key={item.section}
