@@ -17,7 +17,8 @@ export default async function AdminPage({searchParams}:{searchParams:Promise<{ed
     const user = await currentIdentity();
     if (!user) redirect("/login?return_to=%2Fadmin");
     if (user.userId === 1) redirect("/admin/login");
-    return <PersonalKnowledgeClient userName={user.displayName} />;
+    const settings = await getSiteSettings();
+    return <PersonalKnowledgeClient userName={user.displayName} settings={settings} />;
   }
   const search=await searchParams;
   const editId=Number(search.edit);
