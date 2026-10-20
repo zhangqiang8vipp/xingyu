@@ -282,15 +282,22 @@ test("personal article attachments are editable by their owner and inaccessible 
     });
     assert.equal(created.status, 201, JSON.stringify(created.data));
 
-    const form = new FormData();
-    form.set("file", new File([new Uint8Array([65, 66, 67])], "owner-note.txt", { type: "text/plain" }));
-    form.set("postId", String(created.data.post.id));
-    const uploadRequest = new Request(new URL("/api/attachments", h.origin), {
+    const boundary = "xingyu-test-boundary-1";
+    const multipart = [
+      `--${boundary}\r\n`,
+      'Content-Disposition: form-data; name="file"; filename="owner-note.txt"\r\n',
+      "Content-Type: text/plain\r\n\r\n",
+      "ABC\r\n",
+      `--${boundary}\r\n`,
+      'Content-Disposition: form-data; name="postId"\r\n\r\n',
+      String(created.data.post.id) + "\r\n",
+      `--${boundary}--\r\n`,
+    ].join("");
+    const uploadResponse = await h.worker.fetch("/api/attachments", {
       method: "POST",
-      headers: { origin: h.origin, cookie: alice.cookie },
-      body: form,
+      headers: { origin: h.origin, cookie: alice.cookie, "content-type": "multipart/form-data; boundary=" + boundary },
+      body: multipart,
     });
-    const uploadResponse = await h.worker.fetch(uploadRequest);
     const upload = await uploadResponse.json();
     assert.equal(uploadResponse.status, 201, JSON.stringify(upload));
     assert.equal(upload.attachment.name, "owner-note.txt");
