@@ -8,6 +8,8 @@ import { registerPublishTools } from "./mcp/publish-tools";
 import { registerReadTools } from "./mcp/read-tools";
 import { registerSpaceTools } from "./mcp/space-tools";
 import { registerWorkspaceTools } from "./mcp/workspace-tools";
+import { registerOrganizationTools } from "./mcp/organization-tools";
+import { registerPublicKnowledgeTools } from "./mcp/public-knowledge-tools";
 
 const MCP_PATH = "/mcp";
 
@@ -24,6 +26,8 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
         "写作时可自主采用 xingyu-block JSON 围栏代码块制作富展示；普通叙述继续用 Markdown。组件必须使用有来源的事实，不要编造成绩、数值、任务状态、事件日期或来源，缺少依据先询问用户。",
         xingyuBlockMcpInstructions(),
         "独立页面先用 get_page 读取；update_page 会立即改变公开页面，必须先展示变更字段和摘要并获得用户确认。",
+        "普通账号的首页是个人知识空间：可以读取自己的文章和公开文章，只能编辑自己的个人文章；公开文章与公开附件只读。只有站点管理员可以管理站点设置、公开页面与首页发布。",
+        "组织架构 MCP 只列出当前账号所属组织，并通过组织 Owner/Admin/Member 角色控制组织、部门、团队和成员操作。组织成员身份不会自动授予任何人的个人工作区或文章权限。",
         "调用任何写入工具前，先向用户说明文章标题、当前状态、将修改的字段与 change_summary；不要替用户默许发布或撤回。",
       ].join(" "),
     },
@@ -31,6 +35,8 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
   const context = { server, origin, clientLabel, auth };
   if (auth.userId) {
     registerWorkspaceTools(context);
+    registerOrganizationTools(context);
+    registerPublicKnowledgeTools(context);
   } else {
     // Development-only single-owner compatibility; production never accepts these identities.
     registerDraftTools(context);
