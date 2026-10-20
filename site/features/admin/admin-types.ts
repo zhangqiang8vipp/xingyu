@@ -73,4 +73,5 @@ export type ArticleForm={
   status:"draft"|"published";
   featured:boolean;
   publishedAt?:string|null;
+  visibility?:"personal"|"public";
 };
