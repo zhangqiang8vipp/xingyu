@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } from "react";
 import styles from "./PersonalKnowledgeClient.module.css";
 
@@ -70,7 +71,10 @@ export default function PersonalKnowledgeClient({ userName }: { userName: string
     }
   }, []);
 
-  useEffect(() => { void load(appliedQuery); }, [load, appliedQuery]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(appliedQuery); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load, appliedQuery]);
 
   async function openPost(item: PostItem) {
     setBusy(true);
@@ -200,7 +204,7 @@ export default function PersonalKnowledgeClient({ userName }: { userName: string
   return (
     <main className={styles.page}>
       <header className={styles.topbar}>
-        <a className={styles.brand} href="/" aria-label="返回星屿首页">星屿<span>知识空间</span></a>
+        <Link className={styles.brand} href="/" aria-label="返回星屿首页">星屿<span>知识空间</span></Link>
         <div className={styles.account}>
           <span>{userName}</span>
           <button type="button" onClick={() => void signOut()} disabled={busy}>退出登录</button>
@@ -213,7 +217,7 @@ export default function PersonalKnowledgeClient({ userName }: { userName: string
         <p>自己的文章只有自己可以编辑；公开文章和公开附件可以阅读。站点设置与首页发布由管理员管理。</p>
         <div className={styles.heroActions}>
           <button type="button" className={styles.primaryButton} onClick={newDraft}>＋ 新建私人草稿</button>
-          <a href="/" className={styles.secondaryLink}>浏览公开首页 ↗</a>
+          <Link href="/" className={styles.secondaryLink}>浏览公开首页 ↗</Link>
         </div>
       </section>
 
