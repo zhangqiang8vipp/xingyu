@@ -73,12 +73,8 @@ export async function POST(request: Request) {
     }catch(error){
       if(error instanceof AttachmentError)return Response.json({error:error.message},{status:error.status,headers:{"Cache-Control":"no-store"}});
       if(error instanceof WorkspaceContentError)return Response.json({error:error.message},{status:error.status,headers:{"Cache-Control":"no-store"}});
-      console.error("personal attachment upload failed",error instanceof Error?error.name+":"+error.message.slice(0,180):"unknown");
-      const debug = request.headers.get("x-xingyu-test-debug") === "1";
-      return Response.json({
-        error:"附件存储服务暂时不可用，请稍后重试",
-        ...(debug ? { debugName: error instanceof Error ? error.name : "unknown", debugError: error instanceof Error ? error.message.slice(0,240) : String(error).slice(0,240) } : {}),
-      },{status:503,headers:{"Cache-Control":"no-store"}});
+      console.error("personal attachment upload failed",error instanceof Error?error.name:"unknown");
+      return Response.json({error:"附件存储服务暂时不可用，请稍后重试"},{status:503,headers:{"Cache-Control":"no-store"}});
     }
   }
   try {
