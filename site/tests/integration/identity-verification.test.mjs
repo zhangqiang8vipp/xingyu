@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash,randomBytes } from "node:crypto";
 import { closeTestHarness,jsonRequest,openTestHarness } from "./harness.mjs";
+import { makeActiveUser,TEST_USER_PASSWORD } from "./identity-fixtures.mjs";
 
 test("email verification tokens are single-use and activate only their own account",async()=>{
   const harness=await openTestHarness();
@@ -45,4 +46,41 @@ test("email verification tokens are single-use and activate only their own accou
     const reused=await jsonRequest(harness,"/api/identity/verify",{method:"POST",body:{token}});
     assert.equal(reused.status,400,"a verification token cannot be replayed");
   }finally{await closeTestHarness(harness);}
+});
+
+
+test("repeat login reuses a provisioned personal workspace without redundant writes",async()=>{
+  const h=await openTestHarness();
+  try{
+    const alice=await makeActiveUser(h,"login-fast-path");
+    await h.db.prepare("CREATE TABLE personal_login_write_audit(entity TEXT NOT NULL)").run();
+    for(const [table,trigger] of [
+      ["workspaces","audit_login_workspace_insert"],
+      ["workspace_memberships","audit_login_membership_insert"],
+      ["categories","audit_login_category_insert"],
+      ["spaces","audit_login_space_insert"],
+    ]){
+      await h.db.prepare(
+        "CREATE TRIGGER "+trigger+" BEFORE INSERT ON "+table+
+        " BEGIN INSERT INTO personal_login_write_audit(entity) VALUES ('"+table+"'); END"
+      ).run();
+    }
+    const response=await jsonRequest(h,"/api/identity/login",{
+      method:"POST",body:{email:alice.email,password:TEST_USER_PASSWORD},
+    });
+    assert.equal(response.status,200,await response.clone().text());
+    const writes=await h.db.prepare("SELECT entity FROM personal_login_write_audit").all();
+    assert.deepEqual(writes.results,[],"login should not attempt to reinsert existing personal records");
+
+    // A deleted root is still repaired on the next login; the fast path must
+    // not skip the original self-healing provisioning behavior.
+    await h.db.prepare("DELETE FROM spaces WHERE workspace_id=? AND slug=?")
+      .bind(alice.workspaceId,"private-u"+alice.id).run();
+    const repair=await jsonRequest(h,"/api/identity/login",{
+      method:"POST",body:{email:alice.email,password:TEST_USER_PASSWORD},
+    });
+    assert.equal(repair.status,200,await repair.clone().text());
+    assert.ok(await h.db.prepare("SELECT id FROM spaces WHERE workspace_id=? AND slug=?")
+      .bind(alice.workspaceId,"private-u"+alice.id).first());
+  }finally{await closeTestHarness(h);}
 });
