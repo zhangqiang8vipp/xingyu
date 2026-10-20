@@ -21,7 +21,7 @@ export default function AdminPageEditor({ initial, settings, kind, label, readOn
         <label>开场简介<textarea rows={4} value={form.excerpt} onChange={e=>setForm({...form,excerpt:e.target.value})} /></label>
         <div className="about-admin-preview"><div><small>{form.eyebrow}</small><b>{form.title}</b><p>{form.excerpt}</p></div><img src={settings.avatarUrl} alt={`${settings.authorName}头像`} /></div>
       </section>
-      <section className="editor-section writing-section"><div className="editor-section-title"><span>02</span><div><b>页面正文</b><small>Markdown 编辑与实时预览</small></div><em>VDITOR · MARKDOWN</em></div><VditorEditor value={form.content} onChange={(content)=>setForm((current)=>({...current,content}))} /></section>
+      <section className="editor-section writing-section"><div className="editor-section-title"><span>02</span><div><b>页面正文</b><small>Markdown 编辑与实时预览</small></div><em>VDITOR · MARKDOWN</em></div>{readOnly?<pre className="page-readonly-markdown" style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",minHeight:420,maxHeight:720,overflow:"auto",padding:16,borderRadius:12,border:"1px solid rgba(127,127,127,.25)"}}>{form.content}</pre>:<VditorEditor value={form.content} onChange={(content)=>setForm((current)=>({...current,content}))} />}</section>
       </fieldset>{readOnly&&<p className="form-message">站点页面仅管理员可以修改；当前账号可查看原版页面内容。</p>}<footer className="config-footer"><span>{message||(readOnly?"只读查看 · 页面内容由管理员维护":"正文样式与真实前台页面保持一致")}</span><button disabled={saving||readOnly} className="save-button">{saving?"正在保存…":`保存${label}页面`}<i>→</i></button></footer>
     </form>
   </section>{preview&&<ContentPageLivePreview page={form} settings={settings} kind={kind} onClose={()=>setPreview(false)}/>}</>;
