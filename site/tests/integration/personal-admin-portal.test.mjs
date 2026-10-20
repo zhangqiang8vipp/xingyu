@@ -312,7 +312,7 @@ test("personal article attachments are editable by their owner and inaccessible 
     assert.equal(ownerRead.status, 200);
     assert.equal(await ownerRead.text(), "ABC");
     const otherRead = await h.dispatch(new URL(filePath, h.origin).href, { headers: { origin: h.origin, cookie: bob.cookie } });
-    assert.equal(otherRead.status, 401, "another account cannot download private attachment bytes");
+    assert.equal(otherRead.status, 404, "another account cannot discover or download private attachment bytes");
 
     const deniedDelete = await api(h, "/api/attachments/" + upload.attachment.id, {
       method: "DELETE", cookie: bob.cookie, body: { version: 1 },
