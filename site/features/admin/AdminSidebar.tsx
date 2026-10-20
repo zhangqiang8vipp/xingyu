@@ -116,7 +116,7 @@ export default function AdminSidebar({
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const moreActive = !accountArea && MORE_SECTIONS.has(section??"browse");
-  const visibleGroups = NAV_GROUPS;
+  const visibleGroups = isPersonalAccount ? NAV_GROUPS.filter((group) => group.id !== "site") : NAV_GROUPS;
   const dockItems = visibleGroups.flatMap((group) => group.items).filter((item) => item.dock);
   const moreItems = visibleGroups.flatMap((group) => group.items).filter((item) => !item.dock);
 
