@@ -116,7 +116,7 @@ export default function BlogHomeExperience({
         <p className="eyebrow" data-preview-field="tagline">{settings.tagline}</p>
         <h1 id={admin?"admin-home-hero-title":"home-hero-title"} className={`hero-pyramid-title${heroDensity}`}><span className="hero-title-line hero-title-lead" data-preview-field="heroLead">{settings.heroLead}</span><span className="hero-title-line hero-title-tail" data-preview-field="heroTail">{settings.heroTail}</span></h1>
         <p className="hero-copy" data-preview-field="description">{settings.description}</p>
-        {admin?<div className="admin-browser-actions"><button type="button" onClick={onWrite}>＋ 写文章</button>{!personalAccount&&<button type="button" onClick={onOpenSpaces}>浏览知识空间</button>}</div>:<a className="primary-button" href="#articles">开始阅读 <span>↓</span></a>}
+        {admin?<div className="admin-browser-actions"><button type="button" onClick={onWrite}>＋ 写文章</button><button type="button" onClick={onOpenSpaces}>浏览知识空间</button></div>:<a className="primary-button" href="#articles">开始阅读 <span>↓</span></a>}
       </div>
     </section>
 
