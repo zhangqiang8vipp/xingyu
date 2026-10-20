@@ -64,6 +64,8 @@ export async function PATCH(request: Request, { params }: Params) {
       title: typeof body.title === "string" ? body.title : undefined,
       content: typeof body.content_markdown === "string" ? body.content_markdown : undefined,
       excerpt: typeof body.excerpt === "string" ? body.excerpt : undefined,
+      category: typeof body.category === "string" ? body.category : undefined,
+      slug: typeof body.slug === "string" ? body.slug : undefined,
     }, "web:" + user.userId, "个人知识空间编辑文章");
     return apiJson({ post: { ...post, visibility: "personal", canEdit: true }, workspaceId });
   } catch (error) {
