@@ -147,8 +147,11 @@ export default function AdminClient({ categories:initialCategories, settings, co
   useEffect(() => {
     const refresh = () => { void loadStats(); };
     window.addEventListener("xingyu:spaces-changed", refresh);
-    if (isPersonalAccount) void loadStats();
-    return () => window.removeEventListener("xingyu:spaces-changed", refresh);
+    const timer = isPersonalAccount ? window.setTimeout(() => { void loadStats(); }, 0) : null;
+    return () => {
+      window.removeEventListener("xingyu:spaces-changed", refresh);
+      if (timer !== null) window.clearTimeout(timer);
+    };
   }, [loadStats, isPersonalAccount]);
 
   useEffect(() => {
