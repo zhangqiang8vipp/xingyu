@@ -1,4 +1,4 @@
-const DEFAULT_SCOPES = ["xingyu.read", "xingyu.draft", "offline_access"] as const;
+const DEFAULT_SCOPES = ["xingyu.read", "xingyu.draft", "xingyu.publish", "offline_access"] as const;
 const SUPPORTED_SCOPES = ["xingyu.read", "xingyu.draft", "xingyu.publish", "offline_access"] as const;
 const SUPPORTED_GRANT_TYPES = ["authorization_code", "refresh_token"] as const;
 
