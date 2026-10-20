@@ -44,6 +44,7 @@ function formatBytes(size:number){
 
 export default function PersonalKnowledgeClient({userName,settings}:{userName:string;settings:SiteSettingsForm}){
   const [section,setSection]=useState<Section>("articles");
+  const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
   const [tab,setTab]=useState<"mine"|"public"|"files">("mine");
   const [query,setQuery]=useState("");
   const [appliedQuery,setAppliedQuery]=useState("");
@@ -175,10 +176,10 @@ export default function PersonalKnowledgeClient({userName,settings}:{userName:st
 
   const currentPosts=tab==="mine"?mine:publicPosts;
   const onSidebarSection=(next:string)=>{if(next==="browse"||next==="articles"){setSection(next);if(next==="browse")setTab("public");else setTab("mine");setForm(null);}};
-  return <main className="admin-shell">
+  return <main className={"admin-shell personal-console"+(sidebarCollapsed?" sidebar-collapsed":"")}>
     <AdminSidebar brandName={settings.brandName} avatarUrl={settings.avatarUrl} authorName={settings.authorName}
       userName={userName} section={section} stats={stats} categoryCount={categories.length}
-      collapsed={false} isPersonal onSectionChange={onSidebarSection} onToggle={()=>{}} onSignOut={()=>void signOut()}/>
+      collapsed={sidebarCollapsed} isPersonal onSectionChange={onSidebarSection} onToggle={()=>setSidebarCollapsed(value=>!value)} onSignOut={()=>void signOut()}/>
     <div className="admin-workspace">
       <div className="admin-workspace-bar"><div className="admin-article-search-trigger personal-search"><i>⌕</i><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){setCursor(null);setAppliedQuery(query.trim());}}} placeholder="搜索我的文章与公开内容"/></div></div>
       <section className="admin-main">
