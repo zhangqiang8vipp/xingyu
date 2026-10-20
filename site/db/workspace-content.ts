@@ -236,6 +236,31 @@ export async function scopedStatusChange(userId:number,workspaceId:number,identi
   if(!results[0]?.results?.length)throw new WorkspaceContentError("版本冲突或权限已变化",409);
   return scopedPost(userId,workspaceId,post.id);
 }
+export async function scopedDeletePost(userId:number,workspaceId:number,identifier:string|number,expectedVersion:number) {
+  await workspaceGrant(userId,workspaceId,"write");
+  if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new WorkspaceContentError("缺少有效的文章版本，请刷新后再删除",409);
+  const post=await scopedPost(userId,workspaceId,identifier);
+  if(post.version!==expectedVersion)throw new WorkspaceContentError("文章已被其他编辑者更新，请刷新列表后再删除",409);
+  const ownerGuard=userId===1?"":" AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))";
+  const ownerArgs=userId===1?[]:[userId,userId];
+  const currentPost="EXISTS (SELECT 1 FROM posts WHERE id=? AND workspace_id=? AND version=?"+ownerGuard+")";
+  const guarded=(table:string)=>env.DB.prepare("DELETE FROM "+table+" WHERE post_id=? AND "+currentPost)
+    .bind(post.id,post.id,workspaceId,expectedVersion,...ownerArgs);
+  const statements=[
+    guarded("post_slug_history"),
+    guarded("post_views"),
+    guarded("post_preview_tokens"),
+    env.DB.prepare("UPDATE attachments SET post_id=NULL,unbound_at=CURRENT_TIMESTAMP WHERE post_id=? AND "+currentPost)
+      .bind(post.id,post.id,workspaceId,expectedVersion,...ownerArgs),
+    env.DB.prepare("DELETE FROM posts WHERE id=? AND workspace_id=? AND version=?"+ownerGuard)
+      .bind(post.id,workspaceId,expectedVersion,...ownerArgs),
+    env.DB.prepare("SELECT changes() AS changed"),
+  ];
+  const result=await env.DB.batch(statements);
+  const deleted=result[5]?.results?.[0] as {changed?:number}|undefined;
+  if(Number(deleted?.changed??0)!==1)throw new WorkspaceContentError("文章已被其他编辑者更新，请刷新列表后再删除",409);
+}
+
 export async function scopedActivity(userId:number,workspaceId:number,limit=20) {
   await workspaceGrant(userId,workspaceId);
   const permitted=await accessibleSpaceIds(userId,workspaceId);
