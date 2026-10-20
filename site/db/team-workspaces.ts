@@ -117,6 +117,7 @@ export async function listOrganizationWorkspaces(userId:number,orgId:number) {
   return rows.results??[];
 }
 export async function createOrganizationWorkspace(userId:number,orgId:number,nameInput:unknown) {
+  if(userId!==1)throw new OrganizationError("普通账号当前只管理组织架构，不创建共享知识工作区",403);
   const org=await orgGrant(userId,orgId,"owner");
   const name=cleanName(nameInput,"工作区名称");
   const owned=await env.DB.prepare(
