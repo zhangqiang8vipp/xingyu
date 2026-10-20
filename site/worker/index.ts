@@ -3,6 +3,10 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import { handleBlogMcpRequest, isBlogMcpPath } from "./blog-mcp";
 import { handleWorkspaceUpload } from "@/server/workspace-upload";
+import { handleAttachmentUpload } from "@/server/attachment-upload";
+import { identityFromRequest } from "@/server/auth/identity-session";
+import { requestHasAdminSession } from "@/db/admin-session";
+import { isPasswordLoginConfigured, isLegacyAdminPasswordAllowed } from "@/server/auth/admin-auth";
 import { handleOAuthRequest, isOAuthPath } from "./oauth";
 import { enqueueExpiredUnboundAttachments, UNBOUND_ATTACHMENT_RETENTION_DAYS } from "@/db/attachment-cleanup";
 import { cleanupExpiredPostViews, POST_VIEWS_RETENTION_DAYS } from "@/db/view-tracking";
@@ -130,6 +134,23 @@ const worker = {
     if (uploadRoute) {
       const uploaded = await handleWorkspaceUpload(request, uploadRoute[1]);
       return addSecurityHeaders(uploaded,url,false,null,identityBearing,false);
+    }
+
+    // Multipart uploads to the original admin editor must bypass Vinext's Server Action classifier too.
+    const attachmentUploadRoute = request.method === "POST" && url.pathname === "/api/attachments"
+      && (request.headers.get("content-type")?.toLowerCase().startsWith("multipart/form-data;") ?? false);
+    if (attachmentUploadRoute) {
+      const passwordAdmin = await requestHasAdminSession(request)
+        && isPasswordLoginConfigured() && await isLegacyAdminPasswordAllowed();
+      const user = await identityFromRequest(request);
+      if (passwordAdmin || user?.userId === 1) {
+        const uploaded = await handleAttachmentUpload(request, { isAdmin: true });
+        return addSecurityHeaders(uploaded,url,false,null,identityBearing,false);
+      }
+      if (user && user.userId !== 1) {
+        const uploaded = await handleAttachmentUpload(request, { isAdmin: false, userId: user.userId });
+        return addSecurityHeaders(uploaded,url,false,null,identityBearing,false);
+      }
     }
 
     if (cacheKey) {
