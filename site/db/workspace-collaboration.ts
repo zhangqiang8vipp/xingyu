@@ -34,6 +34,7 @@ async function sharedManager(userId:number,workspaceId:number) {
 export async function createSharedWorkspace(userId:number,nameInput:string) {
   await ensureDatabase();
   if(!validId(userId))throw new CollaborationError("请先登录",403);
+  if(userId!==1)throw new CollaborationError("普通账号只使用个人知识空间，不能创建共享工作区",403);
   const name=cleanWorkspaceName(nameInput);
   const current=await env.DB.prepare("SELECT COUNT(*) AS count FROM workspaces WHERE owner_user_id=? AND kind='shared' AND status='active'")
     .bind(userId).first<{count:number}>();
