@@ -116,9 +116,9 @@ export default function AdminArticleSearch({
   },[activeIndex]);
 
   const close=()=>setOpen(false);
-  const browse=(postId:number)=>{
+  const browse=(postId:number,publicId?:string)=>{
     close();
-    onBrowse(postId);
+    onBrowse(postId,publicId);
   };
   const onKeyDown=(event:React.KeyboardEvent<HTMLInputElement>)=>{
     if(event.key==="Escape"){event.preventDefault();close();return}
@@ -136,7 +136,7 @@ export default function AdminArticleSearch({
     }
     if(event.key==="Enter"&&rows[activeIndex]){
       event.preventDefault();
-      browse(rows[activeIndex].id);
+      browse(rows[activeIndex].id,rows[activeIndex].publicId);
     }
   };
 
