@@ -225,7 +225,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
   function openNewArticle(spaceId:number|null=null,spacePath="") {
     readerReturnRef.current=null;
     setStudio(null);
-    setForm(emptyForm(categories[0]?.id,spaceId,spacePath));
+    setForm(isPersonalAccount ? emptyForm(categories[0]?.id,0,"个人知识空间") : emptyForm(categories[0]?.id,spaceId,spacePath));
     setMessage("");
   }
 
@@ -243,9 +243,15 @@ export default function AdminClient({ categories:initialCategories, settings, co
 
   async function save() {
     if (!form) return;
-    const response = await fetch(form.id ? `/api/posts/${form.id}` : "/api/posts", {
-      method: form.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
-    });
+    const response = isPersonalAccount
+      ? await fetch(form.publicId ? `/api/knowledge/posts/${encodeURIComponent(form.publicId)}` : "/api/knowledge/posts", {
+          method: form.publicId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: form.title, excerpt: form.excerpt, content_markdown: form.content, ...(form.publicId ? { expected_version: form.version } : {}) }),
+        })
+      : await fetch(form.id ? `/api/posts/${form.id}` : "/api/posts", {
+          method: form.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+        });
     const data = await readApiJson<{post:ArticleForm}>(response);
     if (!response.ok) return setMessage(data.error ?? "保存失败");
     const returnTarget=readerReturnRef.current;
@@ -258,12 +264,40 @@ export default function AdminClient({ categories:initialCategories, settings, co
   }
 
   async function loadArticle(postId:number){
+    if (isPersonalAccount) {
+      const row = posts.find((post) => post.id === postId);
+      const identifier = row?.publicId ?? String(postId);
+      const response = await fetch(`/api/knowledge/posts/${encodeURIComponent(identifier)}`, { cache: "no-store" });
+      const data = await readApiJson<{post:Record<string, unknown>}>(response);
+      if (!response.ok || !data.post) return null;
+      const post = data.post;
+      const category = categories.find((item) => item.slug === post.categorySlug || item.id === post.categoryId);
+      return {
+        id: Number(post.id ?? row?.id ?? postId),
+        publicId: String(post.publicId ?? row?.publicId ?? ""),
+        version: Number(post.version ?? row?.version ?? 1),
+        title: String(post.title ?? row?.title ?? ""),
+        slug: String(post.slug ?? row?.slug ?? ""),
+        excerpt: String(post.excerpt ?? row?.excerpt ?? ""),
+        content: String(post.content ?? post.content_markdown ?? ""),
+        categoryId: category?.id ?? categories[0]?.id ?? 1,
+        spaceId: post.visibility === "public" ? null : Number(post.spaceId ?? 0),
+        spacePath: post.visibility === "public" ? "" : "个人知识空间",
+        status: post.visibility === "public" ? "published" : "draft",
+        featured: false,
+        publishedAt: typeof post.publishedAt === "string" ? post.publishedAt : null,
+      };
+    }
     const response=await fetch(`/api/posts/${postId}`);
     const data=await readApiJson<{post:ArticleForm}>(response);
     return response.ok?data.post:null;
   }
 
   async function editById(postId:number,returnTarget?:AdminReaderReturnTarget){
+    if (isPersonalAccount && posts.some((post) => post.id === postId && !post.canEdit)) {
+      setMessage("公开文章只读；你只能编辑自己的文章。");
+      return;
+    }
     const article=await loadArticle(postId);
     if(article){readerReturnRef.current=returnTarget??null;setStudio(null);setForm(article);setMessage("")}
   }
@@ -273,6 +307,15 @@ export default function AdminClient({ categories:initialCategories, settings, co
   }
 
   async function browseById(postId:number,adminReaderContext?:AdminReaderContext){
+    const row = posts.find((post) => post.id === postId);
+    if (isPersonalAccount && row?.visibility === "public") {
+      window.open(`/posts/${row.publicId}/${row.slug}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (isPersonalAccount) {
+      await editById(postId);
+      return;
+    }
     const article=await loadArticle(postId);
     if(!article)return setMessage("文章暂时无法打开，请稍后再试");
     setStudio(null);setForm(null);setMessage("");
