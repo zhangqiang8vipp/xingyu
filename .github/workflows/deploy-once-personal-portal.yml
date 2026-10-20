@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify:
-    if: contains(github.event.head_commit.message, 'ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-20261020')
+    if: contains(github.event.head_commit.message, 'ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-ACL-20261020')
     name: Verify release candidate
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -29,7 +29,7 @@ jobs:
           persist-credentials: false
       - name: Verify one-time marker contents
         working-directory: .
-        run: test "$(cat .deploy-once-personal-portal-20261020)" = "ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-20261020"
+        run: test "$(cat .deploy-once-personal-portal-20261020)" = "ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-ACL-20261020"
       - uses: actions/setup-node@v7
         with:
           node-version: 22.18.0
@@ -43,7 +43,7 @@ jobs:
         run: node scripts/verify-production-deploy.mjs config
 
   deploy:
-    if: contains(github.event.head_commit.message, 'ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-20261020')
+    if: contains(github.event.head_commit.message, 'ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-ACL-20261020')
     name: Production approval and deployment
     needs: verify
     runs-on: ubuntu-latest
