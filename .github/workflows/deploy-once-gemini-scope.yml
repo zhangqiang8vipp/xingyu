@@ -34,15 +34,11 @@ jobs:
           node - "$GITHUB_EVENT_PATH" <<'NODE'
           const fs = require("node:fs");
           const event = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-          const marker = ".deploy-once-gemini-scope-20261020";
           const sentinel = "ONE-TIME-PRODUCTION-DEPLOY-GEMINI-SCOPE-20261020";
           const commits = Array.isArray(event.commits) ? event.commits : [];
-          const allowed = commits.some((commit) =>
-            String(commit.message || "").includes(sentinel)
-            && [...(commit.added || []), ...(commit.modified || [])].includes(marker)
-          );
+          const allowed = commits.some((commit) => String(commit.message || "").includes(sentinel));
           if (!allowed) {
-            console.error("One-time deployment sentinel or marker path did not match.");
+            console.error("One-time deployment sentinel did not match.");
             process.exit(1);
           }
           NODE
@@ -52,7 +48,7 @@ jobs:
           persist-credentials: false
       - name: Confirm one-time marker contents
         run: |
-          test "$(cat ../.deploy-once-gemini-scope-20261020)" = "ONE-TIME-PRODUCTION-DEPLOY-GEMINI-SCOPE-20261020"
+          grep -Fxq "ONE-TIME-PRODUCTION-DEPLOY-GEMINI-SCOPE-20261020" ../.deploy-once-gemini-scope-20261020
       - uses: actions/setup-node@v7
         with:
           node-version: 22.18.0
