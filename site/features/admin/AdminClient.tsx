@@ -78,7 +78,8 @@ export default function AdminClient({ categories:initialCategories, settings, co
   const [sharePost,setSharePost]=useState<{id:number;title:string}|null>(null);
   const readerReturnRef=useRef<AdminReaderReturnTarget|null>(null);
   useSplitScrollSync(articleEditorPreviewRef,Boolean(form));
-  const selectedFormCategory = form ? categories.find((item) => item.id === form.categoryId) : undefined;
+  const editableCategories = isPersonalAccount ? categories.filter((item) => item.slug.startsWith("user-")) : categories;
+  const selectedFormCategory = form ? editableCategories.find((item) => item.id === form.categoryId) ?? categories.find((item) => item.id === form.categoryId) : undefined;
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -123,26 +124,9 @@ export default function AdminClient({ categories:initialCategories, settings, co
   }, [cursor, query, category, status, isPersonalAccount, categories]);
 
   const loadStats = useCallback(async () => {
-    if (isPersonalAccount) {
-      try {
-        const [mineResponse, publicResponse] = await Promise.all([
-          fetch("/api/knowledge/posts?type=mine&limit=50", { cache: "no-store" }),
-          fetch("/api/knowledge/posts?type=public&limit=50", { cache: "no-store" }),
-        ]);
-        if (!mineResponse.ok || !publicResponse.ok) return;
-        const [mineData, publicData] = await Promise.all([
-          readApiJson<{ posts: Record<string, unknown>[] }>(mineResponse),
-          readApiJson<{ posts: Record<string, unknown>[] }>(publicResponse),
-        ]);
-        const mine = mineData.posts ?? [];
-        const publicPosts = publicData.posts ?? [];
-        setStats({ total: mine.length + publicPosts.length, published: publicPosts.length, drafts: mine.length, views: publicPosts.reduce((sum, post) => sum + Number(post.viewCount ?? 0), 0), privateArticles: mine.length });
-      } catch { /* Keep the last known scoped counters when a refresh fails. */ }
-      return;
-    }
-    const response = await fetch("/api/stats");
+    const response = await fetch("/api/stats", { cache: "no-store" });
     if (response.ok) setStats((await readApiJson<{stats:AdminStats}>(response)).stats);
-  }, [isPersonalAccount]);
+  }, []);
 
   useEffect(() => {
     const refresh = () => { void loadStats(); };
@@ -177,7 +161,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
   useEffect(()=>{
     const restoreLocation=()=>{
       const parsed=parseAdminLocation(new URLSearchParams(window.location.search));
-      const next = isPersonalAccount && !["browse","articles","files"].includes(parsed.section) ? { ...parsed, section: "articles" as AdminSection } : parsed;
+      const next = parsed;
       setSection(next.section);
       setBrowseCategory(next.browseCategory);
       setBrowseVisibility(next.browseVisibility);
@@ -229,7 +213,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
   function openNewArticle(spaceId:number|null=null,spacePath="") {
     readerReturnRef.current=null;
     setStudio(null);
-    setForm(isPersonalAccount ? emptyForm(categories[0]?.id,0,"个人知识空间") : emptyForm(categories[0]?.id,spaceId,spacePath));
+    setForm(isPersonalAccount ? emptyForm(editableCategories[0]?.id,0,"个人知识空间") : emptyForm(categories[0]?.id,spaceId,spacePath));
     setMessage("");
   }
 
@@ -378,7 +362,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
   }
 
   function changeSection(requested:AdminSection){
-    const next = isPersonalAccount && !["browse","articles","files"].includes(requested) ? "articles" : requested;
+    const next = requested;
     if(next===section)return;
     const nextSpaceId=next==="spaces"?null:spaceLandingId;
     if(next==="spaces"){
@@ -434,10 +418,10 @@ export default function AdminClient({ categories:initialCategories, settings, co
         <div className="admin-workspace-bar">
           <AdminArticleSearch disabled={Boolean(form||studio)} articleCount={stats.total+stats.privateArticles} onBrowse={(postId,publicId)=>void browseById(postId,undefined,publicId)} isPersonalAccount={isPersonalAccount}/>
         </div>
-      {section==="browse" ? <AdminBrowsePanel settings={settings} categories={categories} stats={stats} category={browseCategory} visibility={browseVisibility} onCategoryChange={changeBrowseCategory} onVisibilityChange={changeBrowseVisibility} onEdit={(postId)=>void editById(postId)} onWrite={()=>openNewArticle()} onOpenArticles={()=>changeSection("articles")} onOpenSpaces={(spaceId)=>openSpaces(spaceId??null)} isPersonalAccount={isPersonalAccount} /> : section==="home" ? <AdminSettingsPanel initial={settings} /> : section==="articles" ? <AdminArticlesPanel brandName={settings.brandName} stats={stats} posts={posts} categories={categories} loading={loading} message={message} query={query} category={category} status={status} batch={cursorStack.length+1} hasPrevious={cursorStack.length>0} hasNext={Boolean(nextCursor)} onQueryChange={changeArticleQuery} onCategoryChange={changeArticleCategory} onStatusChange={changeArticleStatus} onNew={()=>openNewArticle()} onBrowse={(postId)=>void browseById(postId,{range:"all",query,category,status:status as "all"|"draft"|"published",source:"articles"})} onShare={setSharePost} onEdit={(postId)=>void editById(postId)} onRemove={(post)=>void remove(post)} onPrevious={previousBatch} onNext={nextBatch} isPersonalAccount={isPersonalAccount}/> : section==="files" ? <AdminFilesPanel isPersonalAccount={isPersonalAccount}/> : section==="spaces" ? <AdminSpacesPanel initialSpaceId={spaceLandingId} createOnOpen={createSpaceOnOpen} onLocationChange={changeSpaceLocation} onCreateArticle={(spaceId,spacePath)=>openNewArticle(spaceId,spacePath)} onEditArticle={(postId)=>void editById(postId)} onBrowseArticle={(postId,readerContext)=>void browseById(postId,readerContext)} onShareArticle={setSharePost} /> : section==="connect" ? <AdminPageEditor initial={connectPage} settings={settings} kind="connect" label="接入" /> : section==="integrations" ? <AdminIntegrationsPanel initial={connections} initialActivation={activation} /> : section==="about" ? <AdminPageEditor initial={aboutPage} settings={settings} kind="about" label="关于" /> : <AdminCategoriesPanel initial={categories} onChange={setCategories} />}
+      {section==="browse" ? <AdminBrowsePanel settings={settings} categories={categories} stats={stats} category={browseCategory} visibility={browseVisibility} onCategoryChange={changeBrowseCategory} onVisibilityChange={changeBrowseVisibility} onEdit={(postId)=>void editById(postId)} onWrite={()=>openNewArticle()} onOpenArticles={()=>changeSection("articles")} onOpenSpaces={(spaceId)=>openSpaces(spaceId??null)} isPersonalAccount={isPersonalAccount} /> : section==="home" ? <AdminSettingsPanel initial={settings} readOnly={isPersonalAccount} /> : section==="articles" ? <AdminArticlesPanel brandName={settings.brandName} stats={stats} posts={posts} categories={categories} loading={loading} message={message} query={query} category={category} status={status} batch={cursorStack.length+1} hasPrevious={cursorStack.length>0} hasNext={Boolean(nextCursor)} onQueryChange={changeArticleQuery} onCategoryChange={changeArticleCategory} onStatusChange={changeArticleStatus} onNew={()=>openNewArticle()} onBrowse={(postId)=>void browseById(postId,{range:"all",query,category,status:status as "all"|"draft"|"published",source:"articles"})} onShare={setSharePost} onEdit={(postId)=>void editById(postId)} onRemove={(post)=>void remove(post)} onPrevious={previousBatch} onNext={nextBatch} isPersonalAccount={isPersonalAccount}/> : section==="files" ? <AdminFilesPanel isPersonalAccount={isPersonalAccount}/> : section==="spaces" ? <AdminSpacesPanel initialSpaceId={spaceLandingId} createOnOpen={createSpaceOnOpen} onLocationChange={changeSpaceLocation} onCreateArticle={(spaceId,spacePath)=>openNewArticle(spaceId,spacePath)} onEditArticle={(postId)=>void editById(postId)} onBrowseArticle={(postId,readerContext)=>void browseById(postId,readerContext)} onShareArticle={setSharePost} isPersonalAccount={isPersonalAccount} /> : section==="connect" ? <AdminPageEditor initial={connectPage} settings={settings} kind="connect" label="接入" readOnly={isPersonalAccount} /> : section==="integrations" ? <AdminIntegrationsPanel initial={connections} initialActivation={activation} isPersonalAccount={isPersonalAccount} /> : section==="about" ? <AdminPageEditor initial={aboutPage} settings={settings} kind="about" label="关于" readOnly={isPersonalAccount} /> : <AdminCategoriesPanel initial={categories} onChange={setCategories} readOnly={isPersonalAccount} />}
       </div>
 
-      {form&&<AdminArticleEditor form={form} category={selectedFormCategory} categories={categories} settings={settings} message={message} previewRef={articleEditorPreviewRef} onChange={setForm} onChangeSpace={changeSpace} onClose={closeEditor} onOpenStudio={setStudio} onSharePreview={!isPersonalAccount&&form.id?()=>setSharePost({id:form.id!,title:form.title}):undefined} onSave={save} isPersonalAccount={isPersonalAccount}/>}
+      {form&&<AdminArticleEditor form={form} category={selectedFormCategory} categories={isPersonalAccount?editableCategories:categories} settings={settings} message={message} previewRef={articleEditorPreviewRef} onChange={setForm} onChangeSpace={changeSpace} onClose={closeEditor} onOpenStudio={setStudio} onSharePreview={!isPersonalAccount&&form.id?()=>setSharePost({id:form.id!,title:form.title}):undefined} onSave={save} isPersonalAccount={isPersonalAccount}/>}
       {form&&studio&&<ArticleWritingStudio draft={form} categoryName={selectedFormCategory?.name??"随笔"} categoryColor={selectedFormCategory?.color??"#8E8E93"} authorName={settings.authorName} avatarUrl={settings.avatarUrl} initialMode={studio} onChange={(content)=>setForm(current=>current?{...current,content}:current)} onPostVersionChange={(version)=>setForm(current=>current?{...current,version}:current)} onClose={()=>setStudio(null)}/>}
       <ModalPostLink controllerOnly readerScope="admin" publicId="" slug="" onEdit={(postId,returnTarget)=>void editById(postId,returnTarget)}/>
       {sharePost&&<AdminPreviewShareDialog post={sharePost} onClose={()=>setSharePost(null)}/>}
