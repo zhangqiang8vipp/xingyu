@@ -169,11 +169,11 @@ export default function AdminClient({ categories:initialCategories, settings, co
       setSection(nextSection);
       if(nextSection!==parsed.section)window.history.replaceState(null,"",adminLocationHref({...parsed,section:nextSection}));
       setBrowseCategory(parsed.browseCategory);
-      setBrowseVisibility(next.browseVisibility);
-      setQuery(next.query);
-      setCategory(next.category);
-      setStatus(next.status);
-      setSpaceLandingId(next.spaceId);
+      setBrowseVisibility(parsed.browseVisibility);
+      setQuery(parsed.query);
+      setCategory(parsed.category);
+      setStatus(parsed.status);
+      setSpaceLandingId(parsed.spaceId);
       setCreateSpaceOnOpen(false);
       setCursor(null);
       setCursorStack([]);
