@@ -48,11 +48,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!(await isAdminRequest(request))) {
-    if(request.headers.get("origin")!==new URL(request.url).origin)return Response.json({error:"无效请求来源"},{status:403,headers:{"Cache-Control":"no-store"}});
     const user=await identityFromRequest(request);
-    if(!user||user.userId===1)return unauthorized();
+    if(!user)return unauthorized();
+    if(user.userId===1)return Response.json({error:"无权访问写作后台"},{status:403,headers:{"Cache-Control":"no-store"}});
+    if(request.headers.get("origin")!==new URL(request.url).origin)return Response.json({error:"无效请求来源"},{status:403,headers:{"Cache-Control":"no-store"}});
     try{
-      if(request.headers.get("content-type")?.toLowerCase().includes("application/json"))return unauthorized();
+      if(request.headers.get("content-type")?.toLowerCase().includes("application/json"))return Response.json({error:"此操作仅管理员可用"},{status:403,headers:{"Cache-Control":"no-store"}});
       const form=await request.formData();
       const file=form.get("file");
       if(!(file instanceof File))return Response.json({error:"请选择附件"},{status:400});
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
     }catch(error){
       if(error instanceof AttachmentError)return Response.json({error:error.message},{status:error.status,headers:{"Cache-Control":"no-store"}});
       if(error instanceof WorkspaceContentError)return Response.json({error:error.message},{status:error.status,headers:{"Cache-Control":"no-store"}});
-      console.error("personal attachment upload failed",error instanceof Error?error.name:"unknown");
+      console.error("personal attachment upload failed",error instanceof Error?error.name+":"+error.message.slice(0,180):"unknown");
       return Response.json({error:"附件存储服务暂时不可用，请稍后重试"},{status:503,headers:{"Cache-Control":"no-store"}});
     }
   }
