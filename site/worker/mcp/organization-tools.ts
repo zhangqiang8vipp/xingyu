@@ -23,6 +23,7 @@ import {
   setTeamMember,
   updateOrganizationTeam,
 } from "@/db/team-workspaces";
+import { listOrganizationInvitations, inviteOrganizationMember, revokeOrganizationInvitation } from "@/db/organization-invitations";
 import { requireScope } from "../mcp-auth";
 import { MCP_ERROR_OUTPUT_FIELDS, toolFailure, toolResult, type McpToolContext } from "./shared";
 
@@ -117,6 +118,37 @@ export function registerOrganizationTools({ server, auth }: McpToolContext) {
   }, async ({ organization_id }) => organizationCall(auth, "xingyu.draft", async (userId) => {
     await leaveOrganization(userId, organization_id);
     return { left: true };
+  }));
+
+  server.registerTool("list_organization_invitations", {
+    title: "列出待处理组织邀请",
+    description: "仅组织 Owner/Admin 可查看尚未接受、撤销或过期的邀请。需要 xingyu.read。",
+    inputSchema: { organization_id: id },
+    outputSchema: { invitations: z.array(generic).optional(), ...MCP_ERROR_OUTPUT_FIELDS },
+    annotations: { readOnlyHint: true },
+  }, async ({ organization_id }) => organizationCall(auth, "xingyu.read", async (userId) => ({
+    invitations: await listOrganizationInvitations(userId, organization_id),
+  })));
+
+  server.registerTool("invite_organization_member", {
+    title: "邀请成员加入组织",
+    description: "向邮箱发送 7 天有效的一次性邀请。只有 Owner 可邀请 Admin；Owner/Admin 可邀请 Member。需要 xingyu.draft。"+manageDescription,
+    inputSchema: { organization_id: id, email: z.string().trim().email().max(254), role: z.enum(["admin", "member"]) },
+    outputSchema: { invitation: generic.optional(), ...MCP_ERROR_OUTPUT_FIELDS },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  }, async ({ organization_id, email, role }) => organizationCall(auth, "xingyu.draft", async (userId) => ({
+    invitation: await inviteOrganizationMember(userId, organization_id, email, role, origin),
+  })));
+
+  server.registerTool("revoke_organization_invitation", {
+    title: "撤销组织邀请",
+    description: "撤销尚未接受的组织邀请；不会移除已经加入组织的成员。需要 xingyu.draft。"+manageDescription,
+    inputSchema: { organization_id: id, invitation_id: id },
+    outputSchema: { revoked: z.boolean().optional(), ...MCP_ERROR_OUTPUT_FIELDS },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+  }, async ({ organization_id, invitation_id }) => organizationCall(auth, "xingyu.draft", async (userId) => {
+    await revokeOrganizationInvitation(userId, organization_id, invitation_id);
+    return { revoked: true };
   }));
 
   server.registerTool("list_organization_units", {
