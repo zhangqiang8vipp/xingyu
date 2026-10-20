@@ -24,12 +24,12 @@ jobs:
       run:
         working-directory: site
     steps:
-      - name: Verify one-time marker contents
-        working-directory: .
-        run: test "$(cat .deploy-once-personal-portal-20261020)" = "ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-20261020"
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Verify one-time marker contents
+        working-directory: .
+        run: test "$(cat .deploy-once-personal-portal-20261020)" = "ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-20261020"
       - uses: actions/setup-node@v7
         with:
           node-version: 22.18.0
