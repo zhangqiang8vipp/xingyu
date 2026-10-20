@@ -285,11 +285,12 @@ test("personal article attachments are editable by their owner and inaccessible 
     const form = new FormData();
     form.set("file", new File([new Uint8Array([65, 66, 67])], "owner-note.txt", { type: "text/plain" }));
     form.set("postId", String(created.data.post.id));
-    const uploadResponse = await h.worker.fetch("/api/attachments", {
+    const uploadRequest = new Request(new URL("/api/attachments", h.origin), {
       method: "POST",
-      headers: { origin: h.origin, cookie: alice.cookie, "x-xingyu-test-debug": "1" },
+      headers: { origin: h.origin, cookie: alice.cookie },
       body: form,
     });
+    const uploadResponse = await h.worker.fetch(uploadRequest);
     const upload = await uploadResponse.json();
     assert.equal(uploadResponse.status, 201, JSON.stringify(upload));
     assert.equal(upload.attachment.name, "owner-note.txt");
