@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } from "react";
-import { readApiJson } from "@/app/api-response";
 import AdminSidebar from "./AdminSidebar";
 import VditorEditor from "./VditorEditor";
 import type { AdminCategory, AdminPost, AdminStats, ArticleForm } from "./admin-types";
