@@ -84,9 +84,14 @@ test("MCP OAuth login and consent are separate; code, refresh and revocation rem
     });
     assert.equal(once.status,400,"authorization code is single-use");
 
-    const listed=await callMcpTool(h,{name:"list_workspaces",token:access,arguments:{}});
+    const createdDraft=await callMcpTool(h,{name:"create_my_draft",token:access,arguments:{title:"OAuth personal draft",content_markdown:"# OAuth private"}});
+    assert.equal(createdDraft.isError,undefined,JSON.stringify(createdDraft.structuredContent));
+    assert.equal(createdDraft.structuredContent.post.visibility,"personal");
+    const listed=await callMcpTool(h,{name:"list_my_posts",token:access,arguments:{}});
     assert.equal(listed.isError,undefined,JSON.stringify(listed.structuredContent));
-    assert.deepEqual(listed.structuredContent.workspaces.map(w=>w.id),[alice.workspaceId]);
+    assert.ok(listed.structuredContent.posts.some(post=>post.publicId===createdDraft.structuredContent.post.public_id));
+    const sitePublish=await callMcpTool(h,{name:"publish_post",token:access,arguments:{identifier:createdDraft.structuredContent.post.public_id,expected_version:1}});
+    assert.equal(sitePublish.isError,true,"regular OAuth clients must not receive site publishing tools");
 
     const ownedConnections=await jsonRequest(h,"/api/identity/connections",{cookie:alice.cookie});
     assert.equal(ownedConnections.status,200);
