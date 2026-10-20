@@ -83,5 +83,6 @@ test("existing identity redirects, invitation privacy and workspace authorizatio
   }
   assert.match(read("app/workspace/page.tsx"),/redirect\("\/admin"\)/);
   assert.match(read("app/organizations/page.tsx"),/redirect\("\/admin"\)/);
-  assert.match(read("app/admin/page.tsx"),/PersonalKnowledgeClient/);
+  assert.match(read("app/admin/page.tsx"),/AdminClient/);
+  assert.doesNotMatch(read("app/admin/page.tsx"),/PersonalKnowledgeClient/);
 });
