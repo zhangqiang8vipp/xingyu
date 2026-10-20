@@ -14,7 +14,7 @@ type PersonalToken = {
   lastUsedAt: number | null;
   createdAt: number;
 };
-type TokenResponse = { tokens?: PersonalToken[]; created?: { token: string }; error?: string };
+type TokenResponse = { tokens?: PersonalToken[]; created?: { id: number; token: string }; rotated?: { id: number; token: string }; error?: string };
 const lifetimeOptions = [
   { value: "7", label: "7 天" },
   { value: "30", label: "30 天" },
@@ -23,6 +23,11 @@ const lifetimeOptions = [
   { value: "365", label: "365 天" },
   { value: "never", label: "永久（手动撤销）" },
 ];
+async function writeSecret(token:string):Promise<boolean>{
+  try{await navigator.clipboard.writeText(token);return true;}
+  catch{return false;}
+}
+
 async function loadOwnTokens(): Promise<{ loginRequired: boolean; tokens: PersonalToken[] }> {
   const response = await fetch("/api/identity/tokens", { credentials: "same-origin", cache: "no-store" });
   if (response.status === 401) return { loginRequired: true, tokens: [] };
@@ -52,7 +57,7 @@ export default function PersonalTokensPanel() {
   const [lifetime, setLifetime] = useState("90");
   const [allowDraft, setAllowDraft] = useState(true);
   const [allowPublish, setAllowPublish] = useState(false);
-  const [revealed, setRevealed] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<{ id: number; token: string; rotated: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -99,8 +104,10 @@ export default function PersonalTokensPanel() {
       });
       const data = await response.json().catch(() => ({})) as TokenResponse;
       if (!response.ok || !data.created) throw new Error(data.error ?? "创建 Token 失败");
-      setRevealed(data.created.token);
+      setRevealed({id:data.created.id,token:data.created.token,rotated:false});
       setName(""); setShowForm(false);
+      const copied=await writeSecret(data.created.token);
+      setMessage(copied?"新 Token 已复制。建议保存到密码管理器。":"Token 已生成，点击下方“复制完整 Token”保存。");
       await reload();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "创建 Token 失败");
@@ -117,6 +124,7 @@ export default function PersonalTokensPanel() {
       });
       const data = await response.json().catch(() => ({})) as TokenResponse;
       if (!response.ok) throw new Error(data.error ?? "撤销失败");
+      if(revealed?.id===item.id)setRevealed(null);
       await reload();
       setMessage("已撤销「" + item.name + "」，其他连接不受影响。");
     } catch (error) {
@@ -126,12 +134,47 @@ export default function PersonalTokensPanel() {
 
   async function copySecret() {
     if (!revealed) return;
-    try {
-      await navigator.clipboard.writeText(revealed);
-      setMessage("完整 Token 已复制；请存入可信赖的密钥管理器或本机安全存储。");
-    } catch {
-      setMessage("浏览器无法复制。请手动选择并保存此 Token，关闭提示后不会再展示。");
-    }
+    const copied=await writeSecret(revealed.token);
+    setMessage(copied
+      ?"完整 Token 已复制；建议存入可信赖的密钥管理器。"
+      :"浏览器无法自动复制。请手动选中下方完整 Token 保存。");
+  }
+
+  async function rotate(item:PersonalToken) {
+    if(!window.confirm("重新生成「"+item.name+"」将立即使旧 Token 失效。使用旧 Token 的客户端需要重新配置，确定继续吗？"))return;
+    setBusy(true);setMessage("");setRevealed(null);
+    try{
+      const response=await fetch("/api/identity/tokens",{
+        method:"PATCH",credentials:"same-origin",
+        headers:{"Content-Type":"application/json"},body:JSON.stringify({id:item.id}),
+      });
+      const data=await response.json().catch(()=>({})) as TokenResponse;
+      if(!response.ok||!data.rotated)throw new Error(data.error??"重新生成失败");
+      setRevealed({id:item.id,token:data.rotated.token,rotated:true});
+      const copied=await writeSecret(data.rotated.token);
+      setMessage(copied
+        ?"新 Token 已复制到剪贴板；旧 Token 已失效，请更新客户端。"
+        :"新 Token 已生成，旧 Token 已失效。请立即手动复制下方完整 Token。");
+      await reload();
+    }catch(error){setMessage(error instanceof Error?error.message:"重新生成失败");}
+    finally{setBusy(false);}
+  }
+
+  async function remove(item:PersonalToken){
+    if(!window.confirm("永久删除「"+item.name+"」？如果它仍在使用，将立即失效，且无法恢复。"))return;
+    setBusy(true);setMessage("");
+    try{
+      const response=await fetch("/api/identity/tokens",{
+        method:"DELETE",credentials:"same-origin",
+        headers:{"Content-Type":"application/json"},body:JSON.stringify({id:item.id,mode:"delete"}),
+      });
+      const data=await response.json().catch(()=>({})) as TokenResponse;
+      if(!response.ok)throw new Error(data.error??"删除失败");
+      if(revealed?.id===item.id)setRevealed(null);
+      await reload();
+      setMessage("已彻底删除「"+item.name+"」；这条记录不再出现在列表中。");
+    }catch(error){setMessage(error instanceof Error?error.message:"删除失败");}
+    finally{setBusy(false);}
   }
 
   const active = items.filter(token =>
@@ -142,7 +185,7 @@ export default function PersonalTokensPanel() {
       <div>
         <small>PERSONAL ACCESS TOKENS</small>
         <h2>我的访问令牌</h2>
-        <p>一个 AI 客户端一条 Token。每条密钥绑定当前账号，权限可控制、有效期可选择，随时独立撤销。</p>
+        <p>一个 AI 客户端一条 Token。可以独立撤销或永久删除；丢失密钥时可安全换发并复制。</p>
       </div>
       {!loginRequired && !loading && <button type="button" className="xy-pat-create-btn" onClick={() => setShowForm(value => !value)} disabled={busy}>
         {showForm ? "取消创建" : "＋ 创建 Token"}
@@ -179,8 +222,8 @@ export default function PersonalTokensPanel() {
       </form>}
 
       {revealed && <div className="xy-pat-reveal" role="status">
-        <strong>已生成 Token。请现在保存，关闭后无法再次查看完整密钥。</strong>
-        <code>{revealed}</code>
+        <strong>{revealed.rotated?"新 Token 已生成，旧 Token 立即失效。":"Token 已生成。"}请妥善保存；离开页面后无法再次查看这段完整密钥。</strong>
+        <code>{revealed.token}</code>
         <div><button type="button" onClick={() => void copySecret()}>复制完整 Token</button>
           <button type="button" onClick={() => setRevealed(null)}>我已保存</button></div>
       </div>}
@@ -206,11 +249,17 @@ export default function PersonalTokensPanel() {
           </div>
           <div className="xy-pat-token-aside">
             <small>最近使用：{timestamp(item.lastUsedAt)}</small>
-            {status === "active" && <button type="button" disabled={busy} className="xy-pat-danger" onClick={() => void revoke(item)}>撤销</button>}
+            <div className="xy-pat-row-actions">
+              {status==="active" && (revealed?.id===item.id
+                ? <button type="button" disabled={busy} className="xy-pat-copy" onClick={()=>void copySecret()}>复制 Token</button>
+                : <button type="button" disabled={busy} className="xy-pat-copy" onClick={()=>void rotate(item)}>换发并复制</button>)}
+              {status==="active"&&<button type="button" disabled={busy} className="xy-pat-danger" onClick={()=>void revoke(item)}>撤销</button>}
+              <button type="button" disabled={busy} className="xy-pat-danger" onClick={()=>void remove(item)}>删除</button>
+            </div>
           </div>
         </article>;
       })}</div>}
-      <p className="xy-pat-footnote">密钥只归创建它的账号所有；访问工作区时继续执行实时 ACL 判断。撤销不影响其他 Token 或 OAuth 授权。</p>
+      <p className="xy-pat-footnote">密钥只保存哈希，无法找回旧明文。点击“换发并复制”会让旧密钥立即失效并返回一条新的完整 Token；“删除”会清除记录且立即停止授权。其他 Token 和 OAuth 授权不受影响。</p>
     </>}
   </section>;
 }
