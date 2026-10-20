@@ -37,9 +37,10 @@ export async function GET(request: Request) {
         "p.public_id AS postPublicId,p.title AS postTitle,p.slug AS postSlug " +
         "FROM attachments a JOIN posts p ON p.id=a.post_id " +
         "WHERE a.workspace_id=? AND p.workspace_id=? " +
+        "AND (p.author_id=? OR p.created_by=? OR (p.author_id IS NULL AND p.created_by IS NULL)) " +
         "AND (a.original_name LIKE ? OR p.title LIKE ?) " +
         "ORDER BY a.created_at DESC,a.id DESC LIMIT ?",
-      ).bind(workspaceId, workspaceId, pattern, pattern, limit).all<AttachmentRow>(),
+      ).bind(workspaceId, workspaceId, user.userId, user.userId, pattern, pattern, limit).all<AttachmentRow>(),
       env.DB.prepare(
         "SELECT a.public_id AS publicId,a.workspace_id AS workspaceId,a.original_name AS originalName," +
         "a.content_type AS contentType,a.size,a.created_at AS createdAt," +
