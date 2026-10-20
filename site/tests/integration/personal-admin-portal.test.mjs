@@ -155,6 +155,30 @@ test("authenticated MCP exposes public read and organization structure tools wit
       body: { title: "Alice MCP private note", content_markdown: "# MCP private secret" },
     });
     assert.equal(privateDraft.status, 201);
+    const aliceOwnRead = await callMcpTool(h, {
+      name: "get_my_post", token: aliceToken,
+      arguments: { identifier: privateDraft.data.post.publicId },
+    });
+    assert.equal(aliceOwnRead.isError, undefined, JSON.stringify(aliceOwnRead));
+    assert.match(JSON.stringify(aliceOwnRead.structuredContent ?? aliceOwnRead), /MCP private secret/);
+    const bobOwnRead = await callMcpTool(h, {
+      name: "get_my_post", token: bobToken,
+      arguments: { identifier: privateDraft.data.post.publicId },
+    });
+    assert.equal(bobOwnRead.isError, true, "personal MCP must reject another user private article");
+    const bobMcpDraft = await callMcpTool(h, {
+      name: "create_my_draft", token: bobToken,
+      arguments: { title: "Bob own MCP draft", content_markdown: "# Bob private" },
+    });
+    assert.equal(bobMcpDraft.isError, undefined, JSON.stringify(bobMcpDraft));
+    const bobOwnList = await callMcpTool(h, { name: "list_my_posts", token: bobToken, arguments: {} });
+    assert.equal(bobOwnList.isError, undefined, JSON.stringify(bobOwnList));
+    assert.match(JSON.stringify(bobOwnList.structuredContent ?? bobOwnList), /Bob own MCP draft/);
+    assert.doesNotMatch(JSON.stringify(bobOwnList.structuredContent ?? bobOwnList), /Alice MCP private note/);
+    const oldWorkspaceTool = await callMcpTool(h, { name: "get_post", token: bobToken, arguments: { identifier: privateDraft.data.post.publicId } });
+    assert.equal(oldWorkspaceTool.isError, true, "registered users must not receive broad workspace article tools");
+    const oldPublishTool = await callMcpTool(h, { name: "publish_post", token: bobToken, arguments: { identifier: privateDraft.data.post.publicId, expected_version: 1 } });
+    assert.equal(oldPublishTool.isError, true, "registered users must not receive site publishing tools");
     const privateRead = await callMcpTool(h, {
       name: "get_public_post", token: bobToken,
       arguments: { public_id: privateDraft.data.post.publicId },
