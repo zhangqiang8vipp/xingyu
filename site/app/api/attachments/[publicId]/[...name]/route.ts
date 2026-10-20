@@ -4,18 +4,36 @@ import { mergeResponseHeaders } from "#domain/media/image-transform";
 import { getAttachment } from "@/db/attachments";
 import { previewTokenCanReadPost } from "@/db/post-preview-tokens";
 import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
+import { ensurePersonalWorkspace } from "@/db/workspace-access";
+import { scopedPost } from "@/db/workspace-content";
+import { identityFromRequest } from "@/server/auth/identity-session";
 
 const MAX_IMAGE_TRANSFORM_BYTES = 20 * 1024 * 1024;
 
 export async function GET(request: Request, { params }: { params: Promise<{ publicId: string; name: string[] }> }) {
   const { publicId } = await params;
   const attachment = await getAttachment(publicId);
-  if (!attachment || attachment.workspaceId !== 1) return new Response("Not found", { status: 404 });
+  if (!attachment) return new Response("Not found", { status: 404 });
 
-  const isPublic = attachment.postStatus === "published" && attachment.postSpaceId === null;
+  const admin = await isAdminRequest(request);
+  const isPublic = attachment.workspaceId === 1 && attachment.postStatus === "published" && attachment.postSpaceId === null;
   const previewToken = new URL(request.url).searchParams.get("preview") ?? "";
-  const canReadPreview = Boolean(attachment.postId && previewToken && await previewTokenCanReadPost(previewToken, attachment.postId));
-  if (!isPublic && !canReadPreview && !(await isAdminRequest(request))) return unauthorized();
+  const canReadPreview = Boolean(attachment.workspaceId === 1 && attachment.postId && previewToken && await previewTokenCanReadPost(previewToken, attachment.postId));
+  let canReadPersonal = false;
+  if (!admin && !isPublic) {
+    const user = await identityFromRequest(request);
+    if (user && user.userId !== 1) {
+      const workspaceId = await ensurePersonalWorkspace(user.userId);
+      if (attachment.workspaceId === workspaceId) {
+        if (attachment.postId === null) canReadPersonal = true;
+        else {
+          try { await scopedPost(user.userId, workspaceId, attachment.postId); canReadPersonal = true; }
+          catch { canReadPersonal = false; }
+        }
+      }
+    }
+  }
+  if (!isPublic && !canReadPreview && !admin && !canReadPersonal) return unauthorized();
 
   let object = await env.MEDIA.get(attachment.objectKey);
   if (!object) return new Response("Not found", { status: 404 });

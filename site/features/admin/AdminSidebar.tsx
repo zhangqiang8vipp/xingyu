@@ -22,6 +22,7 @@ const NAV_GROUPS: Array<{ id: string; label: string; items: NavItem[] }> = [
       { section: "browse", icon: "◉", label: "浏览", count: (stats) => stats.total + stats.privateArticles, dock: true },
       { section: "articles", icon: "▤", label: "文章", count: (stats) => stats.total, dock: true },
       { section: "spaces", icon: "◇", label: "知识空间", short: "空间", count: (stats) => stats.privateArticles, dock: true },
+      { section: "files", icon: "▧", label: "文件", short: "文件", dock: true },
     ],
   },
   {
@@ -95,6 +96,7 @@ export default function AdminSidebar({
   onSignOut,
   accountArea,
   isLegacyAdmin=false,
+  isPersonalAccount=false,
 }: {
   brandName: string;
   avatarUrl: string;
@@ -105,6 +107,7 @@ export default function AdminSidebar({
   categoryCount?: number;
   accountArea?: "workspace"|"organizations"|"ai-connections";
   isLegacyAdmin?: boolean;
+  isPersonalAccount?: boolean;
   collapsed: boolean;
   onSectionChange?: (section: AdminSection) => void;
   onToggle: () => void;
@@ -113,8 +116,9 @@ export default function AdminSidebar({
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const moreActive = !accountArea && MORE_SECTIONS.has(section??"browse");
-  const dockItems = NAV_GROUPS.flatMap((group) => group.items).filter((item) => item.dock);
-  const moreItems = NAV_GROUPS.flatMap((group) => group.items).filter((item) => !item.dock);
+  const visibleGroups = isPersonalAccount ? NAV_GROUPS.filter((group) => group.id !== "site") : NAV_GROUPS;
+  const dockItems = visibleGroups.flatMap((group) => group.items).filter((item) => item.dock);
+  const moreItems = visibleGroups.flatMap((group) => group.items).filter((item) => !item.dock);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -151,7 +155,7 @@ export default function AdminSidebar({
           className={accountArea===item.area?"selected":undefined}><span>{item.label}</span></Link>)}
         {isLegacyAdmin?<Link data-icon="⌂" href="/admin" title="原写作后台">
           <span>原写作后台</span></Link>:null}
-      </div> : NAV_GROUPS.map((group) => <div className="admin-nav-block" key={group.id}>
+      </div> : visibleGroups.map((group) => <div className="admin-nav-block" key={group.id}>
         <div className="admin-nav-group">{group.label}</div>
         {group.items.map((item) => <NavButton
           key={item.section}
@@ -201,10 +205,10 @@ export default function AdminSidebar({
       </nav>
       </>}
     </div>
-    <div className="admin-user">{accountArea
+    <div className="admin-user">{accountArea || isPersonalAccount
       ? <span aria-hidden="true">{userName.trim().slice(0,1)||"星"}</span>
       : <img src={avatarUrl} alt={`${authorName}管理员`}/>}
-      <div><b>{userName}</b><small>{accountArea?"星屿账号":"管理员"}</small></div></div>
+      <div><b>{userName}</b><small>{accountArea?"星屿账号":isPersonalAccount?"个人账号":"管理员"}</small></div></div>
     <button className="admin-sidebar-collapse" type="button" onClick={onToggle} aria-expanded={!collapsed} aria-label={collapsed ? "展开管理栏" : "收起管理栏"} title={collapsed ? "展开管理栏" : "收起管理栏"}><span aria-hidden="true">{collapsed ? "›" : "‹"}</span></button>
   </aside>;
 }

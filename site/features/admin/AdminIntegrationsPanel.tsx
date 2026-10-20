@@ -23,9 +23,11 @@ const SCOPE_LABELS: Record<string, string> = {
 export default function AdminIntegrationsPanel({
   initial,
   initialActivation,
+  isPersonalAccount = false,
 }: {
   initial: AdminMcpConnection[];
   initialActivation: BetaActivationSignal;
+  isPersonalAccount?: boolean;
 }) {
   const [connections, setConnections] = useState(initial);
   const [activation, setActivation] = useState(initialActivation);
@@ -88,7 +90,7 @@ export default function AdminIntegrationsPanel({
     <div className="config-form activation-config">
       <PersonalTokensPanel />
       <ClientSetupGuide />
-      <section className="editor-section activation-overview">
+      {!isPersonalAccount&&<section className="editor-section activation-overview">
         <div className="activation-hero">
           <div>
             <small>{activation.activated ? "FIRST VALUE" : "NEXT STEP"}</small>
@@ -150,9 +152,9 @@ export default function AdminIntegrationsPanel({
             <em>这条记录来自知识空间写入；知识空间内容仍受私有边界保护。</em>
           </div>
         </article> : null}
-      </section>
+      </section>}
 
-      <section className="editor-section">
+      {!isPersonalAccount&&<section className="editor-section">
         <div className="editor-section-title"><span>02</span><div><b>连接详情</b><small>查看哪些 AI 当前还能访问星屿，也可以撤销单次连接</small></div></div>
         {connections.map((connection) => (
           <article className="integration-card" key={connection.id}>
@@ -178,8 +180,9 @@ export default function AdminIntegrationsPanel({
               </ul>}
           </article>
         ))}
-      </section>
-      <footer className="config-footer"><span>{message || "连接成功不等于激活；只有发生真实知识空间写入后，才会出现上方变更证明。"}</span></footer>
+      </section>}
+      {isPersonalAccount&&<section className="editor-section"><div className="editor-section-title"><span>02</span><div><b>个人连接</b><small>仅管理当前账号自己的访问令牌</small></div></div><p>这里沿用原后台的连接页面样式。个人令牌和客户端接入说明显示在上方；站点级连接、全站会话和撤销操作仅管理员可见。</p></section>}
+      <footer className="config-footer"><span>{message || (isPersonalAccount ? "个人连接与站点级连接分开管理，避免看到其他账号的授权数据。" : "连接成功不等于激活；只有发生真实知识空间写入后，才会出现上方变更证明。")}</span></footer>
     </div>
   </section>;
 }

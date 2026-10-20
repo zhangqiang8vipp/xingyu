@@ -1,9 +1,10 @@
 import { getContentPage } from "@/db/queries";
 import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 import { SiteContentError, upsertContentPage } from "@/db/site-content";
+import { identityFromRequest } from "@/server/auth/identity-session";
 
 export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
-  if (!(await isAdminRequest(request))) return unauthorized();
+  if (!(await isAdminRequest(request)) && !(await identityFromRequest(request))) return unauthorized();
   const { slug } = await params;
   const page = await getContentPage(slug);
   return page ? Response.json({ page }) : Response.json({ error: "页面不存在" }, { status: 404 });

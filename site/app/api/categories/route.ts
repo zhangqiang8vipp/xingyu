@@ -1,9 +1,10 @@
 import { getCategories } from "@/db/queries";
 import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 import { CategoryServiceError, createCategory } from "@/db/categories";
+import { identityFromRequest } from "@/server/auth/identity-session";
 
 export async function GET(request: Request) {
-  if (!(await isAdminRequest(request))) return unauthorized();
+  if (!(await isAdminRequest(request)) && !(await identityFromRequest(request))) return unauthorized();
   return Response.json({ categories: await getCategories() });
 }
 

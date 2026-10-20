@@ -5,6 +5,7 @@ import { ensureDatabase } from "./bootstrap";
 import { attachments, posts, attachmentCleanupQueue } from "./schema";
 import { removeAttachmentReference } from "@/domain/attachments/markdown-reference";
 import { cleanupFailedAttachmentUpload, enqueueAttachmentCleanup } from "./attachment-cleanup";
+import { workspaceGrant } from "./workspace-access";
 
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 export const MAX_MCP_ATTACHMENT_BYTES = 8 * 1024 * 1024;
@@ -185,11 +186,28 @@ export async function listPostAttachments(postId: number) {
     .orderBy(attachments.createdAt, attachments.id);
 }
 
-export async function deleteAttachment(publicId: string, expectedVersion?: number) {
+export async function deleteAttachment(
+  publicId: string,
+  expectedVersion?: number,
+  options?: { workspaceId?: number; actorUserId?: number },
+) {
   await ensureDatabase();
+  const workspaceId=options?.workspaceId??1;
+  const actorUserId=options?.actorUserId;
   const record = await getDb().select().from(attachments)
     .where(eq(attachments.publicId, publicId)).limit(1);
-  if (!record[0] || record[0].workspaceId !== 1) throw new AttachmentError("附件不存在或已经删除", 404);
+  if (!record[0] || record[0].workspaceId !== workspaceId) throw new AttachmentError("附件不存在或已经删除", 404);
+  if(workspaceId!==1){
+    if(!Number.isSafeInteger(actorUserId)||!actorUserId)throw new AttachmentError("附件不存在或已经删除",404);
+    try{await workspaceGrant(actorUserId,workspaceId,"write");}
+    catch{throw new AttachmentError("附件不存在或已经删除",404);}
+    if(record[0].postId!==null){
+      const owner=await env.DB.prepare(
+        "SELECT id FROM posts WHERE id=? AND workspace_id=? AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))",
+      ).bind(record[0].postId,workspaceId,actorUserId,actorUserId).first();
+      if(!owner)throw new AttachmentError("附件不存在或已经删除",404);
+    }
+  }
 
   let nextVersion: number | null = null;
   if (record[0].postId !== null) {
@@ -205,12 +223,12 @@ export async function deleteAttachment(publicId: string, expectedVersion?: numbe
       const markdown = attachmentMarkdown(record[0]);
       const content = removeAttachmentReference(post[0].content, { url: attachmentUrl(record[0]), markdown });
       const result = await env.DB.batch([
-        env.DB.prepare(`DELETE FROM attachments WHERE public_id = ? AND post_id = ?
-          AND EXISTS (SELECT 1 FROM posts WHERE id = ? AND version = ?)`)
-          .bind(publicId, record[0].postId, record[0].postId, expectedVersion),
+        env.DB.prepare(`DELETE FROM attachments WHERE public_id = ? AND post_id = ? AND workspace_id = ?
+          AND EXISTS (SELECT 1 FROM posts WHERE id = ? AND version = ? AND workspace_id = ?)`)
+          .bind(publicId, record[0].postId, workspaceId, record[0].postId, expectedVersion, workspaceId),
         env.DB.prepare(`UPDATE posts SET content = ?, updated_at = ?, version = version + 1
-          WHERE id = ? AND version = ? AND changes() = 1`)
-          .bind(content, new Date().toISOString(), record[0].postId, expectedVersion),
+          WHERE id = ? AND version = ? AND workspace_id = ? AND changes() = 1`)
+          .bind(content, new Date().toISOString(), record[0].postId, expectedVersion, workspaceId),
         env.DB.prepare("SELECT changes() AS changed"),
       ]);
       const changed = result[2]?.results?.[0] as { changed?: number } | undefined;
@@ -220,9 +238,9 @@ export async function deleteAttachment(publicId: string, expectedVersion?: numbe
       nextVersion = expectedVersion + 1;
     } else {
       const result = await env.DB.batch([
-        env.DB.prepare(`DELETE FROM attachments WHERE public_id = ? AND post_id = ?
-          AND NOT EXISTS (SELECT 1 FROM posts WHERE id = ?)`)
-          .bind(publicId, record[0].postId, record[0].postId),
+        env.DB.prepare(`DELETE FROM attachments WHERE public_id = ? AND post_id = ? AND workspace_id = ?
+          AND NOT EXISTS (SELECT 1 FROM posts WHERE id = ? AND workspace_id = ?)`)
+          .bind(publicId, record[0].postId, workspaceId, record[0].postId, workspaceId),
         env.DB.prepare("SELECT changes() AS changed"),
       ]);
       const changed = result[1]?.results?.[0] as { changed?: number } | undefined;
@@ -232,7 +250,7 @@ export async function deleteAttachment(publicId: string, expectedVersion?: numbe
     }
   } else {
     const result = await env.DB.batch([
-      env.DB.prepare("DELETE FROM attachments WHERE public_id = ? AND post_id IS NULL").bind(publicId),
+      env.DB.prepare("DELETE FROM attachments WHERE public_id = ? AND post_id IS NULL AND workspace_id = ?").bind(publicId,workspaceId),
       env.DB.prepare("SELECT changes() AS changed"),
     ]);
     const changed = result[1]?.results?.[0] as { changed?: number } | undefined;
@@ -243,8 +261,6 @@ export async function deleteAttachment(publicId: string, expectedVersion?: numbe
   try {
     await env.MEDIA.delete(record[0].objectKey);
   } catch (error) {
-    // The database row owns reachability. Once it is gone the object is private
-    // and can be reclaimed later without turning a successful delete into a retry.
     console.error(JSON.stringify({
       event: "attachment_object_cleanup_required", operation: "delete", publicId,
       objectKey: record[0].objectKey,
@@ -254,7 +270,6 @@ export async function deleteAttachment(publicId: string, expectedVersion?: numbe
   }
   return { ...record[0], version: nextVersion };
 }
-
 export async function listCleanupQueueItems(limit = 100) {
   await ensureDatabase();
   const rows = await getDb().select({

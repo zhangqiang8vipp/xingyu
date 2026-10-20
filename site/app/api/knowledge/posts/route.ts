@@ -67,6 +67,8 @@ export async function POST(request: Request) {
       title: body.title,
       content: typeof body.content_markdown === "string" ? body.content_markdown : "",
       excerpt: typeof body.excerpt === "string" ? body.excerpt : "",
+      category: typeof body.category === "string" ? body.category : undefined,
+      slug: typeof body.slug === "string" ? body.slug : undefined,
     }, "web:" + user.userId, "个人知识空间创建草稿");
     return apiJson({ post: { ...post, visibility: "personal", canEdit: true }, workspaceId }, 201);
   } catch (error) {

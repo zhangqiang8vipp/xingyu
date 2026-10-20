@@ -15,16 +15,19 @@ export type AdminSearchPost = {
   updatedAt:string;
   spaceId:number|null;
   spacePath:string|null;
+  visibility?:"personal"|"public";
 };
 
 export default function AdminArticleSearch({
   articleCount,
   onBrowse,
   disabled=false,
+  isPersonalAccount=false,
 }:{
   articleCount:number;
-  onBrowse:(postId:number)=>void;
+  onBrowse:(postId:number,publicId?:string)=>void;
   disabled?:boolean;
+  isPersonalAccount?:boolean;
 }){
   const [open,setOpen]=useState(false);
   const [query,setQuery]=useState("");
@@ -76,11 +79,27 @@ export default function AdminArticleSearch({
     const timer=window.setTimeout(async()=>{
       setLoading(true);
       try{
-        const params=new URLSearchParams({scope:"all",q:query,pageSize:"20",status:"all",category:"all"});
-        const response=await fetch(`/api/posts?${params}`,{signal:controller.signal});
-        if(!response.ok)return;
-        const data=await readApiJson<{rows:AdminSearchPost[]}>(response);
-        setRows(data.rows??[]);
+        if (isPersonalAccount) {
+          const suffix = "&q=" + encodeURIComponent(query);
+          const [mineResponse, publicResponse] = await Promise.all([
+            fetch("/api/knowledge/posts?type=mine&limit=50" + suffix, { signal: controller.signal, cache: "no-store" }),
+            fetch("/api/knowledge/posts?type=public&limit=50" + suffix, { signal: controller.signal, cache: "no-store" }),
+          ]);
+          if (!mineResponse.ok || !publicResponse.ok) return;
+          const [mineData, publicData] = await Promise.all([
+            readApiJson<{posts:Record<string,unknown>[]}>(mineResponse),
+            readApiJson<{posts:Record<string,unknown>[]}>(publicResponse),
+          ]);
+          const personal = (mineData.posts ?? []).map((post) => ({ id:Number(post.id), publicId:String(post.publicId), title:String(post.title), slug:String(post.slug), excerpt:String(post.excerpt??""), status:"draft" as const, categoryName:"个人文章", categoryColor:null, updatedAt:String(post.updatedAt??""), spaceId:Number(post.spaceId??0), spacePath:"个人知识空间", visibility:"personal" as const }));
+          const publicPosts = (publicData.posts ?? []).map((post) => ({ id:Number(post.id), publicId:String(post.publicId), title:String(post.title), slug:String(post.slug), excerpt:String(post.excerpt??""), status:"published" as const, categoryName:typeof post.categoryName==="string"?post.categoryName:null, categoryColor:typeof post.categoryColor==="string"?post.categoryColor:null, updatedAt:String(post.updatedAt??post.publishedAt??""), spaceId:null, spacePath:null, visibility:"public" as const }));
+          setRows([...personal, ...publicPosts].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).slice(0,20));
+        } else {
+          const params=new URLSearchParams({scope:"all",q:query,pageSize:"20",status:"all",category:"all"});
+          const response=await fetch(`/api/posts?${params}`,{signal:controller.signal});
+          if(!response.ok)return;
+          const data=await readApiJson<{rows:AdminSearchPost[]}>(response);
+          setRows(data.rows??[]);
+        }
         setActiveIndex(0);
       }catch(error){
         if(!(error instanceof DOMException&&error.name==="AbortError"))setRows([]);
@@ -89,7 +108,7 @@ export default function AdminArticleSearch({
       }
     },query?120:0);
     return()=>{window.clearTimeout(timer);controller.abort()};
-  },[open,query]);
+  },[open,query,isPersonalAccount]);
 
   useEffect(()=>{
     listRef.current?.querySelector<HTMLElement>(`[data-search-index="${activeIndex}"]`)
@@ -97,9 +116,9 @@ export default function AdminArticleSearch({
   },[activeIndex]);
 
   const close=()=>setOpen(false);
-  const browse=(postId:number)=>{
+  const browse=(postId:number,publicId?:string)=>{
     close();
-    onBrowse(postId);
+    onBrowse(postId,publicId);
   };
   const onKeyDown=(event:React.KeyboardEvent<HTMLInputElement>)=>{
     if(event.key==="Escape"){event.preventDefault();close();return}
@@ -117,7 +136,7 @@ export default function AdminArticleSearch({
     }
     if(event.key==="Enter"&&rows[activeIndex]){
       event.preventDefault();
-      browse(rows[activeIndex].id);
+      browse(rows[activeIndex].id,rows[activeIndex].publicId);
     }
   };
 
@@ -146,7 +165,7 @@ export default function AdminArticleSearch({
             className={index===activeIndex?"active":""}
             key={post.id}
             onMouseEnter={()=>setActiveIndex(index)}
-            onClick={()=>browse(post.id)}
+            onClick={()=>browse(post.id,post.publicId)}
           >
             <i style={{background:post.categoryColor??"#8e8e93"}}/>
             <span>

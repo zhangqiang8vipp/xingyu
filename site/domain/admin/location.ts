@@ -1,4 +1,4 @@
-export const ADMIN_SECTIONS=["browse","home","articles","spaces","connect","integrations","about","categories"] as const;
+export const ADMIN_SECTIONS=["browse","home","articles","spaces","files","connect","integrations","about","categories"] as const;
 
 export type AdminSection=typeof ADMIN_SECTIONS[number];
 export type AdminBrowseVisibility="all"|"public"|"private";

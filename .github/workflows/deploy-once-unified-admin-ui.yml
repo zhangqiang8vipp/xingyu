@@ -1,11 +1,11 @@
-name: One-time production deploy - personal portal
+name: One-time production deploy - unified admin UI
 
-# Temporary, marker-only production release. Remove this workflow and marker immediately after the run.
+# Temporary marker-only production release. Remove this workflow and marker after the run.
 on:
   push:
     branches: [main]
     paths:
-      - .deploy-once-personal-portal-20261020
+      - .deploy-once-unified-admin-ui-20261020
 
 permissions:
   contents: read
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify:
-    if: contains(github.event.head_commit.message, 'ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-ACL-20261020')
+    if: contains(github.event.head_commit.message, 'ONE-TIME-PRODUCTION-DEPLOY-UNIFIED-ADMIN-UI-20261020')
     name: Verify release candidate
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -29,7 +29,7 @@ jobs:
           persist-credentials: false
       - name: Verify one-time marker contents
         working-directory: .
-        run: test "$(cat .deploy-once-personal-portal-20261020)" = "ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-ACL-20261020"
+        run: test "$(cat .deploy-once-unified-admin-ui-20261020)" = "ONE-TIME-PRODUCTION-DEPLOY-UNIFIED-ADMIN-UI-20261020"
       - uses: actions/setup-node@v7
         with:
           node-version: 22.18.0
@@ -43,7 +43,7 @@ jobs:
         run: node scripts/verify-production-deploy.mjs config
 
   deploy:
-    if: contains(github.event.head_commit.message, 'ONE-TIME-PRODUCTION-DEPLOY-PERSONAL-PORTAL-ACL-20261020')
+    if: contains(github.event.head_commit.message, 'ONE-TIME-PRODUCTION-DEPLOY-UNIFIED-ADMIN-UI-20261020')
     name: Production approval and deployment
     needs: verify
     runs-on: ubuntu-latest
@@ -55,7 +55,7 @@ jobs:
       run:
         working-directory: site
     steps:
-      - name: Require explicit production opt-in and Cloudflare credentials
+      - name: Require production opt-in and Cloudflare credentials
         working-directory: .
         env:
           PRODUCTION_DEPLOY_ENABLED: ${{ vars.PRODUCTION_DEPLOY_ENABLED }}
@@ -63,11 +63,11 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           if [[ "$PRODUCTION_DEPLOY_ENABLED" != "true" ]]; then
-            echo "::error::Configure PRODUCTION_DEPLOY_ENABLED=true in the CLOUDFLARE GitHub Environment."
+            echo "::error::CLOUDFLARE environment must set PRODUCTION_DEPLOY_ENABLED=true."
             exit 1
           fi
           if [[ -z "$CF_API_TOKEN" || -z "$CF_ACCOUNT_ID" ]]; then
-            echo "::error::Configure CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID as CLOUDFLARE environment secrets."
+            echo "::error::CLOUDFLARE environment must contain both Cloudflare secrets."
             exit 1
           fi
       - uses: actions/checkout@v7
@@ -102,26 +102,15 @@ jobs:
         run: npm run deploy:production
       - name: Smoke test homepage, OAuth discovery and protected MCP
         run: |
-          curl --fail --silent --show-error --location \
-            --retry 5 --retry-all-errors --retry-delay 3 \
-            "https://zhangwansen.click/" -o /dev/null
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 3 "https://zhangwansen.click/" -o /dev/null
           confirmed=0
           for attempt in {1..12}; do
-            if curl --fail --silent --show-error \
-              "https://zhangwansen.click/.well-known/oauth-authorization-server" \
-              -o "$RUNNER_TEMP/xingyu-oauth-metadata.json" \
-              && node scripts/verify-production-deploy.mjs oauth "$RUNNER_TEMP/xingyu-oauth-metadata.json"; then
+            if curl --fail --silent --show-error "https://zhangwansen.click/.well-known/oauth-authorization-server" -o "$RUNNER_TEMP/xingyu-oauth-metadata.json" && node scripts/verify-production-deploy.mjs oauth "$RUNNER_TEMP/xingyu-oauth-metadata.json"; then
               confirmed=1
               break
             fi
             sleep 5
           done
-          if [[ "$confirmed" != "1" ]]; then
-            echo "::error::Production OAuth discovery failed after deploy."
-            exit 1
-          fi
+          if [[ "$confirmed" != "1" ]]; then echo "::error::Production OAuth discovery failed after deploy."; exit 1; fi
           status="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "https://zhangwansen.click/mcp")"
-          if [[ "$status" != "401" ]]; then
-            echo "::error::Unauthenticated production MCP must return 401, got $status."
-            exit 1
-          fi
+          if [[ "$status" != "401" ]]; then echo "::error::Unauthenticated production MCP must return 401, got $status."; exit 1; fi

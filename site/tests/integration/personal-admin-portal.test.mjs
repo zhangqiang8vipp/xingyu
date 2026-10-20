@@ -129,6 +129,17 @@ test("personal knowledge portal isolates private articles and only exposes publi
     assert.equal(updated.status, 200, JSON.stringify(updated.data));
     assert.equal(updated.data.post.title, "Alice private note updated");
     assert.equal(updated.data.post.visibility, "personal");
+
+    const deniedDelete = await api(h, "/api/knowledge/posts/" + privateId, {
+      method: "DELETE", cookie: bob.cookie, body: { expected_version: 2 },
+    });
+    assert.equal(deniedDelete.status, 404, "another account cannot delete a private article");
+
+    const deleted = await api(h, "/api/knowledge/posts/" + privateId, {
+      method: "DELETE", cookie: alice.cookie, body: { expected_version: 2 },
+    });
+    assert.equal(deleted.status, 200, JSON.stringify(deleted.data));
+    assert.equal(deleted.data.ok, true);
   } finally {
     await closeTestHarness(h);
   }
@@ -197,6 +208,120 @@ test("authenticated MCP exposes public read and organization structure tools wit
     assert.equal(aliceOrgs.isError, undefined, JSON.stringify(aliceOrgs));
     assert.doesNotMatch(JSON.stringify(aliceOrgs.structuredContent ?? aliceOrgs), /Bob MCP Organization/,
       "organization listings must be scoped to the authenticated user");
+  } finally {
+    await closeTestHarness(h);
+  }
+});
+
+
+test("all signed-in accounts reuse the admin APIs while site mutations remain admin-only", async () => {
+  const h = await openTestHarness();
+  try {
+    const alice = await makeActiveUser(h, "shared-admin-alice");
+    const bob = await makeActiveUser(h, "shared-admin-bob");
+
+    const settings = await api(h, "/api/settings", { cookie: alice.cookie });
+    assert.equal(settings.status, 200, JSON.stringify(settings.data));
+    const beforeBrand = settings.data.settings.brandName;
+    const deniedSettings = await api(h, "/api/settings", {
+      method: "PATCH", cookie: alice.cookie, body: { brandName: "Unauthorized edit" },
+    });
+    assert.equal(deniedSettings.status, 401, "site settings are read-only for personal accounts");
+    const afterSettings = await api(h, "/api/settings", { cookie: alice.cookie });
+    assert.equal(afterSettings.data.settings.brandName, beforeBrand);
+
+    const about = await api(h, "/api/pages/about", { cookie: alice.cookie });
+    assert.equal(about.status, 200, JSON.stringify(about.data));
+    const deniedPage = await api(h, "/api/pages/about", {
+      method: "PATCH", cookie: alice.cookie, body: { title: "Unauthorized page edit" },
+    });
+    assert.equal(deniedPage.status, 401, "site page mutations are admin-only");
+
+    const categories = await api(h, "/api/categories", { cookie: alice.cookie });
+    assert.equal(categories.status, 200, JSON.stringify(categories.data));
+    const deniedCategory = await api(h, "/api/categories", {
+      method: "POST", cookie: alice.cookie, body: { name: "Unauthorized category" },
+    });
+    assert.equal(deniedCategory.status, 401, "site taxonomy mutations are admin-only");
+
+    const roots = await api(h, "/api/spaces?parent=root", { cookie: alice.cookie });
+    assert.equal(roots.status, 200, JSON.stringify(roots.data));
+    assert.ok(roots.data.spaces.length > 0, "the original knowledge-space navigation remains available");
+    const created = await api(h, "/api/spaces", {
+      method: "POST", cookie: alice.cookie, body: { name: "Alice Admin UI space" },
+    });
+    assert.equal(created.status, 201, JSON.stringify(created.data));
+    const spaceId = created.data.space.id;
+    assert.equal((await api(h, "/api/spaces/" + spaceId, { cookie: alice.cookie })).status, 200);
+    assert.equal((await api(h, "/api/spaces/" + spaceId, { cookie: bob.cookie })).status, 404,
+      "the same admin-style space UI must not reveal another account's private spaces");
+    const posts = await api(h, "/api/spaces/" + spaceId + "/posts?scope=current", { cookie: alice.cookie });
+    assert.equal(posts.status, 200, JSON.stringify(posts.data));
+    const renamed = await api(h, "/api/spaces/" + spaceId, {
+      method: "PATCH", cookie: alice.cookie, body: { name: "Alice renamed space" },
+    });
+    assert.equal(renamed.status, 200, JSON.stringify(renamed.data));
+    assert.equal(renamed.data.space.name, "Alice renamed space");
+    const deleted = await api(h, "/api/spaces/" + spaceId, {
+      method: "DELETE", cookie: alice.cookie, body: { mode: "empty" },
+    });
+    assert.equal(deleted.status, 200, JSON.stringify(deleted.data));
+  } finally {
+    await closeTestHarness(h);
+  }
+});
+
+test("personal article attachments are editable by their owner and inaccessible to other accounts", async () => {
+  const h = await openTestHarness();
+  try {
+    const alice = await makeActiveUser(h, "attachment-owner");
+    const bob = await makeActiveUser(h, "attachment-other");
+    const created = await api(h, "/api/knowledge/posts", {
+      method: "POST", cookie: alice.cookie,
+      body: { title: "Attachment owner note", content_markdown: "# Private attachment" },
+    });
+    assert.equal(created.status, 201, JSON.stringify(created.data));
+
+    const boundary = "xingyu-test-boundary-1";
+    const multipart = [
+      `--${boundary}\r\n`,
+      'Content-Disposition: form-data; name="file"; filename="owner-note.txt"\r\n',
+      "Content-Type: text/plain\r\n\r\n",
+      "ABC\r\n",
+      `--${boundary}\r\n`,
+      'Content-Disposition: form-data; name="postId"\r\n\r\n',
+      String(created.data.post.id) + "\r\n",
+      `--${boundary}--\r\n`,
+    ].join("");
+    const uploadResponse = await h.dispatch(new URL("/api/attachments", h.origin).href, {
+      method: "POST",
+      headers: { origin: h.origin, cookie: alice.cookie, "content-type": "multipart/form-data; boundary=" + boundary },
+      body: multipart,
+    });
+    const uploadText = await uploadResponse.text();
+    assert.equal(uploadResponse.status, 201, "attachment upload should succeed: " + uploadText);
+    const upload = JSON.parse(uploadText);
+    assert.equal(upload.attachment.name, "owner-note.txt");
+
+    const list = await api(h, "/api/attachments?postId=" + created.data.post.id, { cookie: alice.cookie });
+    assert.equal(list.status, 200, JSON.stringify(list.data));
+    assert.ok(list.data.attachments.some(item => item.id === upload.attachment.id));
+
+    const filePath = new URL(upload.attachment.url, h.origin).pathname;
+    const ownerRead = await h.dispatch(new URL(filePath, h.origin).href, { headers: { origin: h.origin, cookie: alice.cookie } });
+    assert.equal(ownerRead.status, 200);
+    assert.equal(await ownerRead.text(), "ABC");
+    const otherRead = await h.dispatch(new URL(filePath, h.origin).href, { headers: { origin: h.origin, cookie: bob.cookie } });
+    assert.equal(otherRead.status, 404, "another account cannot discover or download private attachment bytes");
+
+    const deniedDelete = await api(h, "/api/attachments/" + upload.attachment.id, {
+      method: "DELETE", cookie: bob.cookie, body: { version: 1 },
+    });
+    assert.equal(deniedDelete.status, 404);
+    const deleted = await api(h, "/api/attachments/" + upload.attachment.id, {
+      method: "DELETE", cookie: alice.cookie, body: { version: 1 },
+    });
+    assert.equal(deleted.status, 200, JSON.stringify(deleted.data));
   } finally {
     await closeTestHarness(h);
   }

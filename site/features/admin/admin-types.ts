@@ -54,6 +54,8 @@ export type AdminPost={
   spaceId:number|null;
   sortOrder?:number;
   spacePath:string|null;
+  visibility?:"personal"|"public"|"private";
+  canEdit?:boolean;
 };
 
 export type ArticleForm={
@@ -71,4 +73,5 @@ export type ArticleForm={
   status:"draft"|"published";
   featured:boolean;
   publishedAt?:string|null;
+  visibility?:"personal"|"public";
 };

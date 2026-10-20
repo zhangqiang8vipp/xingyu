@@ -35,6 +35,7 @@ export default function AdminArticleEditor({
   onOpenStudio,
   onSharePreview,
   onSave,
+  isPersonalAccount = false,
 }:{
   form:ArticleForm;
   category?:AdminCategory;
@@ -48,6 +49,7 @@ export default function AdminArticleEditor({
   onOpenStudio:(mode:"split"|"reading")=>void;
   onSharePreview?:()=>void;
   onSave:()=>Promise<void>;
+  isPersonalAccount?:boolean;
 }){
   const [slugCopied,setSlugCopied]=useState(false);
   function submit(event:FormEvent){
@@ -58,8 +60,8 @@ export default function AdminArticleEditor({
   return <div className="editor-backdrop" onMouseDown={(event)=>event.target===event.currentTarget&&onClose()}>
     <form className="editor-panel" onSubmit={submit} onKeyDown={(event)=>{if((event.metaKey||event.ctrlKey)&&event.key==="Enter")event.currentTarget.requestSubmit()}}>
       <header className="editor-header">
-        <div><small>{form.id?`EDITING · ARTICLE ${form.id}`:"COMPOSE · NEW ARTICLE"}</small><h2>{form.id?"编辑文章":"写一篇新文章"}</h2><p>编辑内容、检查链接，然后发布到{settings.brandName}。</p></div>
-        <div className="editor-header-actions"><button className="editor-preview-button" type="button" onClick={()=>onOpenStudio("reading")}>即时预览 <b>↗</b></button>{form.id&&onSharePreview&&<button className="editor-share-button" type="button" onClick={onSharePreview}>邀请预览 <b>◇</b></button>}<span className={`editor-state ${form.status}`}>{form.status==="published"?(form.spaceId?"内容完成":"已发布"):"草稿"}</span><button type="button" aria-label="关闭编辑器" onClick={onClose}>×</button></div>
+        <div><small>{form.id?`EDITING · ARTICLE ${form.id}`:"COMPOSE · NEW ARTICLE"}</small><h2>{form.id?"编辑文章":"写一篇新文章"}</h2><p>{isPersonalAccount ? "编辑自己的内容并保存到个人知识空间；不会发布到公开站点。" : `编辑内容、检查链接，然后发布到${settings.brandName}。`}</p></div>
+        <div className="editor-header-actions"><button className="editor-preview-button" type="button" onClick={()=>onOpenStudio("reading")}>即时预览 <b>↗</b></button>{form.id&&onSharePreview&&<button className="editor-share-button" type="button" onClick={onSharePreview}>邀请预览 <b>◇</b></button>}<span className={`editor-state ${form.status}`}>{isPersonalAccount ? "仅自己可见" : form.status==="published"?(form.spaceId?"内容完成":"已发布"):"草稿"}</span><button type="button" aria-label="关闭编辑器" onClick={onClose}>×</button></div>
       </header>
 
       <div className="editor-form-body">
@@ -67,12 +69,12 @@ export default function AdminArticleEditor({
           <div className="editor-section-title"><span>01</span><div><b>文章信息</b><small>标题、链接与首页摘要</small></div></div>
           <label className="title-field">文章标题<input required value={form.title} onChange={(event)=>onChange({...form,title:event.target.value})} placeholder="输入一个清晰、有吸引力的标题"/></label>
           <div className="form-row"><label>Slug<input value={form.slug} onChange={(event)=>{onChange({...form,slug:event.target.value});setSlugCopied(false)}} placeholder="留空将根据标题自动生成"/></label><label>分类<select value={form.categoryId} onChange={(event)=>onChange({...form,categoryId:Number(event.target.value)})}>{categories.map((item)=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div>
-          <label className="space-field">归属位置<AdminSpacePicker value={form.spaceId} path={form.spacePath} onChange={onChangeSpace}/></label>
+          {!isPersonalAccount && <label className="space-field">归属位置<AdminSpacePicker value={form.spaceId} path={form.spacePath} onChange={onChangeSpace}/></label>}
           <div className="slug-preview">
             <div className="slug-icon">↗</div>
-            <div className="slug-copy"><small>{form.spaceId?"私有知识文章 · 仅管理员与 MCP 可检索":"文章访问地址 · 永久 ID"}</small><p>{form.spaceId?<><span>知识空间</span><i>/</i><b>{form.spacePath||"已选空间"}</b></>:<><span>{settings.brandName}</span><i>/</i><span>posts</span><i>/</i>{form.publicId&&<><span>{form.publicId.slice(0,8)}…</span><i>/</i></>}<b>{slugPreview(form.slug||form.title)}</b></>}</p></div>
+            <div className="slug-copy"><small>{isPersonalAccount ? "个人知识空间 · 仅自己可见" : form.spaceId?"私有知识文章 · 仅管理员与 MCP 可检索":"文章访问地址 · 永久 ID"}</small><p>{isPersonalAccount ? <><span>个人知识空间</span><i>/</i><b>{form.publicId ? form.publicId.slice(0,8)+"…" : "新文章"}</b></> : form.spaceId?<><span>知识空间</span><i>/</i><b>{form.spacePath||"已选空间"}</b></>:<><span>{settings.brandName}</span><i>/</i><span>posts</span><i>/</i>{form.publicId&&<><span>{form.publicId.slice(0,8)}…</span><i>/</i></>}<b>{slugPreview(form.slug||form.title)}</b></>}</p></div>
             <span className="slug-category" style={{color:category?.color}}>{form.spaceId?"私有":category?.name??"随笔"}</span>
-            {!form.spaceId&&<button type="button" onClick={async()=>{const slug=slugPreview(form.slug||form.title);const path=form.publicId?postPath({publicId:form.publicId,slug}):`/posts/${slug}`;await navigator.clipboard.writeText(`${window.location.origin}${path}`);setSlugCopied(true)}}>{slugCopied?"已复制":"复制链接"}</button>}
+            {!isPersonalAccount&&!form.spaceId&&<button type="button" onClick={async()=>{const slug=slugPreview(form.slug||form.title);const path=form.publicId?postPath({publicId:form.publicId,slug}):`/posts/${slug}`;await navigator.clipboard.writeText(`${window.location.origin}${path}`);setSlugCopied(true)}}>{slugCopied?"已复制":"复制链接"}</button>}
           </div>
           <label>文章摘要<textarea rows={3} value={form.excerpt} onChange={(event)=>onChange({...form,excerpt:event.target.value})} placeholder="用一两句话告诉读者这篇文章讲什么"/></label>
         </section>
@@ -86,15 +88,15 @@ export default function AdminArticleEditor({
         </section>
 
         <section className="editor-section publish-section">
-          <div className="editor-section-title"><span>03</span><div><b>发布设置</b><small>决定文章如何出现在前台</small></div></div>
-          <div className="form-row"><label>{form.spaceId?"内容状态":"发布状态"}<select value={form.status} onChange={(event)=>onChange({...form,status:event.target.value as ArticleForm["status"]})}><option value="draft">保存为草稿</option><option value="published">{form.spaceId?"标记为内容完成":"立即发布"}</option></select></label><label>发布时间<input type="datetime-local" value={toLocalDateTime(form.publishedAt)} onChange={(event)=>onChange({...form,publishedAt:event.target.value?new Date(event.target.value).toISOString():null})}/></label></div>
+          <div className="editor-section-title"><span>03</span><div><b>{isPersonalAccount ? "保存设置" : "发布设置"}</b><small>{isPersonalAccount ? "个人内容始终私密，不会进入公开首页" : "决定文章如何出现在前台"}</small></div></div>
+          {isPersonalAccount ? <p>保存后只有你可以编辑；其他账号只能读取公开文章。</p> : <><div className="form-row"><label>{form.spaceId?"内容状态":"发布状态"}<select value={form.status} onChange={(event)=>onChange({...form,status:event.target.value as ArticleForm["status"]})}><option value="draft">保存为草稿</option><option value="published">{form.spaceId?"标记为内容完成":"立即发布"}</option></select></label><label>发布时间<input type="datetime-local" value={toLocalDateTime(form.publishedAt)} onChange={(event)=>onChange({...form,publishedAt:event.target.value?new Date(event.target.value).toISOString():null})}/></label></div>
           {form.spaceId&&<label>浏览顺序（仅与本空间直属文章比较，数字越小越靠前）<input type="number" step="1" value={form.sortOrder??0} onChange={(event)=>onChange({...form,sortOrder:Number(event.target.value)})}/></label>}
-          {!form.spaceId&&<label className="check"><input type="checkbox" checked={form.featured} onChange={(event)=>onChange({...form,featured:event.target.checked})}/><span><b>设为精选文章</b><small>优先展示在首页首张大卡片</small></span></label>}
+          {!form.spaceId&&<label className="check"><input type="checkbox" checked={form.featured} onChange={(event)=>onChange({...form,featured:event.target.checked})}/><span><b>设为精选文章</b><small>优先展示在首页首张大卡片</small></span></label>}</>}
         </section>
         {message&&<p className="form-message">{message}</p>}
       </div>
 
-      <footer className="editor-footer"><span>⌘ Enter 快速保存</span><div><button type="button" onClick={onClose}>取消</button><button className="save-button" type="submit">{form.spaceId?(form.status==="published"?"保存完成内容":"保存空间草稿"):form.status==="published"?"保存并发布":"保存草稿"}<i>→</i></button></div></footer>
+      <footer className="editor-footer"><span>⌘ Enter 快速保存</span><div><button type="button" onClick={onClose}>取消</button><button className="save-button" type="submit">{isPersonalAccount ? "保存到个人知识空间" : form.spaceId?(form.status==="published"?"保存完成内容":"保存空间草稿"):form.status==="published"?"保存并发布":"保存草稿"}<i>→</i></button></div></footer>
     </form>
   </div>;
 }

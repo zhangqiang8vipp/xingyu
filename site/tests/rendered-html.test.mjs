@@ -525,7 +525,7 @@ test("admin global search covers every article through the shared authenticated 
   assert.match(search,/metaKey\|\|event\.ctrlKey/);
   assert.match(search,/ArrowDown/);
   assert.match(search,/ArrowUp/);
-  assert.match(search,/onBrowse\(postId\)/);
+  assert.match(search,/onBrowse\(postId,publicId\)/);
   assert.match(postsApi,/scope === "all" \? "all"/);
   assert.match(admin,/xingyu:admin-reader-open/);
   assert.match(admin,/controllerOnly readerScope="admin"/);

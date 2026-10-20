@@ -122,17 +122,20 @@ export async function scopedPosts(userId:number,workspaceId:number,query="",limi
   const visible=await accessibleSpaceIds(userId,workspaceId);
   if(visible!==null&&visible.length===0)return [];
   const size=Math.min(50,Math.max(1,limit));
-  const guard=visible===null?"":" AND space_id IN ("+visible.map(()=>"?").join(",")+")";
-  const ownerGuard=userId===1?"":" AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))";
+  const guard=visible===null?"":" AND p.space_id IN ("+visible.map(()=>"?").join(",")+")";
+  const ownerGuard=userId===1?"":" AND (p.author_id=? OR p.created_by=? OR (p.author_id IS NULL AND p.created_by IS NULL))";
   const ownerArgs=userId===1?[]:[userId,userId];
-  const where=" WHERE workspace_id=?"+ownerGuard+guard+(spaceId===undefined?"":" AND space_id IS ?")+
-    (status==="all"?"":" AND status=?")+(query?" AND (title LIKE ? ESCAPE '\\' OR excerpt LIKE ? ESCAPE '\\')":"");
+  const where=" WHERE p.workspace_id=?"+ownerGuard+guard+(spaceId===undefined?"":" AND p.space_id IS ?")+
+    (status==="all"?"":" AND p.status=?")+(query?" AND (p.title LIKE ? ESCAPE '\\' OR p.excerpt LIKE ? ESCAPE '\\')":"");
   const escaped=query.replace(/[\\%_]/g,c=>"\\"+c).slice(0,120);
   const args:unknown[]=[workspaceId,...ownerArgs,...(visible??[]),...(spaceId===undefined?[]:[spaceId]),...(status==="all"?[]:[status]),
     ...(query?["%"+escaped+"%","%"+escaped+"%"]:[])];
   const rows=await env.DB.prepare(
-    "SELECT id,public_id AS publicId,title,slug,excerpt,status,version,space_id AS spaceId,updated_at AS updatedAt "+
-    "FROM posts"+where+" ORDER BY updated_at DESC,id DESC LIMIT ?",
+    "SELECT p.id,p.public_id AS publicId,p.title,p.slug,p.excerpt,p.status,p.version,p.space_id AS spaceId,p.updated_at AS updatedAt,"+
+    "p.published_at AS publishedAt,p.view_count AS viewCount,p.featured,p.sort_order AS sortOrder,"+
+    "p.category_id AS categoryId,c.name AS categoryName,c.slug AS categorySlug,c.color AS categoryColor "+
+    "FROM posts p LEFT JOIN categories c ON c.id=p.category_id AND c.workspace_id=p.workspace_id"+where+
+    " ORDER BY p.updated_at DESC,p.id DESC LIMIT ?",
   ).bind(...args,size).all();
   return rows.results??[];
 }
@@ -236,6 +239,31 @@ export async function scopedStatusChange(userId:number,workspaceId:number,identi
   if(!results[0]?.results?.length)throw new WorkspaceContentError("版本冲突或权限已变化",409);
   return scopedPost(userId,workspaceId,post.id);
 }
+export async function scopedDeletePost(userId:number,workspaceId:number,identifier:string|number,expectedVersion:number) {
+  await workspaceGrant(userId,workspaceId,"write");
+  if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new WorkspaceContentError("缺少有效的文章版本，请刷新后再删除",409);
+  const post=await scopedPost(userId,workspaceId,identifier);
+  if(post.version!==expectedVersion)throw new WorkspaceContentError("文章已被其他编辑者更新，请刷新列表后再删除",409);
+  const ownerGuard=userId===1?"":" AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))";
+  const ownerArgs=userId===1?[]:[userId,userId];
+  const currentPost="EXISTS (SELECT 1 FROM posts WHERE id=? AND workspace_id=? AND version=?"+ownerGuard+")";
+  const guarded=(table:string)=>env.DB.prepare("DELETE FROM "+table+" WHERE post_id=? AND "+currentPost)
+    .bind(post.id,post.id,workspaceId,expectedVersion,...ownerArgs);
+  const statements=[
+    guarded("post_slug_history"),
+    guarded("post_views"),
+    guarded("post_preview_tokens"),
+    env.DB.prepare("UPDATE attachments SET post_id=NULL,unbound_at=CURRENT_TIMESTAMP WHERE post_id=? AND "+currentPost)
+      .bind(post.id,post.id,workspaceId,expectedVersion,...ownerArgs),
+    env.DB.prepare("DELETE FROM posts WHERE id=? AND workspace_id=? AND version=?"+ownerGuard)
+      .bind(post.id,workspaceId,expectedVersion,...ownerArgs),
+    env.DB.prepare("SELECT changes() AS changed"),
+  ];
+  const result=await env.DB.batch(statements);
+  const deleted=result[5]?.results?.[0] as {changed?:number}|undefined;
+  if(Number(deleted?.changed??0)!==1)throw new WorkspaceContentError("文章已被其他编辑者更新，请刷新列表后再删除",409);
+}
+
 export async function scopedActivity(userId:number,workspaceId:number,limit=20) {
   await workspaceGrant(userId,workspaceId);
   const permitted=await accessibleSpaceIds(userId,workspaceId);
