@@ -32,9 +32,11 @@ test("PAT: unique, scoped, permanent or expiring, user-owned and individually re
     assert.equal(list.length,2);
     assert.ok(!JSON.stringify(list).includes(forever.token));
     assert.equal((await (await jsonRequest(h,"/api/identity/tokens",{cookie:bob.cookie})).json()).tokens.length,0);
-    const tools=await callMcpTool(h,{name:"list_workspaces",token:forever.token,arguments:{}});
+    const tools=await callMcpTool(h,{name:"list_my_posts",token:forever.token,arguments:{}});
     assert.equal(tools.isError,undefined,JSON.stringify(tools.structuredContent));
-    assert.deepEqual(tools.structuredContent.workspaces.map(w=>w.id),[alice.workspaceId]);
+    assert.deepEqual(tools.structuredContent.posts,[],"read-only PAT sees only the caller personal article list");
+    const broad=await callMcpTool(h,{name:"get_post",token:forever.token,arguments:{identifier:"any-other-article"}});
+    assert.equal(broad.isError,true,"registered PATs must not receive broad workspace read tools");
     const forb=await jsonRequest(h,"/api/identity/tokens",{
       method:"DELETE",cookie:bob.cookie,body:{id:forever.id},
     });

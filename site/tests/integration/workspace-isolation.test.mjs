@@ -15,7 +15,7 @@ async function tokenFor(harness,userId,scopes="xingyu.read xingyu.draft xingyu.p
   ).bind(normHash(bearer),"chatgpt-xingyu","user:"+userId,harness.origin+"/mcp",scopes,now+3600).run();
   return bearer;
 }
-test("two users stay isolated in web and OAuth MCP workspaces",async()=>{
+test("two users stay isolated in web and owner-scoped MCP personal knowledge",async()=>{
   const harness=await openTestHarness();
   try{
     const a=await makeUser(harness,"alice");
@@ -100,53 +100,24 @@ test("two users stay isolated in web and OAuth MCP workspaces",async()=>{
     assert.equal(oldPublic.status,404,"personal notes cannot be reached by public URLs");
     const aToken=await tokenFor(harness,a.id);
     const bToken=await tokenFor(harness,b.id);
-    const aSpaces=await callMcpTool(harness,{name:"list_workspaces",token:aToken,arguments:{}});
-    assert.equal(aSpaces.isError,undefined,JSON.stringify(aSpaces.structuredContent));
-    assert.equal(aSpaces.structuredContent.workspaces.length,1);
-    assert.equal(aSpaces.structuredContent.workspaces[0].id,a.workspaceId);
+    const aList=await callMcpTool(harness,{name:"list_my_posts",token:aToken,arguments:{query:"Alice private research"}});
+    assert.equal(aList.isError,undefined,JSON.stringify(aList.structuredContent));
+    assert.equal(aList.structuredContent.posts.length,1);
+    assert.equal(aList.structuredContent.posts[0].publicId,article.publicId);
+    assert.equal(aList.structuredContent.posts[0].visibility,"personal");
 
-    const bForbidden=await callMcpTool(harness,{
-      name:"get_post",token:bToken,arguments:{
-        workspace_id:a.workspaceId,identifier:article.publicId,view:"content",
-      },
-    });
-    assert.equal(bForbidden.isError,true,"MCP token cannot select another user's workspace");
-    const bHidden=await callMcpTool(harness,{
-      name:"get_post",token:bToken,arguments:{
-        workspace_id:b.workspaceId,identifier:article.publicId,view:"content",
-      },
-    });
-    assert.equal(bHidden.isError,true,"article ID should not authorize cross-workspace content reads");
+    const bForbidden=await callMcpTool(harness,{name:"get_my_post",token:bToken,arguments:{identifier:article.publicId}});
+    assert.equal(bForbidden.isError,true,"MCP token cannot select another user private article");
 
-    const publishedSearch=await callMcpTool(harness,{
-      name:"search_posts",token:aToken,arguments:{
-        workspace_id:a.workspaceId,query:"Alice private research",status:"published",
-      },
-    });
-    assert.equal(publishedSearch.isError,undefined,JSON.stringify(publishedSearch.structuredContent));
-    assert.equal(publishedSearch.structuredContent.posts.length,1);
-    assert.equal(publishedSearch.structuredContent.posts[0].public_id,article.publicId);
-    const draftSearch=await callMcpTool(harness,{
-      name:"search_posts",token:aToken,arguments:{
-        workspace_id:a.workspaceId,query:"Alice private research",status:"draft",
-      },
-    });
-    assert.deepEqual(draftSearch.structuredContent.posts,[],"MCP status filter executes inside workspace SQL");
-    const aRead=await callMcpTool(harness,{
-      name:"get_post",token:aToken,arguments:{
-        workspace_id:a.workspaceId,identifier:article.publicId,view:"content",
-      },
-    });
+    const aRead=await callMcpTool(harness,{name:"get_my_post",token:aToken,arguments:{identifier:article.publicId}});
     assert.equal(aRead.isError,undefined,JSON.stringify(aRead.structuredContent));
     assert.match(aRead.structuredContent.post.content_markdown,/Alice confidential notes/);
 
-    const bWrite=await callMcpTool(harness,{
-      name:"create_draft",token:bToken,arguments:{
-        workspace_id:a.workspaceId,title:"Cross user write",content_markdown:"should not persist",
-      },
-    });
-    assert.equal(bWrite.isError,true,"MCP write must re-check workspace membership");
-    const count=await harness.db.prepare("SELECT COUNT(*) AS n FROM posts WHERE title='Cross user write'").first();
+    const bWrite=await callMcpTool(harness,{name:"update_my_post",token:bToken,arguments:{
+      identifier:article.publicId,expected_version:article.version,title:"Cross user write",
+    }});
+    assert.equal(bWrite.isError,true,"MCP update must re-check article ownership");
+        const count=await harness.db.prepare("SELECT COUNT(*) AS n FROM posts WHERE title='Cross user write'").first();
     assert.equal(count.n,0);
   }finally{await closeTestHarness(harness);}
 });

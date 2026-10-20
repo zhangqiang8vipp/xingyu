@@ -49,8 +49,23 @@ test("personal knowledge portal isolates private articles and only exposes publi
     });
     assert.equal(created.status, 201, JSON.stringify(created.data));
     const privateId = created.data.post.publicId;
+    const workspaceId = created.data.workspaceId;
     const privateAttachment = "att_" + randomBytes(16).toString("hex");
     const publicAttachment = "att_" + randomBytes(16).toString("hex");
+    const collaboratorAttachment = "att_" + randomBytes(16).toString("hex");
+    const collaboratorPublicId = "BOB_IN_ALICE_WORKSPACE_" + randomUUID().replaceAll("-", "");
+    const privateCategory = await h.db.prepare("SELECT id FROM categories WHERE workspace_id=? ORDER BY id LIMIT 1").bind(workspaceId).first();
+    const privateSpace = await h.db.prepare("SELECT id FROM spaces WHERE workspace_id=? AND parent_id IS NULL ORDER BY id LIMIT 1").bind(workspaceId).first();
+    const collaboratorPost = await h.db.prepare(
+      "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,featured,author_id,created_by,updated_by) " +
+      "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+    ).bind(workspaceId, collaboratorPublicId, "Bob private in Alice workspace", "bob-private-" + randomUUID().slice(0, 8),
+      "collaborator secret", "# Bob secret", privateCategory.id, privateSpace.id, "draft", 0, bob.id, bob.id, bob.id).first();
+    await h.db.prepare(
+      "INSERT INTO attachments(workspace_id,public_id,post_id,object_key,original_name,content_type,size,sha256) VALUES(?,?,?,?,?,?,?,?)",
+    ).bind(workspaceId, collaboratorAttachment, collaboratorPost.id,
+      "attachments/ws" + workspaceId + "/2026/10/" + collaboratorAttachment + "/bob-secret.txt",
+      "bob-secret.txt", "text/plain", 10, hash("bob-secret")).run();
     await h.db.prepare(
       "INSERT INTO attachments(workspace_id,public_id,post_id,object_key,original_name,content_type,size,sha256) VALUES(?,?,?,?,?,?,?,?)",
     ).bind(created.data.workspaceId, privateAttachment, created.data.post.id,
@@ -64,6 +79,12 @@ test("personal knowledge portal isolates private articles and only exposes publi
     const aliceMine = await api(h, "/api/knowledge/posts?type=mine", { cookie: alice.cookie });
     assert.equal(aliceMine.status, 200);
     assert.ok(aliceMine.data.posts.some(post => post.publicId === privateId));
+    assert.equal(aliceMine.data.posts.some(post => post.publicId === collaboratorPublicId), false,
+      "workspace owner must not see another author private article");
+    assert.equal((await api(h, "/api/knowledge/posts/" + collaboratorPublicId, { cookie: alice.cookie })).status, 404,
+      "knowing a collaborator article ID must not bypass author isolation");
+    assert.equal((await api(h, "/api/workspaces/" + workspaceId + "/posts", { cookie: bob.cookie })).status, 404,
+      "a registered user cannot access another personal workspace through legacy APIs");
 
     const bobMine = await api(h, "/api/knowledge/posts?type=mine", { cookie: bob.cookie });
     assert.equal(bobMine.status, 200);
@@ -92,6 +113,8 @@ test("personal knowledge portal isolates private articles and only exposes publi
     assert.equal(aliceFiles.status, 200, JSON.stringify(aliceFiles.data));
     assert.ok(aliceFiles.data.files.some(file => file.id === privateAttachment && file.visibility === "personal"));
     assert.ok(aliceFiles.data.files.some(file => file.id === publicAttachment && file.visibility === "public"));
+    assert.equal(aliceFiles.data.files.some(file => file.id === collaboratorAttachment), false,
+      "the personal file list must exclude attachments belonging to another author");
 
     const deniedPublicEdit = await api(h, "/api/knowledge/posts/" + publicPost.publicId, {
       method: "PATCH", cookie: bob.cookie,
@@ -132,6 +155,30 @@ test("authenticated MCP exposes public read and organization structure tools wit
       body: { title: "Alice MCP private note", content_markdown: "# MCP private secret" },
     });
     assert.equal(privateDraft.status, 201);
+    const aliceOwnRead = await callMcpTool(h, {
+      name: "get_my_post", token: aliceToken,
+      arguments: { identifier: privateDraft.data.post.publicId },
+    });
+    assert.equal(aliceOwnRead.isError, undefined, JSON.stringify(aliceOwnRead));
+    assert.match(JSON.stringify(aliceOwnRead.structuredContent ?? aliceOwnRead), /MCP private secret/);
+    const bobOwnRead = await callMcpTool(h, {
+      name: "get_my_post", token: bobToken,
+      arguments: { identifier: privateDraft.data.post.publicId },
+    });
+    assert.equal(bobOwnRead.isError, true, "personal MCP must reject another user private article");
+    const bobMcpDraft = await callMcpTool(h, {
+      name: "create_my_draft", token: bobToken,
+      arguments: { title: "Bob own MCP draft", content_markdown: "# Bob private" },
+    });
+    assert.equal(bobMcpDraft.isError, undefined, JSON.stringify(bobMcpDraft));
+    const bobOwnList = await callMcpTool(h, { name: "list_my_posts", token: bobToken, arguments: {} });
+    assert.equal(bobOwnList.isError, undefined, JSON.stringify(bobOwnList));
+    assert.match(JSON.stringify(bobOwnList.structuredContent ?? bobOwnList), /Bob own MCP draft/);
+    assert.doesNotMatch(JSON.stringify(bobOwnList.structuredContent ?? bobOwnList), /Alice MCP private note/);
+    const oldWorkspaceTool = await callMcpTool(h, { name: "get_post", token: bobToken, arguments: { identifier: privateDraft.data.post.publicId } });
+    assert.equal(oldWorkspaceTool.isError, true, "registered users must not receive broad workspace article tools");
+    const oldPublishTool = await callMcpTool(h, { name: "publish_post", token: bobToken, arguments: { identifier: privateDraft.data.post.publicId, expected_version: 1 } });
+    assert.equal(oldPublishTool.isError, true, "registered users must not receive site publishing tools");
     const privateRead = await callMcpTool(h, {
       name: "get_public_post", token: bobToken,
       arguments: { public_id: privateDraft.data.post.publicId },

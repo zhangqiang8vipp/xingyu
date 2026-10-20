@@ -35,8 +35,8 @@ export async function listUserWorkspaces(userId: number): Promise<WorkspaceGrant
     "SELECT id,name,kind,role FROM (SELECT w.id,w.name,w.kind,g.role,ROW_NUMBER() OVER "+
     "(PARTITION BY w.id ORDER BY CASE g.role WHEN 'owner' THEN 4 WHEN 'admin' THEN 3 WHEN 'editor' THEN 2 ELSE 1 END DESC) AS rank "+
     "FROM workspace_effective_grants g JOIN workspaces w ON w.id=g.workspace_id "+
-    "WHERE g.user_id=?) WHERE rank=1 ORDER BY id",
-  ).bind(userId).all<WorkspaceGrant>();
+    "WHERE g.user_id=? AND (?=1 OR (w.kind='personal' AND w.owner_user_id=?))) WHERE rank=1 ORDER BY id",
+  ).bind(userId,userId,userId).all<WorkspaceGrant>();
   return result.results ?? [];
 }
 
@@ -46,8 +46,9 @@ export async function workspaceGrant(userId: number, workspaceId: number, action
   const item = await env.DB.prepare(
     "SELECT w.id,w.name,w.kind,g.role FROM workspace_effective_grants g "+
     "JOIN workspaces w ON w.id=g.workspace_id WHERE w.id=? AND g.user_id=? "+
+    "AND (?=1 OR (w.kind='personal' AND w.owner_user_id=?)) "+
     "ORDER BY CASE g.role WHEN 'owner' THEN 4 WHEN 'admin' THEN 3 WHEN 'editor' THEN 2 ELSE 1 END DESC LIMIT 1",
-  ).bind(workspaceId,userId).first<WorkspaceGrant>();
+  ).bind(workspaceId,userId,userId,userId).first<WorkspaceGrant>();
   if (!item) throw new WorkspaceAccessError();
   if (action === "write" && item.role === "viewer") throw new WorkspaceAccessError("没有工作区写入权限",403);
   if (action === "manage" && item.role !== "owner" && item.role !== "admin") throw new WorkspaceAccessError("没有工作区管理权限",403);
