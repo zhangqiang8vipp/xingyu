@@ -5,8 +5,7 @@ import { handleBlogMcpRequest, isBlogMcpPath } from "./blog-mcp";
 import { handleWorkspaceUpload } from "@/server/workspace-upload";
 import { handleAttachmentUpload } from "@/server/attachment-upload";
 import { identityFromRequest } from "@/server/auth/identity-session";
-import { requestHasAdminSession } from "@/db/admin-session";
-import { isPasswordLoginConfigured, isLegacyAdminPasswordAllowed } from "@/server/auth/admin-auth";
+import { adminRuntimeEnv, requestHasAdminSession, validSessionSecret } from "@/db/admin-session";
 import { handleOAuthRequest, isOAuthPath } from "./oauth";
 import { enqueueExpiredUnboundAttachments, UNBOUND_ATTACHMENT_RETENTION_DAYS } from "@/db/attachment-cleanup";
 import { cleanupExpiredPostViews, POST_VIEWS_RETENTION_DAYS } from "@/db/view-tracking";
@@ -140,8 +139,17 @@ const worker = {
     const attachmentUploadRoute = request.method === "POST" && url.pathname === "/api/attachments"
       && (request.headers.get("content-type")?.toLowerCase().startsWith("multipart/form-data;") ?? false);
     if (attachmentUploadRoute) {
-      const passwordAdmin = await requestHasAdminSession(request)
-        && isPasswordLoginConfigured() && await isLegacyAdminPasswordAllowed();
+      let passwordAdmin = false;
+      if (await requestHasAdminSession(request)) {
+        const runtime = adminRuntimeEnv();
+        const configured = Boolean(validSessionSecret()
+          && (runtime.ADMIN_PASSWORD_HASH || (runtime.APP_ENV !== "production" && runtime.ADMIN_PASSWORD)));
+        if (configured) {
+          const credential = await env.DB.prepare("SELECT legacy_admin FROM user_credentials WHERE user_id=1")
+            .first<{ legacy_admin: number }>();
+          passwordAdmin = credential?.legacy_admin === 1;
+        }
+      }
       const user = await identityFromRequest(request);
       if (passwordAdmin || user?.userId === 1) {
         const uploaded = await handleAttachmentUpload(request, { isAdmin: true });
