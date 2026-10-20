@@ -14,6 +14,7 @@ import AdminArticleSearch from "./AdminArticleSearch";
 import AdminBrowsePanel, { type AdminBrowseVisibility } from "./AdminBrowsePanel";
 import AdminArticlesPanel from "./AdminArticlesPanel";
 import AdminSidebar from "./AdminSidebar";
+import AdminFilesPanel from "./AdminFilesPanel";
 import AdminArticleEditor from "./AdminArticleEditor";
 import AdminPreviewShareDialog from "./AdminPreviewShareDialog";
 import type { AdminCategory, AdminMcpConnection, AdminPost, AdminSection, AdminStats, ArticleForm } from "./admin-types";
@@ -26,7 +27,34 @@ import type { BetaActivationSignal } from "@/domain/admin/activation";
 const emptyForm = (categoryId = 1,spaceId:number|null=null,spacePath=""): ArticleForm => ({ title: "", slug: "", excerpt: "", content: "", categoryId, spaceId,sortOrder:0,spacePath,status: "draft", featured: false, publishedAt:null });
 type AdminInitialLocation=AdminLocation;
 
-export default function AdminClient({ categories:initialCategories, settings, connectPage, aboutPage, stats:initialStats, connections, activation, initialArticle, initialLocation, userName, signOutPath }: { categories: AdminCategory[]; settings:SiteSettingsForm; connectPage:EditablePage; aboutPage:EditablePage; stats:AdminStats; connections:AdminMcpConnection[]; activation:BetaActivationSignal; initialArticle:ArticleForm|null; initialLocation:AdminInitialLocation; userName: string; signOutPath: string }) {
+function mapKnowledgePost(post: Record<string, unknown>, visibility: "personal" | "public", categories: AdminCategory[]): AdminPost {
+  const categorySlug = typeof post.categorySlug === "string" ? post.categorySlug : "";
+  const category = categories.find((item) => item.slug === categorySlug);
+  const categoryId = typeof post.categoryId === "number" ? post.categoryId : category?.id ?? categories[0]?.id ?? 1;
+  const publicPost = visibility === "public";
+  return {
+    id: Number(post.id),
+    version: Number(post.version ?? 1),
+    publicId: String(post.publicId ?? ""),
+    title: String(post.title ?? ""),
+    slug: String(post.slug ?? ""),
+    excerpt: String(post.excerpt ?? ""),
+    categoryId,
+    categoryName: typeof post.categoryName === "string" ? post.categoryName : category?.name ?? (publicPost ? "公开文章" : "个人文章"),
+    status: publicPost ? "published" : "draft",
+    featured: false,
+    viewCount: Number(post.viewCount ?? 0),
+    publishedAt: publicPost && typeof post.publishedAt === "string" ? post.publishedAt : null,
+    updatedAt: String(post.updatedAt ?? post.publishedAt ?? new Date(0).toISOString()),
+    spaceId: publicPost ? null : Number(post.spaceId ?? 0),
+    sortOrder: Number(post.sortOrder ?? 0),
+    spacePath: publicPost ? null : "个人知识空间",
+    visibility,
+    canEdit: !publicPost,
+  };
+}
+
+export default function AdminClient({ categories:initialCategories, settings, connectPage, aboutPage, stats:initialStats, connections, activation, initialArticle, initialLocation, userName, signOutPath, isPersonalAccount = false }: { categories: AdminCategory[]; settings:SiteSettingsForm; connectPage:EditablePage; aboutPage:EditablePage; stats:AdminStats; connections:AdminMcpConnection[]; activation:BetaActivationSignal; initialArticle:ArticleForm|null; initialLocation:AdminInitialLocation; userName: string; signOutPath: string; isPersonalAccount?: boolean }) {
   const articleEditorPreviewRef=useRef<HTMLDivElement>(null);
   const [section,setSection]=useState<AdminSection>(initialLocation.section);
   const [spaceLandingId,setSpaceLandingId]=useState<number|null>(initialLocation.spaceId);
