@@ -22,17 +22,16 @@ export default async function AdminPage({searchParams}:{searchParams:Promise<{ed
     const params = new URLSearchParams();
     Object.entries(search).forEach(([key,value])=>{if(value!==undefined)params.set(key,value)});
     const parsedLocation = parseAdminLocation(params);
-    const initialLocation = {
-      ...parsedLocation,
-      section: (["browse","articles","files"] as string[]).includes(parsedLocation.section) ? parsedLocation.section : "browse",
-    };
+    const initialLocation = parsedLocation;
     const workspaceId = await ensurePersonalWorkspace(user.userId);
-    const [categories, settings, connectPage, aboutPage] = await Promise.all([
+    const [personalCategories, publicCategories, settings, connectPage, aboutPage] = await Promise.all([
       scopedCategories(user.userId, workspaceId),
+      getCategories(),
       getSiteSettings(),
       getContentPage("connect"),
       getContentPage("about"),
     ]);
+    const categories = [...personalCategories, ...publicCategories.filter((item) => !personalCategories.some((own) => own.id === item.id))];
     let initialArticle = null;
     const editId = Number(search.edit);
     if (Number.isInteger(editId) && editId > 0) {
