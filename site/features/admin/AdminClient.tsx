@@ -78,7 +78,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
   const [sharePost,setSharePost]=useState<{id:number;title:string}|null>(null);
   const readerReturnRef=useRef<AdminReaderReturnTarget|null>(null);
   useSplitScrollSync(articleEditorPreviewRef,Boolean(form));
-  const editableCategories = isPersonalAccount ? categories.filter((item) => item.slug.startsWith("user-")) : categories;
+  const editableCategories = isPersonalAccount ? categories.filter((item) => item.slug.startsWith("private-u")) : categories;
   const selectedFormCategory = form ? editableCategories.find((item) => item.id === form.categoryId) ?? categories.find((item) => item.id === form.categoryId) : undefined;
 
   const load = useCallback(async (signal?: AbortSignal) => {
