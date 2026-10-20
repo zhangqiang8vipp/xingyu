@@ -95,6 +95,7 @@ export default function AdminSidebar({
   onSignOut,
   accountArea,
   isLegacyAdmin=false,
+  isPersonal=false,
 }: {
   brandName: string;
   avatarUrl: string;
@@ -105,6 +106,7 @@ export default function AdminSidebar({
   categoryCount?: number;
   accountArea?: "workspace"|"organizations"|"ai-connections";
   isLegacyAdmin?: boolean;
+  isPersonal?: boolean;
   collapsed: boolean;
   onSectionChange?: (section: AdminSection) => void;
   onToggle: () => void;
@@ -113,8 +115,11 @@ export default function AdminSidebar({
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const moreActive = !accountArea && MORE_SECTIONS.has(section??"browse");
-  const dockItems = NAV_GROUPS.flatMap((group) => group.items).filter((item) => item.dock);
-  const moreItems = NAV_GROUPS.flatMap((group) => group.items).filter((item) => !item.dock);
+  const visibleGroups = isPersonal
+    ? [{id:"content",label:"内容",items:NAV_GROUPS[0].items.filter((item)=>item.section==="browse"||item.section==="articles")}]
+    : NAV_GROUPS;
+  const dockItems = visibleGroups.flatMap((group) => group.items).filter((item) => item.dock);
+  const moreItems = visibleGroups.flatMap((group) => group.items).filter((item) => !item.dock);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -151,7 +156,7 @@ export default function AdminSidebar({
           className={accountArea===item.area?"selected":undefined}><span>{item.label}</span></Link>)}
         {isLegacyAdmin?<Link data-icon="⌂" href="/admin" title="原写作后台">
           <span>原写作后台</span></Link>:null}
-      </div> : NAV_GROUPS.map((group) => <div className="admin-nav-block" key={group.id}>
+      </div> : visibleGroups.map((group) => <div className="admin-nav-block" key={group.id}>
         <div className="admin-nav-group">{group.label}</div>
         {group.items.map((item) => <NavButton
           key={item.section}
@@ -162,7 +167,7 @@ export default function AdminSidebar({
           onSelect={select}
         />)}
       </div>)}
-      <Link data-icon="↗" title="查看前台" className="admin-desktop-utility" href="/" target="_blank">查看前台</Link>
+      {!isPersonal && <Link data-icon="↗" title="查看前台" className="admin-desktop-utility" href="/" target="_blank">查看前台</Link>}
       <button data-icon="⏻" title="安全退出" className="admin-desktop-utility" type="button" onClick={onSignOut}>安全退出</button>
     </nav>
     <div className="admin-more" ref={moreRef}>
@@ -172,7 +177,7 @@ export default function AdminSidebar({
           className={accountArea===item.area?"selected":undefined}>{item.label}</Link>)}
         <Link href="/">返回博客</Link>
       </nav> : <>
-      {moreOpen ? <div className="admin-more-sheet">
+      {moreOpen && moreItems.length>0 ? <div className="admin-more-sheet">
         {moreItems.map((item) => <NavButton
           key={item.section}
           item={item}
@@ -192,19 +197,19 @@ export default function AdminSidebar({
           compact
           onSelect={select}
         />)}
-        <button
+        {!isPersonal && <button
           type="button"
           className={moreActive || moreOpen ? "selected" : undefined}
           aria-expanded={moreOpen}
           onClick={() => setMoreOpen((open) => !open)}
-        ><span>更多</span></button>
+        ><span>更多</span></button>}
       </nav>
       </>}
     </div>
     <div className="admin-user">{accountArea
       ? <span aria-hidden="true">{userName.trim().slice(0,1)||"星"}</span>
-      : <img src={avatarUrl} alt={`${authorName}管理员`}/>}
-      <div><b>{userName}</b><small>{accountArea?"星屿账号":"管理员"}</small></div></div>
+      : <img src={avatarUrl} alt={isPersonal ? userName : `${authorName}管理员`}/>}
+      <div><b>{userName}</b><small>{accountArea?"星屿账号":isPersonal?"个人账号":"管理员"}</small></div></div>
     <button className="admin-sidebar-collapse" type="button" onClick={onToggle} aria-expanded={!collapsed} aria-label={collapsed ? "展开管理栏" : "收起管理栏"} title={collapsed ? "展开管理栏" : "收起管理栏"}><span aria-hidden="true">{collapsed ? "›" : "‹"}</span></button>
   </aside>;
 }
