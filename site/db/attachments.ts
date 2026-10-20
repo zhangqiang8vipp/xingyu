@@ -104,8 +104,8 @@ export async function createAttachment(input: {
           CASE WHEN a.post_id IS NULL THEN a.original_name ELSE p.title END,
           p.status, COALESCE(p.status, 'unbound_private'), '["attachments"]', ?, ?
         FROM attachments a LEFT JOIN posts p ON p.id = a.post_id
-        WHERE a.public_id = ? AND changes() = 1 RETURNING id, created_at`).bind(
-        input.audit.summary, input.audit.clientLabel, publicId,
+        WHERE a.public_id = ? AND a.workspace_id = ? RETURNING id, created_at`).bind(
+        input.audit.summary, input.audit.clientLabel, publicId, workspaceId,
     ));
   }
   let results;
