@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { ensureDatabase } from "@/db/bootstrap";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
-import { newScopedSpace, scopedSpaces, WorkspaceContentError } from "@/db/workspace-content";
+import { newScopedSpace, WorkspaceContentError } from "@/db/workspace-content";
 import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 import { identityFromRequest } from "@/server/auth/identity-session";
 import { apiJson, readJson } from "@/server/workspace-http";
@@ -94,7 +94,7 @@ export async function GET(request:Request){
     const query=(url.searchParams.get("q")??"").trim().slice(0,120).toLocaleLowerCase();
     const rawParent=url.searchParams.get("parent");
     const parentId=rawParent&&rawParent!=="root"?Number(rawParent):null;
-    if(rawParent&&rawParent!=="root"&&(!Number.isSafeInteger(parentId)||parentId!>0))return apiJson({error:"空间不存在"},404);
+    if(rawParent&&rawParent!=="root"&&!(Number.isSafeInteger(parentId)&&Number(parentId)>0))return apiJson({error:"空间不存在"},404);
     const tree=await personalTree(workspaceId,user.userId);
     if(query){
       const root=Number(url.searchParams.get("root"));
