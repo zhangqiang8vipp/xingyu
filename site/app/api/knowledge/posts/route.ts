@@ -1,6 +1,6 @@
 import { listArchivePosts } from "@/db/queries";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
-import { scopedCreateDraft, scopedPosts, WorkspaceContentError } from "@/db/workspace-content";
+import { scopedCreateDraft, scopedPostsPage, WorkspaceContentError } from "@/db/workspace-content";
 import { identityFromRequest } from "@/server/auth/identity-session";
 import { apiJson, readJson } from "@/server/workspace-http";
 
@@ -17,11 +17,28 @@ export async function GET(request: Request) {
     const limit = Math.min(50, Math.max(1, Number(params.get("limit") ?? 30) || 30));
 
     if (type === "mine") {
-      const posts = await scopedPosts(user.userId, workspaceId, query, limit);
+      const page = await scopedPostsPage(user.userId, workspaceId, {
+        query,
+        limit,
+        cursor: params.get("cursor") ?? undefined,
+        category: params.get("category") ?? "all",
+        status: params.get("status") === "draft" || params.get("status") === "published" ? params.get("status") : "all",
+      });
+      const stats = await (await import("cloudflare:workers")).env.DB.prepare(
+        "SELECT COUNT(*) AS total,SUM(CASE WHEN status='published' THEN 1 ELSE 0 END) AS published,"+
+        "SUM(CASE WHEN status='draft' THEN 1 ELSE 0 END) AS drafts,COALESCE(SUM(view_count),0) AS views "+
+        "FROM posts WHERE workspace_id=? AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))"
+      ).bind(workspaceId,user.userId,user.userId).first<{total:number;published:number;drafts:number;views:number}>();
+      const categories = await (await import("cloudflare:workers")).env.DB.prepare(
+        "SELECT id,name,slug,color FROM categories WHERE workspace_id=? ORDER BY id"
+      ).bind(workspaceId).all();
       return apiJson({
-        type,
-        workspaceId,
-        posts: posts.map((post) => ({ ...post, visibility: "personal", canEdit: true })),
+        type, workspaceId,
+        posts: page.rows.map((post) => ({ ...post, visibility: "personal", canEdit: true })),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+        stats: {total:Number(stats?.total??0),published:Number(stats?.published??0),drafts:Number(stats?.drafts??0),views:Number(stats?.views??0)},
+        categories: categories.results ?? [],
       });
     }
 
