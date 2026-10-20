@@ -86,3 +86,20 @@ test("existing identity redirects, invitation privacy and workspace authorizatio
   assert.match(read("app/admin/page.tsx"),/AdminClient/);
   assert.doesNotMatch(read("app/admin/page.tsx"),/PersonalKnowledgeClient/);
 });
+
+
+test("personal accounts use the same original admin console with only data and permissions scoped",()=>{
+  const page=read("app/admin/page.tsx");
+  const client=read("features/admin/AdminClient.tsx");
+  const sidebar=read("features/admin/AdminSidebar.tsx");
+  assert.match(page,/return <AdminClient/);
+  assert.match(page,/isPersonalAccount/);
+  assert.doesNotMatch(page,/PersonalKnowledgeClient/);
+  assert.match(client,/import "@\/app\/admin\/admin\.css"/);
+  for(const panel of ["AdminBrowsePanel","AdminArticlesPanel","AdminSpacesPanel","AdminFilesPanel","AdminSettingsPanel","AdminPageEditor","AdminCategoriesPanel","AdminIntegrationsPanel"])
+    assert.ok(client.includes(panel),"the shared AdminClient must retain "+panel);
+  assert.match(sidebar,/const visibleGroups = NAV_GROUPS;/,"personal accounts keep the same original navigation structure");
+  assert.match(client,/readOnly=\{isPersonalAccount\}/,"site-only controls are read-only for personal accounts");
+  assert.match(client,/\/api\/knowledge\/posts\?type=mine/);
+  assert.match(client,/\/api\/knowledge\/posts\?type=public/);
+});
