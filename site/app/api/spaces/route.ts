@@ -152,7 +152,7 @@ export async function POST(request:Request){
       parentId:Number(body.parentId)>0?Number(body.parentId):null,
       sortOrder:body.sortOrder===undefined?0:Number(body.sortOrder),
     });
-    return apiJson({space},{status:201});
+    return apiJson({space},201);
   }catch(error){
     if(error instanceof WorkspaceContentError)return apiJson({error:error.message},error.status);
     console.error("personal.spaces.create.failed",error instanceof Error?error.name:"unknown");
