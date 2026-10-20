@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } from "react";
 import { readApiJson } from "@/app/api-response";
 import AdminSidebar from "./AdminSidebar";
+import VditorEditor from "./VditorEditor";
 import type { AdminCategory, AdminPost, AdminStats, ArticleForm } from "./admin-types";
 import type { SiteSettingsForm } from "./AdminSettingsPanel";
 import "@/app/admin/admin.css";
@@ -211,7 +212,7 @@ export default function PersonalKnowledgeClient({userName,settings}:{userName:st
             <div className="form-row"><label>Slug<input value={form.slug} onChange={e=>setForm({...form,slug:e.target.value})} placeholder="文章地址标识"/></label><label>分类<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:Number(e.target.value)})}>{categories.map(cat=><option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></label></div>
             <label>摘要<textarea rows={3} maxLength={1000} value={form.excerpt} onChange={e=>setForm({...form,excerpt:e.target.value})} placeholder="简短介绍文章内容"/></label>
           </section>
-          <section className="editor-section"><div className="editor-section-title"><span>02</span><div><b>正文内容</b><small>支持 Markdown</small></div></div><textarea className="personal-markdown-editor" rows={18} maxLength={750000} value={form.content} onChange={e=>setForm({...form,content:e.target.value})} placeholder="从这里开始写作，支持 Markdown。"/></section>
+          <section className="editor-section"><div className="editor-section-title"><span>02</span><div><b>正文内容</b><small>Markdown 编辑与预览</small></div></div><div className="personal-vditor"><VditorEditor value={form.content} onChange={content=>setForm(current=>current?{...current,content}:current)} previewMode="editor"/></div></section>
           <section className="editor-section"><div className="editor-section-title"><span>03</span><div><b>保存设置</b><small>仅影响你的个人文章</small></div></div>
             <div className="form-row"><label>状态<select value={form.status} onChange={e=>setForm({...form,status:e.target.value as ArticleForm["status"]})}><option value="draft">保存为草稿</option><option value="published">标记为已完成</option></select></label><label>更新时间说明<input disabled value="个人内容不会发布到公开首页"/></label></div>
             {editingPost&&<label className="avatar-upload">上传附件<input type="file" onChange={e=>void upload(e)} disabled={busy}/><span>先保存文章后可上传附件</span></label>}
