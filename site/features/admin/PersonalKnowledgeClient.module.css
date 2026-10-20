@@ -1,0 +1,54 @@
+.page{min-height:100vh;background:#f5f6f4;color:#202723;font-family:inherit;padding:0 0 56px}
+.topbar{height:72px;padding:0 clamp(20px,5vw,72px);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e6e1;background:rgba(255,255,255,.88)}
+.brand{display:flex;gap:12px;align-items:baseline;text-decoration:none;color:#1d2a25;font-weight:750;letter-spacing:.02em;font-size:19px}
+.brand span{font-size:12px;color:#718078;font-weight:500}
+.account{display:flex;gap:16px;align-items:center;font-size:13px;color:#58655e}
+.account button{border:1px solid #d8dfd9;border-radius:9px;padding:8px 12px;background:#fff;color:#35453c;cursor:pointer}
+.hero{max-width:1400px;margin:0 auto;padding:42px clamp(20px,5vw,72px) 28px}
+.eyebrow{margin:0 0 9px;color:#668274;font-size:10px;letter-spacing:.18em;font-weight:800}
+.hero h1{margin:0;font-size:clamp(28px,4vw,42px);font-weight:650;letter-spacing:-.04em}
+.hero>p:not(.eyebrow){max-width:680px;color:#647169;font-size:14px;line-height:1.8;margin:12px 0 20px}
+.heroActions,.editorActions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.primaryButton{border:1px solid #285846;border-radius:10px;padding:10px 15px;background:#285846;color:#fff;font:inherit;font-size:13px;font-weight:650;cursor:pointer}
+.primaryButton:disabled{opacity:.55;cursor:wait}
+.secondaryLink{display:inline-flex;align-items:center;justify-content:center;border:1px solid #d7dfd8;border-radius:10px;padding:9px 13px;color:#354c40;background:#fff;text-decoration:none;font-size:13px}
+.error,.notice{max-width:1400px;margin:0 auto 12px;padding:11px 16px;border-radius:10px;width:calc(100% - 40px);font-size:13px}
+.error{background:#fff0ef;border:1px solid #f1cfca;color:#9d3429}
+.notice{background:#eaf4ee;border:1px solid #c9e0d1;color:#2d6548}
+.layout{max-width:1400px;margin:0 auto;padding:0 clamp(20px,5vw,72px);display:grid;grid-template-columns:minmax(270px,340px) minmax(0,1fr);gap:18px;align-items:start}
+.library,.editor{background:#fff;border:1px solid #e2e7e2;border-radius:16px;box-shadow:0 8px 28px rgba(25,48,35,.035);overflow:hidden}
+.tabs{display:grid;grid-template-columns:1fr 1fr;padding:8px;gap:5px;border-bottom:1px solid #edf0ed}
+.tabs button{border:0;border-radius:9px;background:transparent;padding:11px 8px;color:#66736b;font:inherit;font-size:12px;cursor:pointer}
+.tabs button span{margin-left:5px;font-size:10px;color:#839188}
+.tabs button.activeTab{background:#edf4ef;color:#285846;font-weight:700}
+.search{display:flex;gap:6px;padding:12px;border-bottom:1px solid #edf0ed}
+.search input{min-width:0;flex:1;border:1px solid #dfe5df;border-radius:8px;padding:9px 10px;font:inherit;font-size:12px;outline-color:#8bb5a0}
+.search button{border:1px solid #dfe5df;border-radius:8px;padding:8px 10px;background:#fff;font:inherit;font-size:12px;color:#42584b;cursor:pointer}
+.listHeading{padding:13px 16px 5px;color:#859189;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.postList{list-style:none;margin:0;padding:5px 8px 10px}
+.postList li{margin:0}
+.postButton,.selectedPost{display:flex;width:100%;flex-direction:column;align-items:flex-start;text-align:left;gap:6px;border:1px solid transparent;border-radius:10px;padding:12px;margin:2px 0;background:transparent;color:#25332b;cursor:pointer}
+.postButton:hover{background:#f7f9f7}
+.selectedPost{background:#edf4ef;border-color:#d7e6dc}
+.postButton strong,.selectedPost strong{font-size:13px;font-weight:650;line-height:1.5}
+.postButton span,.selectedPost span{font-size:10px;color:#698074}
+.postButton small,.selectedPost small{font-size:11px;color:#78857d;line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.empty{padding:18px 16px;color:#89958d;font-size:12px;line-height:1.7}
+.editor{min-height:520px}
+.editorForm{padding:clamp(18px,3vw,34px)}
+.editorTop{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:24px}
+.editorTop h2,.welcome h2{margin:0;font-size:23px;font-weight:650;letter-spacing:-.03em}
+.fieldLabel{display:grid;gap:8px;margin:16px 0;color:#59675f;font-size:12px;font-weight:650}
+.fieldLabel input,.fieldLabel textarea{width:100%;box-sizing:border-box;border:1px solid #dce3dc;border-radius:10px;padding:11px 12px;background:#fff;color:#25322b;font:inherit;font-size:13px;line-height:1.7;outline-color:#8bb5a0;resize:vertical}
+.fieldLabel input:disabled,.fieldLabel textarea:disabled{background:#f7f8f6;color:#59665e}
+.fieldLabel .contentEditor{min-height:340px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;white-space:pre}
+.readOnlyContent{white-space:pre-wrap;overflow-wrap:anywhere;max-height:60vh;overflow:auto;border:1px solid #e5eae5;border-radius:10px;padding:16px;background:#f8faf8;color:#36463c;font:12px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace}
+.editorBottom{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:22px;padding-top:18px;border-top:1px solid #edf0ed}
+.uploadButton{display:inline-flex;align-items:center;position:relative;border:1px solid #d7dfd8;border-radius:10px;padding:10px 13px;background:#fff;color:#405549;font-size:12px;cursor:pointer}
+.uploadButton input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+.version,.readOnlyNote{color:#849188;font-size:11px}
+.readOnlyNote{margin:0;line-height:1.7}
+.welcome{min-height:520px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:36px;box-sizing:border-box}
+.welcomeMark{width:46px;height:46px;border-radius:14px;background:#edf4ef;color:#3e755a;display:grid;place-items:center;font-size:24px;margin-bottom:18px}
+.welcome p{max-width:430px;color:#748078;font-size:13px;line-height:1.9;margin:12px 0 22px}
+@media(max-width:760px){.topbar{height:62px}.hero{padding-top:28px}.layout{grid-template-columns:minmax(0,1fr)}.editor{min-height:360px}.welcome{min-height:300px}.postList{max-height:320px;overflow:auto}.editorTop{flex-direction:column}.account{gap:8px}.account span{max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}

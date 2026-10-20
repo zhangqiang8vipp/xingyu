@@ -1,6 +1,6 @@
 "use client";
 import { useState, type FormEvent } from "react";
-export default function IdentityLoginForm({ returnTo = "/workspace" }: { returnTo?: string }) {
+export default function IdentityLoginForm({ returnTo = "/admin" }: { returnTo?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
