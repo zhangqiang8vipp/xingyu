@@ -134,6 +134,7 @@ export async function inviteToWorkspace(actorId:number,workspaceId:number,emailI
 }
 
 export async function previewInvitation(userId:number,token:string) {
+  if(userId!==1)throw new CollaborationError("普通账号不再加入共享工作区，请使用个人知识空间",403);
   if(!/^[a-zA-Z0-9_-]{40,60}$/.test(token))throw new CollaborationError("邀请链接无效",404);
   await ensureDatabase();
   const row=await env.DB.prepare(
@@ -150,6 +151,7 @@ export async function previewInvitation(userId:number,token:string) {
 }
 
 export async function acceptInvitation(userId:number,token:string) {
+  if(userId!==1)throw new CollaborationError("普通账号不再加入共享工作区，请使用个人知识空间",403);
   const preview=await previewInvitation(userId,token);
   const hashed=await sessionDigest(token);
   const timestamp=now();
