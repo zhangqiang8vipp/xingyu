@@ -89,7 +89,7 @@ export default function AdminBrowsePanel({
 
   return <section className="admin-main admin-browse admin-public-browser">
     <div className="admin-browser-context">
-      <div><i/><span>{isPersonalAccount?"个人内容浏览":"管理员浏览"}</span><b>{stats.total+stats.privateArticles} 篇内容</b></div>
+      <div><i/><span>{isPersonalAccount?"个人内容浏览":"管理员浏览"}</span><b>{isPersonalAccount?stats.total:stats.total+stats.privateArticles} 篇内容</b></div>
       <p>{isPersonalAccount?"沿用原有浏览界面；个人文章仅自己可编辑，公开文章可直接阅读。":"这里与公开博客共用首页、卡片和完整阅读器；草稿与知识空间仅管理员可见。"}</p>
     </div>
     {loading&&!posts.length?<div className="admin-public-browser-loading"><i/><i/><i/><span>正在打开真实博客视图</span></div>:<BlogHomeExperience
