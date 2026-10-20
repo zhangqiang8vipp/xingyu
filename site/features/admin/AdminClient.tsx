@@ -85,15 +85,42 @@ export default function AdminClient({ categories:initialCategories, settings, co
     const params = new URLSearchParams({ pageSize: String(CONTENT_LIMITS.adminBatch), q: query, category, status });
     if (cursor) params.set("cursor", cursor);
     try {
-      const response = await fetch(`/api/posts?${params}`, { signal });
-      const data = await readApiJson<{rows:AdminPost[];nextCursor:string|null}>(response);
-      if (!signal?.aborted) { setPosts(data.rows ?? []); setNextCursor(data.nextCursor ?? null); }
+      if (isPersonalAccount) {
+        const suffix = "&q=" + encodeURIComponent(query);
+        const [mineResponse, publicResponse] = await Promise.all([
+          fetch("/api/knowledge/posts?type=mine&limit=50" + suffix, { signal, cache: "no-store" }),
+          fetch("/api/knowledge/posts?type=public&limit=50" + suffix, { signal, cache: "no-store" }),
+        ]);
+        const [mineData, publicData] = await Promise.all([
+          readApiJson<{ posts: Record<string, unknown>[] }>(mineResponse),
+          readApiJson<{ posts: Record<string, unknown>[] }>(publicResponse),
+        ]);
+        if (!mineResponse.ok || !publicResponse.ok) throw new Error("文章列表读取失败");
+        const all = [
+          ...(mineData.posts ?? []).map((post) => mapKnowledgePost(post, "personal", categories)),
+          ...(publicData.posts ?? []).map((post) => mapKnowledgePost(post, "public", categories)),
+        ].filter((post) => {
+          if (status !== "all" && post.status !== status) return false;
+          if (category !== "all" && categories.find((item) => item.id === post.categoryId)?.slug !== category) return false;
+          return !query || (post.title + " " + post.excerpt + " " + post.slug).toLowerCase().includes(query.toLowerCase());
+        }).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+        const pageSize = CONTENT_LIMITS.adminBatch;
+        const offset = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
+        if (!signal?.aborted) {
+          setPosts(all.slice(offset, offset + pageSize));
+          setNextCursor(offset + pageSize < all.length ? String(offset + pageSize) : null);
+        }
+      } else {
+        const response = await fetch(`/api/posts?${params}`, { signal });
+        const data = await readApiJson<{rows:AdminPost[];nextCursor:string|null}>(response);
+        if (!response?.aborted) { setPosts(data.rows ?? []); setNextCursor(data.nextCursor ?? null); }
+      }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) setMessage("文章列表读取失败，请稍后重试");
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [cursor, query, category, status]);
+  }, [cursor, query, category, status, isPersonalAccount, categories]);
 
   const loadStats = useCallback(async () => {
     const response = await fetch("/api/stats");
