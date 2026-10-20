@@ -16,6 +16,8 @@ type AttachmentRow = {
   postPublicId: string;
   postTitle: string;
   postSlug: string;
+  postStatus?: string;
+  postSpaceId?: number | null;
 };
 
 export async function GET(request: Request) {
