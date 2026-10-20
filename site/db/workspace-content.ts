@@ -109,7 +109,10 @@ export async function removeEmptyScopedSpace(userId:number,workspaceId:number,sp
 export async function scopedPost(userId:number,workspaceId:number,identifier:string|number):Promise<ScopedPost> {
   await workspaceGrant(userId,workspaceId);
   const id=String(identifier);
-  const row=await env.DB.prepare(postSelect+" WHERE workspace_id=? AND (public_id=? OR slug=? OR id=?) LIMIT 1").bind(workspaceId,id,id,/^\d+$/.test(id)?Number(id):-1).first<ScopedPost>();
+  const ownerGuard=userId===1?"":" AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))";
+  const ownerArgs=userId===1?[]:[userId,userId];
+  const row=await env.DB.prepare(postSelect+" WHERE workspace_id=? AND (public_id=? OR slug=? OR id=?)"+ownerGuard+" LIMIT 1")
+    .bind(workspaceId,id,id,/^\d+$/.test(id)?Number(id):-1,...ownerArgs).first<ScopedPost>();
   if(!row)throw new WorkspaceContentError("文章不存在",404);
   await assertSpacePermission(userId,workspaceId,row.spaceId);
   return row;
@@ -120,10 +123,12 @@ export async function scopedPosts(userId:number,workspaceId:number,query="",limi
   if(visible!==null&&visible.length===0)return [];
   const size=Math.min(50,Math.max(1,limit));
   const guard=visible===null?"":" AND space_id IN ("+visible.map(()=>"?").join(",")+")";
-  const where=" WHERE workspace_id=?"+guard+(spaceId===undefined?"":" AND space_id IS ?")+
+  const ownerGuard=userId===1?"":" AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))";
+  const ownerArgs=userId===1?[]:[userId,userId];
+  const where=" WHERE workspace_id=?"+ownerGuard+guard+(spaceId===undefined?"":" AND space_id IS ?")+
     (status==="all"?"":" AND status=?")+(query?" AND (title LIKE ? ESCAPE '\\' OR excerpt LIKE ? ESCAPE '\\')":"");
   const escaped=query.replace(/[\\%_]/g,c=>"\\"+c).slice(0,120);
-  const args:unknown[]=[workspaceId,...(visible??[]),...(spaceId===undefined?[]:[spaceId]),...(status==="all"?[]:[status]),
+  const args:unknown[]=[workspaceId,...ownerArgs,...(visible??[]),...(spaceId===undefined?[]:[spaceId]),...(status==="all"?[]:[status]),
     ...(query?["%"+escaped+"%","%"+escaped+"%"]:[])];
   const rows=await env.DB.prepare(
     "SELECT id,public_id AS publicId,title,slug,excerpt,status,version,space_id AS spaceId,updated_at AS updatedAt "+
