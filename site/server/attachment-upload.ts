@@ -7,7 +7,9 @@ export type AttachmentUploadAccess = { isAdmin: true; userId?: never } | { isAdm
 /** Raw Worker handler for multipart uploads, bypassing Vinext's Server Action classifier. */
 export async function handleAttachmentUpload(request: Request, access: AttachmentUploadAccess): Promise<Response> {
   const headers = { "Cache-Control": "no-store" };
-  if (request.headers.get("origin") !== new URL(request.url).origin) {
+  const origin = request.headers.get("origin");
+  if ((access.isAdmin && origin && origin !== new URL(request.url).origin)
+    || (!access.isAdmin && origin !== new URL(request.url).origin)) {
     return Response.json({ error: "无效请求来源" }, { status: 403, headers });
   }
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
