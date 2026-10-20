@@ -101,3 +101,79 @@ test("PAT active-token cap is atomic under concurrent creation",async()=>{
     assert.equal(total,30);
   }finally{await closeTestHarness(h);}
 });
+
+
+test("PAT: an owner can rotate and copy a fresh secret, or permanently delete active and revoked tokens",async()=>{
+  const h=await openTestHarness();
+  try{
+    const alice=await makeActiveUser(h,"pat-rotation-owner");
+    const bob=await makeActiveUser(h,"pat-rotation-other");
+    const endpoint="/api/identity/tokens";
+    const create=async(name)=> {
+      const response=await jsonRequest(h,endpoint,{
+        method:"POST",cookie:alice.cookie,
+        body:{name,scopes:["xingyu.read","xingyu.draft"],lifetime:"never"},
+      });
+      assert.equal(response.status,201,await response.clone().text());
+      return (await response.json()).created;
+    };
+    const previous=await create("Cursor");
+    const init={jsonrpc:"2.0",id:1,method:"initialize",params:{
+      protocolVersion:"2024-11-05",capabilities:{},clientInfo:{name:"pat-rotation",version:"1"},
+    }};
+    assert.equal((await callMcpRaw(h,init,{token:previous.token})).status,200);
+    const otherRotate=await jsonRequest(h,endpoint,{
+      method:"PATCH",cookie:bob.cookie,body:{id:previous.id},
+    });
+    assert.equal(otherRotate.status,404,"another account cannot rotate this token");
+
+    const rotatedResponse=await jsonRequest(h,endpoint,{
+      method:"PATCH",cookie:alice.cookie,body:{id:previous.id},
+    });
+    assert.equal(rotatedResponse.status,200,await rotatedResponse.clone().text());
+    const {rotated}=await rotatedResponse.json();
+    assert.equal(rotated.id,previous.id,"rotation preserves the slot and other metadata");
+    assert.match(rotated.token,/^xy_pat_[0-9a-f]{64}$/);
+    assert.notEqual(rotated.token,previous.token);
+    assert.equal((await callMcpRaw(h,init,{token:previous.token})).status,401,
+      "the previously copied secret must be rejected immediately");
+    assert.equal((await callMcpRaw(h,init,{token:rotated.token})).status,200);
+    const stored=await h.db.prepare(
+      "SELECT token_hash,scope,expires_at FROM personal_access_tokens WHERE id=?"
+    ).bind(previous.id).first();
+    assert.equal(stored.token_hash,createHash("sha256").update(rotated.token).digest("hex"));
+    assert.equal(stored.scope,"xingyu.read xingyu.draft");
+    assert.equal(stored.expires_at,null);
+    const ownerList=await jsonRequest(h,endpoint,{cookie:alice.cookie});
+    assert.ok(!(await ownerList.text()).includes(rotated.token),
+      "list never returns stored raw PATs");
+
+    const wrongDelete=await jsonRequest(h,endpoint,{
+      method:"DELETE",cookie:bob.cookie,body:{id:previous.id,mode:"delete"},
+    });
+    assert.equal(wrongDelete.status,404,"another account cannot delete the secret");
+
+    const remove=await jsonRequest(h,endpoint,{
+      method:"DELETE",cookie:alice.cookie,body:{id:previous.id,mode:"delete"},
+    });
+    assert.equal(remove.status,200,await remove.clone().text());
+    assert.equal((await callMcpRaw(h,init,{token:rotated.token})).status,401);
+    assert.equal(await h.db.prepare("SELECT id FROM personal_access_tokens WHERE id=?")
+      .bind(previous.id).first(),null,"permanent delete removes database row");
+
+    const extra=await create("Other client");
+    assert.equal((await jsonRequest(h,endpoint,{method:"DELETE",cookie:alice.cookie,body:{id:extra.id}})).status,200);
+    const revokedList=(await (await jsonRequest(h,endpoint,{cookie:alice.cookie})).json()).tokens;
+    assert.ok(revokedList.some(item=>item.id===extra.id&&item.revokedAt!==null));
+    assert.equal((await jsonRequest(h,endpoint,{
+      method:"PATCH",cookie:alice.cookie,body:{id:extra.id},
+    })).status,404,"revoked tokens cannot be revived by rotation");
+    assert.equal((await jsonRequest(h,endpoint,{
+      method:"DELETE",cookie:alice.cookie,body:{id:extra.id,mode:"delete"},
+    })).status,200);
+    assert.equal((await (await jsonRequest(h,endpoint,{cookie:alice.cookie})).json()).tokens.length,0);
+    assert.equal((await jsonRequest(h,endpoint,{
+      method:"DELETE",cookie:alice.cookie,body:{id:extra.id,mode:"invalid"},
+    })).status,400);
+  }finally{await closeTestHarness(h);}
+});
