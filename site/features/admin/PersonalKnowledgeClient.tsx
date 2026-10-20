@@ -20,9 +20,22 @@ type PostItem = {
   canEdit?: boolean;
   publicUrl?: string;
 };
+type FileItem = {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  createdAt: string;
+  articlePublicId: string;
+  articleTitle: string;
+  articleSlug: string;
+  visibility: "personal" | "public";
+  url: string;
+};
 type ApiPayload = {
   error?: string;
   posts?: PostItem[];
+  files?: FileItem[];
   post?: PostItem;
   workspaceId?: number;
   nextCursor?: string | null;
@@ -35,12 +48,19 @@ async function api(path: string, init?: RequestInit): Promise<ApiPayload> {
   return data;
 }
 
+function formatBytes(size: number) {
+  if (size < 1024) return size + " B";
+  if (size < 1024 * 1024) return (size / 1024).toFixed(1) + " KB";
+  return (size / (1024 * 1024)).toFixed(1) + " MB";
+}
+
 export default function PersonalKnowledgeClient({ userName }: { userName: string }) {
-  const [tab, setTab] = useState<"mine" | "public">("mine");
+  const [tab, setTab] = useState<"mine" | "public" | "files">("mine");
   const [query, setQuery] = useState("");
   const [appliedQuery, setAppliedQuery] = useState("");
   const [mine, setMine] = useState<PostItem[]>([]);
   const [publicPosts, setPublicPosts] = useState<PostItem[]>([]);
+  const [files, setFiles] = useState<FileItem[]>([]);
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [selected, setSelected] = useState<PostItem | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -57,12 +77,14 @@ export default function PersonalKnowledgeClient({ userName }: { userName: string
     setError("");
     try {
       const suffix = "&q=" + encodeURIComponent(search);
-      const [mineData, publicData] = await Promise.all([
+      const [mineData, publicData, fileData] = await Promise.all([
         api("/api/knowledge/posts?type=mine&limit=50" + suffix),
         api("/api/knowledge/posts?type=public&limit=50" + suffix),
+        api("/api/knowledge/files?limit=100&q=" + encodeURIComponent(search)),
       ]);
       setMine(mineData.posts ?? []);
       setPublicPosts(publicData.posts ?? []);
+      setFiles(fileData.files ?? []);
       setWorkspaceId(mineData.workspaceId ?? publicData.workspaceId ?? null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "知识空间加载失败");
@@ -226,29 +248,43 @@ export default function PersonalKnowledgeClient({ userName }: { userName: string
 
       <section className={styles.layout}>
         <aside className={styles.library}>
-          <div className={styles.tabs} role="tablist" aria-label="文章范围">
+          <div className={styles.tabs} role="tablist" aria-label="内容范围">
             <button type="button" role="tab" aria-selected={tab === "mine"} className={tab === "mine" ? styles.activeTab : ""}
               onClick={() => { setTab("mine"); setSelected(null); setIsNew(false); }}>我的文章 <span>{mine.length}</span></button>
             <button type="button" role="tab" aria-selected={tab === "public"} className={tab === "public" ? styles.activeTab : ""}
               onClick={() => { setTab("public"); setSelected(null); setIsNew(false); }}>公开文章 <span>{publicPosts.length}</span></button>
+            <button type="button" role="tab" aria-selected={tab === "files"} className={tab === "files" ? styles.activeTab : ""}
+              onClick={() => { setTab("files"); setSelected(null); setIsNew(false); }}>文件 <span>{files.length}</span></button>
           </div>
           <form className={styles.search} onSubmit={(event) => { event.preventDefault(); setAppliedQuery(query.trim()); }}>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题或摘要" aria-label="搜索文章"/>
             <button type="submit">搜索</button>
           </form>
-          <div className={styles.listHeading}>{tab === "mine" ? "仅自己可见" : "所有人可读"}</div>
-          {loading ? <p className={styles.empty}>正在加载文章…</p> : items.length === 0
-            ? <p className={styles.empty}>{tab === "mine" ? "这里还没有文章。新建一篇私人草稿吧。" : "暂时没有匹配的公开文章。"}</p>
-            : <ul className={styles.postList}>
-                {items.map((item) => <li key={item.publicId}>
-                  <button type="button" className={selected?.publicId === item.publicId && !isNew ? styles.selectedPost : styles.postButton}
-                    onClick={() => void openPost(item)}>
-                    <strong>{item.title}</strong>
-                    <span>{tab === "public" ? "公开文章" : item.status === "draft" ? "私人草稿" : "已完成 · 仍为私密"}</span>
-                    {item.excerpt && <small>{item.excerpt}</small>}
-                  </button>
-                </li>)}
-              </ul>}
+          <div className={styles.listHeading}>{tab === "mine" ? "仅自己可见" : tab === "public" ? "所有人可读" : "本人附件与公开附件"}</div>
+          {loading ? <p className={styles.empty}>正在加载内容…</p> : tab === "files"
+            ? files.length === 0
+              ? <p className={styles.empty}>暂时没有匹配的文件。附件仅显示本人文章中的文件和公开文章中的文件。</p>
+              : <ul className={styles.postList}>
+                  {files.map((file) => <li key={file.id}>
+                    <Link className={styles.fileLink} href={file.url} target="_blank" rel="noreferrer">
+                      <strong>{file.filename}</strong>
+                      <span>{file.visibility === "public" ? "公开文件" : "我的文件"} · {file.articleTitle}</span>
+                      <small>{file.contentType} · {formatBytes(file.size)}</small>
+                    </Link>
+                  </li>)}
+                </ul>
+            : items.length === 0
+              ? <p className={styles.empty}>{tab === "mine" ? "这里还没有文章。新建一篇私人草稿吧。" : "暂时没有匹配的公开文章。"}</p>
+              : <ul className={styles.postList}>
+                  {items.map((item) => <li key={item.publicId}>
+                    <button type="button" className={selected?.publicId === item.publicId && !isNew ? styles.selectedPost : styles.postButton}
+                      onClick={() => void openPost(item)}>
+                      <strong>{item.title}</strong>
+                      <span>{tab === "public" ? "公开文章" : item.status === "draft" ? "私人草稿" : "已完成 · 仍为私密"}</span>
+                      {item.excerpt && <small>{item.excerpt}</small>}
+                    </button>
+                  </li>)}
+                </ul>}
         </aside>
 
         <section className={styles.editor}>
