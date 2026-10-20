@@ -293,7 +293,7 @@ test("personal article attachments are editable by their owner and inaccessible 
       String(created.data.post.id) + "\r\n",
       `--${boundary}--\r\n`,
     ].join("");
-    const uploadResponse = await h.dispatch("/api/attachments", {
+    const uploadResponse = await h.dispatch(new URL("/api/attachments", h.origin).href, {
       method: "POST",
       headers: { origin: h.origin, cookie: alice.cookie, "content-type": "multipart/form-data; boundary=" + boundary },
       body: multipart,
@@ -308,10 +308,10 @@ test("personal article attachments are editable by their owner and inaccessible 
     assert.ok(list.data.attachments.some(item => item.id === upload.attachment.id));
 
     const filePath = new URL(upload.attachment.url, h.origin).pathname;
-    const ownerRead = await h.dispatch(filePath, { headers: { origin: h.origin, cookie: alice.cookie } });
+    const ownerRead = await h.dispatch(new URL(filePath, h.origin).href, { headers: { origin: h.origin, cookie: alice.cookie } });
     assert.equal(ownerRead.status, 200);
     assert.equal(await ownerRead.text(), "ABC");
-    const otherRead = await h.dispatch(filePath, { headers: { origin: h.origin, cookie: bob.cookie } });
+    const otherRead = await h.dispatch(new URL(filePath, h.origin).href, { headers: { origin: h.origin, cookie: bob.cookie } });
     assert.equal(otherRead.status, 401, "another account cannot download private attachment bytes");
 
     const deniedDelete = await api(h, "/api/attachments/" + upload.attachment.id, {
