@@ -593,3 +593,19 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
   .activation-proof header,.activation-proof>div{display:grid}
   .activation-proof em{text-align:left}
 }
+
+/* Personal-account cards reuse the same Admin browser visuals without browser-default button chrome. */
+.admin-public-browser button.post-card {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.admin-public-browser button.post-card:focus-visible {
+  outline: 2px solid var(--admin-accent, #2f6d54);
+  outline-offset: 3px;
+}
