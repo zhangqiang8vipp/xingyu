@@ -126,7 +126,7 @@ export async function scopedPosts(userId:number,workspaceId:number,query="",limi
   const ownerGuard=userId===1?"":" AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))";
   const ownerArgs=userId===1?[]:[userId,userId];
   const where=" WHERE workspace_id=?"+ownerGuard+guard+(spaceId===undefined?"":" AND space_id IS ?")+
-    (status==="all"?"":" AND status=?")+(query?" AND (title LIKE ? ESCAPE '\\\\' OR excerpt LIKE ? ESCAPE '\\\\')":"");
+    (status==="all"?"":" AND status=?")+(query?" AND (title LIKE ? ESCAPE '\\' OR excerpt LIKE ? ESCAPE '\\')":"");
   const escaped=query.replace(/[\\%_]/g,c=> "\\"+c).slice(0,120);
   const args:unknown[]=[workspaceId,...ownerArgs,...(visible??[]),...(spaceId===undefined?[]:[spaceId]),...(status==="all"?[]:[status]),
     ...(query?["%"+escaped+"%","%"+escaped+"%"]:[])];
@@ -150,7 +150,7 @@ function decodeScopedCursor(cursor?:string) {
   } catch { return null; }
 }
 function encodeScopedCursor(value:string,id:number) {
-  return btoa(value+"|"+id).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/g,"");
+  return btoa(value+"|"+id).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");
 }
 export async function scopedPostsPage(userId:number,workspaceId:number,filters:{
   query?:string;limit?:number;cursor?:string;category?:string;status?:"all"|"draft"|"published";
@@ -180,7 +180,7 @@ export async function scopedPostsPage(userId:number,workspaceId:number,filters:{
   }
   if(query) {
     const escaped=query.replace(/[\\%_]/g,c=>"\\"+c);
-    conditions.push("(p.title LIKE ? ESCAPE '\\\\' OR p.excerpt LIKE ? ESCAPE '\\\\' OR p.slug LIKE ? ESCAPE '\\\\')");
+    conditions.push("(p.title LIKE ? ESCAPE '\\' OR p.excerpt LIKE ? ESCAPE '\\' OR p.slug LIKE ? ESCAPE '\\')");
     params.push("%"+escaped+"%","%"+escaped+"%","%"+escaped+"%");
   }
   const cursor=decodeScopedCursor(filters.cursor);
