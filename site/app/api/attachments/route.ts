@@ -1,9 +1,27 @@
 import { createAttachment, AttachmentError, attachmentMarkdown, attachmentUrl, listAttachmentOrphanCandidates, listPostAttachments, listCleanupQueueItems, resolveCleanupQueueItem } from "@/db/attachments";
 import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 import { AttachmentCleanupRequiredError } from "@/db/attachment-cleanup";
+import { ensurePersonalWorkspace } from "@/db/workspace-access";
+import { scopedPost, WorkspaceContentError } from "@/db/workspace-content";
+import { identityFromRequest } from "@/server/auth/identity-session";
 
 export async function GET(request: Request) {
-  if (!(await isAdminRequest(request))) return unauthorized();
+  if (!(await isAdminRequest(request))) {
+    const user=await identityFromRequest(request);
+    if(!user||user.userId===1)return unauthorized();
+    const params=new URL(request.url).searchParams;
+    const postIdValue=params.get("postId");
+    if(!postIdValue||!/^[1-9]\d*$/.test(postIdValue))return Response.json({error:"请选择要管理附件的文章"},{status:400,headers:{"Cache-Control":"no-store"}});
+    try{
+      const workspaceId=await ensurePersonalWorkspace(user.userId);
+      await scopedPost(user.userId,workspaceId,Number(postIdValue));
+      const records=await listPostAttachments(Number(postIdValue));
+      return Response.json({attachments:records.filter(record=>record.workspaceId===workspaceId).map(attachmentPayload)},{headers:{"Cache-Control":"no-store"}});
+    }catch(error){
+      if(error instanceof WorkspaceContentError)return Response.json({error:error.message},{status:error.status,headers:{"Cache-Control":"no-store"}});
+      return Response.json({error:"附件列表读取失败"},{status:500,headers:{"Cache-Control":"no-store"}});
+    }
+  }
   const params = new URL(request.url).searchParams;
   if (params.get("mode") === "orphan-candidates") {
     const cursor = params.get("cursor") ?? undefined;
@@ -29,7 +47,34 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!(await isAdminRequest(request))) return unauthorized();
+  if (!(await isAdminRequest(request))) {
+    const user=await identityFromRequest(request);
+    if(!user||user.userId===1)return unauthorized();
+    try{
+      if(request.headers.get("content-type")?.toLowerCase().includes("application/json"))return unauthorized();
+      const form=await request.formData();
+      const file=form.get("file");
+      if(!(file instanceof File))return Response.json({error:"请选择附件"},{status:400});
+      const postIdValue=form.get("postId");
+      if(postIdValue!==null&&(typeof postIdValue!=="string"||!/^[1-9]\d*$/.test(postIdValue)||!Number.isSafeInteger(Number(postIdValue))))
+        throw new AttachmentError("文章标识无效");
+      const postId=postIdValue===null?null:Number(postIdValue);
+      const workspaceId=await ensurePersonalWorkspace(user.userId);
+      if(postId!==null)await scopedPost(user.userId,workspaceId,postId);
+      const bytes=new Uint8Array(await file.arrayBuffer());
+      const record=await createAttachment({
+        name:file.name,contentType:file.type||fallbackContentType(file.name),bytes,postId,workspaceId,
+        actorUserId:user.userId,audit:{summary:"上传个人文章附件",clientLabel:"web:"+user.userId},
+      });
+      const attachment=attachmentPayload(record);
+      return Response.json({...attachment,attachment},{status:201,headers:{"Cache-Control":"no-store"}});
+    }catch(error){
+      if(error instanceof AttachmentError)return Response.json({error:error.message},{status:error.status,headers:{"Cache-Control":"no-store"}});
+      if(error instanceof WorkspaceContentError)return Response.json({error:error.message},{status:error.status,headers:{"Cache-Control":"no-store"}});
+      console.error("personal attachment upload failed",error instanceof Error?error.name:"unknown");
+      return Response.json({error:"附件存储服务暂时不可用，请稍后重试"},{status:503,headers:{"Cache-Control":"no-store"}});
+    }
+  }
   try {
     if (request.headers.get("content-type")?.toLowerCase().includes("application/json")) {
       return await handleCleanupResolve(request);
