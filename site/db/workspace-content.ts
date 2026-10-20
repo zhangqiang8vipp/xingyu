@@ -132,6 +132,7 @@ export async function scopedPosts(userId:number,workspaceId:number,query="",limi
     ...(query?["%"+escaped+"%","%"+escaped+"%"]:[])];
   const rows=await env.DB.prepare(
     "SELECT p.id,p.public_id AS publicId,p.title,p.slug,p.excerpt,p.status,p.version,p.space_id AS spaceId,p.updated_at AS updatedAt,"+
+    "p.published_at AS publishedAt,p.view_count AS viewCount,p.featured,p.sort_order AS sortOrder,"+
     "p.category_id AS categoryId,c.name AS categoryName,c.slug AS categorySlug,c.color AS categoryColor "+
     "FROM posts p LEFT JOIN categories c ON c.id=p.category_id AND c.workspace_id=p.workspace_id"+where+
     " ORDER BY p.updated_at DESC,p.id DESC LIMIT ?",
