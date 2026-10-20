@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { ensureDatabase } from "@/db/bootstrap";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
-import { editScopedSpace, removeEmptyScopedSpace, scopedSpace, WorkspaceContentError } from "@/db/workspace-content";
+import { editScopedSpace, removeEmptyScopedSpace, WorkspaceContentError } from "@/db/workspace-content";
 import { identityFromRequest } from "@/server/auth/identity-session";
 import { apiJson, readJson } from "@/server/workspace-http";
 import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
