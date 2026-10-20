@@ -25,6 +25,10 @@ import { adminLocationHref, parseAdminLocation, type AdminLocation } from "@/dom
 import type { BetaActivationSignal } from "@/domain/admin/activation";
 
 const emptyForm = (categoryId = 1,spaceId:number|null=null,spacePath=""): ArticleForm => ({ title: "", slug: "", excerpt: "", content: "", categoryId, spaceId,sortOrder:0,spacePath,status: "draft", featured: false, publishedAt:null });
+
+function isSiteAdminSection(section:AdminSection){
+  return section==="home"||section==="about"||section==="categories";
+}
 type AdminInitialLocation=AdminLocation;
 
 function mapKnowledgePost(post: Record<string, unknown>, visibility: "personal" | "public", categories: AdminCategory[]): AdminPost {
@@ -56,7 +60,7 @@ function mapKnowledgePost(post: Record<string, unknown>, visibility: "personal" 
 
 export default function AdminClient({ categories:initialCategories, settings, connectPage, aboutPage, stats:initialStats, connections, activation, initialArticle, initialLocation, userName, signOutPath, isPersonalAccount = false }: { categories: AdminCategory[]; settings:SiteSettingsForm; connectPage:EditablePage; aboutPage:EditablePage; stats:AdminStats; connections:AdminMcpConnection[]; activation:BetaActivationSignal; initialArticle:ArticleForm|null; initialLocation:AdminInitialLocation; userName: string; signOutPath: string; isPersonalAccount?: boolean }) {
   const articleEditorPreviewRef=useRef<HTMLDivElement>(null);
-  const [section,setSection]=useState<AdminSection>(initialLocation.section);
+  const [section,setSection]=useState<AdminSection>(isPersonalAccount&&isSiteAdminSection(initialLocation.section)?"browse":initialLocation.section);
   const [spaceLandingId,setSpaceLandingId]=useState<number|null>(initialLocation.spaceId);
   const [createSpaceOnOpen,setCreateSpaceOnOpen]=useState(false);
   const [categories,setCategories]=useState(initialCategories);
@@ -161,9 +165,10 @@ export default function AdminClient({ categories:initialCategories, settings, co
   useEffect(()=>{
     const restoreLocation=()=>{
       const parsed=parseAdminLocation(new URLSearchParams(window.location.search));
-      const next = parsed;
-      setSection(next.section);
-      setBrowseCategory(next.browseCategory);
+      const nextSection=isPersonalAccount&&isSiteAdminSection(parsed.section)?"browse":parsed.section;
+      setSection(nextSection);
+      if(nextSection!==parsed.section)window.history.replaceState(null,"",adminLocationHref({...parsed,section:nextSection}));
+      setBrowseCategory(parsed.browseCategory);
       setBrowseVisibility(next.browseVisibility);
       setQuery(next.query);
       setCategory(next.category);
@@ -362,6 +367,10 @@ export default function AdminClient({ categories:initialCategories, settings, co
   }
 
   function changeSection(requested:AdminSection){
+    if(isPersonalAccount&&isSiteAdminSection(requested)){
+      setMessage("站点管理仅管理员可访问");
+      return;
+    }
     const next = requested;
     if(next===section)return;
     const nextSpaceId=next==="spaces"?null:spaceLandingId;
