@@ -205,10 +205,10 @@ export default function AdminSidebar({
       </nav>
       </>}
     </div>
-    <div className="admin-user">{accountArea
+    <div className="admin-user">{accountArea || isPersonalAccount
       ? <span aria-hidden="true">{userName.trim().slice(0,1)||"星"}</span>
       : <img src={avatarUrl} alt={`${authorName}管理员`}/>}
-      <div><b>{userName}</b><small>{accountArea?"星屿账号":"管理员"}</small></div></div>
+      <div><b>{userName}</b><small>{accountArea?"星屿账号":isPersonalAccount?"个人账号":"管理员"}</small></div></div>
     <button className="admin-sidebar-collapse" type="button" onClick={onToggle} aria-expanded={!collapsed} aria-label={collapsed ? "展开管理栏" : "收起管理栏"} title={collapsed ? "展开管理栏" : "收起管理栏"}><span aria-hidden="true">{collapsed ? "›" : "‹"}</span></button>
   </aside>;
 }
