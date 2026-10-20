@@ -104,7 +104,7 @@ export default function BlogHomeExperience({
       : <ModalPostLink readerScope={admin?"admin":"public"} adminReaderContext={admin?adminReaderContext:undefined} className={cardClass} publicId={post.publicId} slug={post.slug} onEdit={onEdit}>{cardContent}</ModalPostLink>;
     return <div className={`shared-post-card${featuredCard?" featured":""}${admin?" admin-card":""}`} key={post.id}>
       {link}
-      {admin&&<div className="admin-card-actions"><span>{personalAccount ? (post.visibility==="public"?"公开文章":"私人草稿") : post.spaceId?"私有知识":post.status==="draft"?"草稿":"已发布"}</span>{(!personalAccount||post.canEdit)&&<button type="button" onClick={()=>onEdit?.(post.id)}>编辑 ↗</button>}</div>}
+      {admin&&<div className="admin-card-actions"><span>{personalAccount ? (post.visibility==="public"?"公开文章":"个人文章") : post.spaceId?"私有知识":post.status==="draft"?"草稿":"已发布"}</span>{(!personalAccount||post.canEdit)&&<button type="button" onClick={()=>onEdit?.(post.id)}>编辑 ↗</button>}</div>}
     </div>;
   };
 
