@@ -257,7 +257,8 @@ export async function scopedCreateDraft(userId:number,workspaceId:number,input:{
   const publishedAt=status==="published"?(input.publishedAt??new Date().toISOString()):(input.publishedAt??null);
   const insert=env.DB.prepare("INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,sort_order,status,published_at,featured,author_id,created_by,updated_by) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM workspace_effective_grants WHERE workspace_id=? AND user_id=? AND role IN('owner','admin','editor')) RETURNING id")
     .bind(workspaceId,publicId,title,slug,excerpt,content,catId,spaceId,order,status,publishedAt,input.featured?1:0,userId,userId,userId,workspaceId,userId);
-  const audit=env.DB.prepare(auditSql("create_draft"))  const results=await env.DB.batch([insert,audit]);
+  const audit=env.DB.prepare(auditSql("create_draft")).bind(summary,clientLabel,publicId);
+  const results=await env.DB.batch([insert,audit]);
   const newId=(results[0]?.results?.[0] as {id?:number}|undefined)?.id;
   if(!newId)throw new WorkspaceAccessError();
   if(ids.length) await env.DB.batch(ids.map(att=>attachSql(newId,workspaceId,att)));
