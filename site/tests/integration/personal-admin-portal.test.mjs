@@ -28,12 +28,12 @@ async function seedPublicPost(h) {
   const suffix = randomUUID().replaceAll("-", "");
   const publicId = "PORTAL_PUBLIC_" + suffix;
   const slug = "portal-public-" + suffix;
-  await h.db.prepare(
+  const inserted = await h.db.prepare(
     "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,featured,published_at) " +
-    "VALUES(1,?,?,?,?,?,?,NULL,'published',0,?)",
+    "VALUES(1,?,?,?,?,?,?,NULL,'published',0,?) RETURNING id",
   ).bind(publicId, "公开测试文章 " + suffix.slice(0, 8), slug, "公开摘要", "# 公开正文", category.id,
-    new Date().toISOString()).run();
-  return { publicId, slug };
+    new Date().toISOString()).first();
+  return { publicId, slug, id: inserted.id };
 }
 
 test("personal knowledge portal isolates private articles and only exposes published public posts", async () => {
@@ -49,6 +49,17 @@ test("personal knowledge portal isolates private articles and only exposes publi
     });
     assert.equal(created.status, 201, JSON.stringify(created.data));
     const privateId = created.data.post.publicId;
+    const privateAttachment = "att_" + randomBytes(16).toString("hex");
+    const publicAttachment = "att_" + randomBytes(16).toString("hex");
+    await h.db.prepare(
+      "INSERT INTO attachments(workspace_id,public_id,post_id,object_key,original_name,content_type,size,sha256) VALUES(?,?,?,?,?,?,?,?)",
+    ).bind(created.data.workspaceId, privateAttachment, created.data.post.id,
+      "attachments/ws" + created.data.workspaceId + "/2026/10/" + privateAttachment + "/alice-secret.txt",
+      "alice-secret.txt", "text/plain", 12, hash("alice-secret")).run();
+    await h.db.prepare(
+      "INSERT INTO attachments(workspace_id,public_id,post_id,object_key,original_name,content_type,size,sha256) VALUES(1,?,?,?,?,?,?,?)",
+    ).bind(publicAttachment, publicPost.id, "attachments/2026/10/" + publicAttachment + "/public-guide.pdf",
+      "public-guide.pdf", "application/pdf", 24, hash("public-guide")).run();
 
     const aliceMine = await api(h, "/api/knowledge/posts?type=mine", { cookie: alice.cookie });
     assert.equal(aliceMine.status, 200);
@@ -72,6 +83,15 @@ test("personal knowledge portal isolates private articles and only exposes publi
     assert.equal(publicList.status, 200);
     assert.ok(publicList.data.posts.some(post => post.publicId === publicPost.publicId));
     assert.equal(publicList.data.posts.some(post => post.publicId === privateId), false);
+
+    const bobFiles = await api(h, "/api/knowledge/files", { cookie: bob.cookie });
+    assert.equal(bobFiles.status, 200, JSON.stringify(bobFiles.data));
+    assert.ok(bobFiles.data.files.some(file => file.id === publicAttachment && file.visibility === "public"));
+    assert.equal(bobFiles.data.files.some(file => file.id === privateAttachment), false, "the file library must not reveal another user private attachments");
+    const aliceFiles = await api(h, "/api/knowledge/files", { cookie: alice.cookie });
+    assert.equal(aliceFiles.status, 200, JSON.stringify(aliceFiles.data));
+    assert.ok(aliceFiles.data.files.some(file => file.id === privateAttachment && file.visibility === "personal"));
+    assert.ok(aliceFiles.data.files.some(file => file.id === publicAttachment && file.visibility === "public"));
 
     const deniedPublicEdit = await api(h, "/api/knowledge/posts/" + publicPost.publicId, {
       method: "PATCH", cookie: bob.cookie,
