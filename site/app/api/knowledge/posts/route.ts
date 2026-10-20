@@ -23,14 +23,14 @@ export async function GET(request: Request) {
         limit,
         cursor: params.get("cursor") ?? undefined,
         category: params.get("category") ?? "all",
-        status: params.get("status") === "draft" || params.get("status") === "published" ? params.get("status") : "all",
+        status: params.get("status") === "draft" ? "draft" : params.get("status") === "published" ? "published" : "all",
       });
       const stats = await env.DB.prepare(
         "SELECT COUNT(*) AS total,SUM(CASE WHEN status='published' THEN 1 ELSE 0 END) AS published,"+
         "SUM(CASE WHEN status='draft' THEN 1 ELSE 0 END) AS drafts,COALESCE(SUM(view_count),0) AS views "+
         "FROM posts WHERE workspace_id=? AND (author_id=? OR created_by=? OR (author_id IS NULL AND created_by IS NULL))"
       ).bind(workspaceId,user.userId,user.userId).first<{total:number;published:number;drafts:number;views:number}>();
-      const categories = await (await import("cloudflare:workers")).env.DB.prepare(
+      const categories = await env.DB.prepare(
         "SELECT id,name,slug,color FROM categories WHERE workspace_id=? ORDER BY id"
       ).bind(workspaceId).all();
       return apiJson({
