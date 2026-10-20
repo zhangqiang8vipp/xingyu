@@ -129,6 +129,17 @@ test("personal knowledge portal isolates private articles and only exposes publi
     assert.equal(updated.status, 200, JSON.stringify(updated.data));
     assert.equal(updated.data.post.title, "Alice private note updated");
     assert.equal(updated.data.post.visibility, "personal");
+
+    const deniedDelete = await api(h, "/api/knowledge/posts/" + privateId, {
+      method: "DELETE", cookie: bob.cookie, body: { expected_version: 2 },
+    });
+    assert.equal(deniedDelete.status, 404, "another account cannot delete a private article");
+
+    const deleted = await api(h, "/api/knowledge/posts/" + privateId, {
+      method: "DELETE", cookie: alice.cookie, body: { expected_version: 2 },
+    });
+    assert.equal(deleted.status, 200, JSON.stringify(deleted.data));
+    assert.equal(deleted.data.ok, true);
   } finally {
     await closeTestHarness(h);
   }
