@@ -84,7 +84,7 @@ test("source-only searches have their own larger daily quota without consuming f
     const first=await ask(h,{question:"search-not-present-anywhere",mode:"sources"},
       undefined,{"CF-Connecting-IP":"198.51.100.77"});
     assert.equal(first.status,200,JSON.stringify(first.json));
-    await h.db.prepare("UPDATE ai_question_quotas SET used=29 WHERE bucket='visitor:search'").run();
+    await h.db.prepare("UPDATE oauth_rate_limits SET attempts=29 WHERE identifier LIKE 'qa:v1:search:%'").run();
     const last=await ask(h,{question:"search-not-present-anywhere",mode:"sources"},
       undefined,{"CF-Connecting-IP":"198.51.100.77"});
     assert.equal(last.status,200);
@@ -92,9 +92,9 @@ test("source-only searches have their own larger daily quota without consuming f
       undefined,{"CF-Connecting-IP":"198.51.100.77"});
     assert.equal(blocked.status,429);
     assert.match(blocked.json.error,/额度/);
-    const meta=await h.db.prepare("SELECT used,bucket FROM ai_question_quotas").all();
-    assert.ok(meta.results.some(x=>x.bucket==="visitor:search"&&x.used===30));
-    assert.ok(!meta.results.some(x=>x.bucket==="visitor:model"||x.bucket==="global"),
+    const meta=await h.db.prepare("SELECT identifier,attempts FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:%'").all();
+    assert.ok(meta.results.some(x=>x.identifier.startsWith("qa:v1:search:")&&x.attempts===30));
+    assert.ok(!meta.results.some(x=>x.identifier.startsWith("qa:v1:model:")||x.identifier.startsWith("qa:v1:global:")),
       "search-only requests must not spend free model allocation");
   }finally{await closeTestHarness(h);}
 });
@@ -126,8 +126,8 @@ test("exhausted global OpenRouter budget still returns real sources without maki
       "'# Cloudflare D1 技术实践',?,NULL,'published',CURRENT_TIMESTAMP)"
     ).bind(category.id).run();
     await h.db.prepare(
-      "INSERT INTO ai_question_quotas(day,bucket,identity_hash,used) VALUES(?,?,?,40)"
-    ).bind(new Date().toISOString().slice(0,10),"global","hosted-free").run();
+      "INSERT INTO oauth_rate_limits(identifier,attempts,window_started,updated_at) VALUES(?,40,?,?)"
+    ).bind("qa:v1:global:"+new Date().toISOString().slice(0,10),Math.floor(Date.now()/86400000)*86400,Math.floor(Date.now()/1000)).run();
     const response=await ask(h,{
       question:"Cloudflare 有哪些技术实践？",scope:"public",mode:"answer",
     });
@@ -136,9 +136,9 @@ test("exhausted global OpenRouter budget still returns real sources without maki
     assert.ok(response.json.sources.some(item=>item.title==="Cloudflare 知识文章"));
     assert.match(response.json.answer,/额度已满/);
     const quota=await h.db.prepare(
-      "SELECT used FROM ai_question_quotas WHERE bucket='global'"
+      "SELECT attempts FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:global:%'"
     ).first();
-    assert.equal(quota.used,40,"model request must not overrun the free daily budget");
+    assert.equal(quota.attempts,40,"model request must not overrun the free daily budget");
   }finally{await closeTestHarness(h);}
 });
 
