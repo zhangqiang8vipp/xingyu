@@ -11,13 +11,19 @@ export type QaDiagnosticCode =
   | "timeout" | "network" | "invalid_response" | "unknown";
 
 export class QaProviderError extends Error {
+  readonly reason: QaProviderFailure;
+  readonly status: number | null;
+  readonly durationMs: number | null;
   constructor(
-    readonly reason: QaProviderFailure,
-    readonly status: number | null = null,
-    readonly durationMs: number | null = null,
+    reason: QaProviderFailure,
+    status: number | null = null,
+    durationMs: number | null = null,
   ) {
     super(reason);
     this.name = "QaProviderError";
+    this.reason=reason;
+    this.status=status;
+    this.durationMs=durationMs;
   }
 }
 
