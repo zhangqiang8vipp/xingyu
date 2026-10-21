@@ -21,7 +21,8 @@ const qaFailureMessage = (code:string) => {
     case "credits_unavailable": return "OpenRouter 账户或 API Key 的可用额度不足。以下是匹配到的真实原文。";
     case "invalid_request": return "OpenRouter 拒绝了模型请求参数。以下是匹配到的真实原文。";
     case "model_not_found": return "OpenRouter 未找到所请求的模型路由。以下是匹配到的真实原文。";
-    case "timeout": return "模型在 22 秒内没有完成回答。以下是匹配到的真实原文。";
+    case "timeout": return "模型在 35 秒内没有完成回答。以下是匹配到的真实原文。";
+    case "output_token_limit": return "模型已用完生成 tokens，仍没有产生可展示的回答。以下是匹配到的真实原文。";
     case "invalid_response": return "模型没有返回可显示的回答。以下是匹配到的真实原文。";
     case "network": return "连接 OpenRouter 时遇到网络错误。以下是匹配到的真实原文。";
     case "upstream_unavailable": return "OpenRouter 或所选免费模型暂时不可用。以下是匹配到的真实原文。";
