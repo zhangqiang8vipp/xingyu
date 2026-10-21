@@ -35,7 +35,7 @@ async function increment(day: string,bucket: string,hash: string,limit: number) 
   return Boolean(row);
 }
 
-export async function takeAskVisitorQuota(request: Request,identity: AskIdentity) {
+export async function takeAskVisitorQuota(request: Request,identity: AskIdentity, mode: "answer" | "sources") {
   const date=new Date().toISOString().slice(0,10);
   const label=identity
     ? "user:" + identity.userId
@@ -45,8 +45,12 @@ export async function takeAskVisitorQuota(request: Request,identity: AskIdentity
   // below is the authoritative protection for expensive upstream calls.
   const edge=await env.VIEW_RATE_LIMITER.limit({key:"ask:"+hash});
   if(!edge.success)throw new AskQuotaError("throttled");
-  const limit=identity ? INDIVIDUAL_SIGNED_IN_LIMIT : INDIVIDUAL_ANONYMOUS_LIMIT;
-  if(!await increment(date,"visitor",hash,limit))throw new AskQuotaError("daily");
+  const modelRequest=mode==="answer";
+  const limit=modelRequest
+    ? identity ? INDIVIDUAL_SIGNED_IN_LIMIT : INDIVIDUAL_ANONYMOUS_LIMIT
+    : identity ? 100 : 30;
+  const bucket=modelRequest?"visitor:model":"visitor:search";
+  if(!await increment(date,bucket,hash,limit))throw new AskQuotaError("daily");
 }
 
 export async function takeAskGlobalQuota() {
