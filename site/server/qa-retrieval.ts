@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { ensurePersonalWorkspace, workspaceGrant } from "@/db/workspace-access";
 import { accessibleSpaceIds } from "@/db/space-acl";
+import { isKnowledgeOverviewQuestion } from "@/domain/knowledge/qa-overview";
 
 export type AskScope = "public" | "mine" | "all";
 export type AskIdentity = { userId: number } | null;
@@ -87,17 +88,35 @@ async function queryRows(where: string, args: unknown[], terms: string[]) {
     b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6);
 }
 
+/** For overview questions, cite a small, varied sample of *real* articles.
+ * Sampling by category avoids mistaking generic words such as 技术/经验 for topics.
+ */
+async function queryOverviewRows(where: string, args: unknown[]) {
+  const result = await env.DB.prepare(
+    "SELECT id,publicId,title,slug,excerpt,content,updatedAt FROM (" +
+    "SELECT p.id,p.public_id AS publicId,p.title,p.slug,p.excerpt," +
+    "substr(p.content,1,24000) AS content,p.updated_at AS updatedAt," +
+    "ROW_NUMBER() OVER (PARTITION BY p.category_id ORDER BY " +
+    "p.featured DESC,p.view_count DESC,p.updated_at DESC,p.id DESC) AS topicRank " +
+    "FROM posts p WHERE " + where +
+    ") WHERE topicRank<=5 ORDER BY topicRank ASC,updatedAt DESC LIMIT 5"
+  ).bind(...args).all<Row>();
+  return result.results ?? [];
+}
 export async function findAskSources(
   question: string, scope: AskScope, identity: AskIdentity, origin: string,
 ): Promise<AskSource[]> {
   if ((scope === "mine" || scope === "all") && !identity) throw new Error("ASK_LOGIN_REQUIRED");
   const terms = askSearchTerms(question);
-  if (!terms.length) return [];
+  const overview = isKnowledgeOverviewQuestion(question);
+  if (!terms.length && !overview) return [];
+  const search = (where: string, args: unknown[]) =>
+    overview ? queryOverviewRows(where, args) : queryRows(where, args, terms);
   const rows: Array<{ row: Row; visibility: "public" | "personal" }> = [];
 
   if (scope !== "mine") {
-    const publicRows = await queryRows(
-      "p.workspace_id=1 AND p.space_id IS NULL AND p.status='published'", [], terms,
+    const publicRows = await search(
+      "p.workspace_id=1 AND p.space_id IS NULL AND p.status='published'", [],
     );
     rows.push(...publicRows.map(row => ({row,visibility: "public" as const})));
   }
@@ -119,12 +138,22 @@ export async function findAskSources(
       constraints.push("p.space_id IN (" + accessible.map(() => "?").join(",") + ")");
       args.push(...accessible);
     }
-    const privateRows = await queryRows(constraints.join(" AND "),args,terms);
+    const privateRows = await search(constraints.join(" AND "),args);
     rows.push(...privateRows.map(row => ({row,visibility:"personal" as const})));
   }
-  return rows.sort((a,b) => score(b.row,terms)-score(a.row,terms) ||
-    b.row.updatedAt.localeCompare(a.row.updatedAt))
-    .slice(0,5).map(({row,visibility},i) => toSource(row,visibility,i,origin,terms));
+  if (!overview) rows.sort((a,b) => score(b.row,terms)-score(a.row,terms) ||
+    b.row.updatedAt.localeCompare(a.row.updatedAt));
+  const selected = overview && scope === "all"
+    ? [...rows.filter(entry => entry.visibility === "public").slice(0,3),
+       ...rows.filter(entry => entry.visibility === "personal").slice(0,2)]
+    : rows.slice(0,5);
+  if (overview && scope === "all") {
+    for (const entry of rows) {
+      if (selected.length >= 5) break;
+      if (!selected.includes(entry)) selected.push(entry);
+    }
+  }
+  return selected.slice(0,5).map(({row,visibility},i) => toSource(row,visibility,i,origin,terms));
 }
 
 function toSource(row: Row, visibility: "public" | "personal", index: number, origin: string, terms: string[]): AskSource {
