@@ -29,8 +29,8 @@ export async function POST(request: Request) {
     body=value as Record<string,unknown>;
   } catch {return fail("无效请求",400);}
   const question=typeof body.question==="string"?body.question.trim():"";
-  if(question.length<3||question.length>240||/[\u0000-\u001f\u007f]/.test(question))
-    return fail("请输入 3 到 240 字的问题",400);
+  if(question.length<2||question.length>240||/[\u0000-\u001f\u007f]/.test(question))
+    return fail("请输入 2 到 240 字的问题",400);
   const scope=body.scope??"public";
   if(scope!=="public"&&scope!=="mine"&&scope!=="all")
     return fail("无效知识范围",400);
@@ -48,7 +48,17 @@ export async function POST(request: Request) {
     return fail("问答模型尚未配置，请稍后再试；也可使用仅检索资料模式",503);
 
   try{
-    await takeAskVisitorQuota(request,user,mode);
+    // When the free AI allowance is exhausted, still return authorized original
+    // articles using the independent search allowance. No model call occurs.
+    let modelQuotaReached=false;
+    try {
+      await takeAskVisitorQuota(request,user,mode);
+    } catch(error) {
+      if(mode==="answer"&&error instanceof AskQuotaError&&error.code==="daily") {
+        await takeAskVisitorQuota(request,user,"sources");
+        modelQuotaReached=true;
+      } else throw error;
+    }
     const sources=await findAskSources(question,scope as AskScope,user,new URL(request.url).origin);
     if(!sources.length)return Response.json({
       answer:"没有找到足够相关的文章。请换一个更具体的关键词试试。",
@@ -57,6 +67,10 @@ export async function POST(request: Request) {
     if(mode==="sources")return Response.json({
       answer:"已检索到下列真实文章（未调用 AI 模型）。",
       sources,model:null,degraded:false,
+    },{headers});
+    if(modelQuotaReached)return Response.json({
+      answer:"今天的免费 AI 回答次数已用完，下面仍可查看检索到的真实原文。",
+      sources,model:null,degraded:true,
     },{headers});
     try {
       await takeAskGlobalQuota();
