@@ -114,10 +114,11 @@ export async function POST(request: Request) {
       const incidentId=crypto.randomUUID();
       // Deliberately log only allowlisted metadata; never prompts, snippets,
       // private articles, provider bodies, URLs, headers or API keys.
-      console.warn("knowledge_qa_provider_failure",JSON.stringify({
+      console.warn({
+        event:"knowledge_qa_provider_failure",
         incidentId,code:diagnostic.code,
         httpStatus:diagnostic.status,durationMs:diagnostic.durationMs,model:QA_MODEL,
-      }));
+      });
       return Response.json({
         answer:qaFailureMessage(diagnostic.code),
         sources,model:QA_MODEL,degraded:true,
