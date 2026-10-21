@@ -34,9 +34,20 @@ export async function isLegacyAdminPasswordAllowed(): Promise<boolean> {
   return credential?.legacy_admin === 1;
 }
 
-export async function getAdminIdentity(): Promise<AdminIdentity | null> {
+export async function getAdminIdentity(
+  authenticatedUser?: { userId:number; displayName:string } | null,
+): Promise<AdminIdentity | null> {
   if (isPasswordLoginConfigured() && await hasValidAdminSession() && await isLegacyAdminPasswordAllowed()) {
     return { displayName: "星屿管理员", email: "password-admin" };
+  }
+  // When the page already looked up its identity, avoid a second session
+  // lookup. The membership check remains authoritative for site access.
+  if (authenticatedUser !== undefined) {
+    if (!authenticatedUser) return null;
+    const row = await env.DB.prepare(
+      "SELECT 1 AS yes FROM site_memberships WHERE user_id=? AND role='owner'"
+    ).bind(authenticatedUser.userId).first();
+    return row ? {displayName:"星屿管理员",email:"zhangqiang8vip@gmail.com"} : null;
   }
   const { isOwnerIdentity } = await import("./identity");
   if (await isOwnerIdentity()) return { displayName: "星屿管理员", email: "zhangqiang8vip@gmail.com" };

@@ -79,6 +79,32 @@ export async function revokePersonalAccessToken(userId: number, id: number) {
   return Number(result.meta.changes ?? 0) === 1;
 }
 
+/**
+ * Re-issue a lost PAT without storing its raw bytes. The old token hash is
+ * replaced atomically, so existing clients immediately lose access.
+ * Keep name, scopes and original expiration unchanged.
+ */
+export async function rotatePersonalAccessToken(userId: number, id: number) {
+  const now = Math.floor(Date.now() / 1000);
+  const token = generatePat();
+  const row = await env.DB.prepare(
+    "UPDATE personal_access_tokens SET token_hash=?,token_suffix=?,last_used_at=NULL " +
+    "WHERE id=? AND user_id=? AND revoked_at IS NULL " +
+    "AND (expires_at IS NULL OR expires_at>?) " +
+    "RETURNING id,name,scope,expires_at AS expiresAt"
+  ).bind(await hashSecret(token),token.slice(-4),id,userId,now)
+    .first<{id:number;name:string;scope:string;expiresAt:number|null}>();
+  return row ? { id:row.id, token, name:row.name, scopes:row.scope.split(" "), expiresAt:row.expiresAt } : null;
+}
+
+/** Permanently remove a user's PAT; an active PAT becomes unusable immediately. */
+export async function deletePersonalAccessToken(userId: number, id: number) {
+  const result = await env.DB.prepare(
+    "DELETE FROM personal_access_tokens WHERE id=? AND user_id=?"
+  ).bind(id,userId).run();
+  return Number(result.meta.changes ?? 0) === 1;
+}
+
 export async function touchPersonalAccessToken(id: number) {
   await env.DB.prepare(
     "UPDATE personal_access_tokens SET last_used_at=? WHERE id=? AND revoked_at IS NULL"

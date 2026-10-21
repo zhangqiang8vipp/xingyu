@@ -12,6 +12,18 @@ export async function ensurePersonalWorkspace(userId: number) {
   await ensureDatabase();
   if (!Number.isSafeInteger(userId) || userId < 1) throw new WorkspaceAccessError();
   const slug = "personal-u" + userId;
+  // Existing accounts already have these records. Checking once avoids four
+  // unnecessary INSERT OR IGNORE round trips during every login and page load.
+  // A partially provisioned account falls through to the original repair path.
+  const existing = await env.DB.prepare(
+    "SELECT w.id FROM workspaces w WHERE w.slug=? AND w.owner_user_id=? AND w.kind='personal' AND w.status='active' " +
+    "AND EXISTS(SELECT 1 FROM workspace_memberships m WHERE m.workspace_id=w.id AND m.user_id=? AND m.role='owner' AND m.status='active') " +
+    (userId === 1 ? "" :
+      "AND EXISTS(SELECT 1 FROM categories c WHERE c.workspace_id=w.id AND c.slug=?) " +
+      "AND EXISTS(SELECT 1 FROM spaces s WHERE s.workspace_id=w.id AND s.slug=? AND s.parent_id IS NULL)")
+  ).bind(slug,userId,userId,...(userId===1?[]:["user-"+userId+"-private","private-u"+userId]))
+    .first<{id:number}>();
+  if(existing)return existing.id;
   await env.DB.prepare(
     "INSERT OR IGNORE INTO workspaces(kind,owner_user_id,slug,name,status) SELECT 'personal',id,? ,display_name || '的工作区','active' FROM users WHERE id=? AND status='active'",
   ).bind(slug,userId).run();

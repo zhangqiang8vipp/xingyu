@@ -13,9 +13,9 @@ import { parseAdminLocation } from "@/domain/admin/location";
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage({searchParams}:{searchParams:Promise<{edit?:string;section?:string;visibility?:string;q?:string;category?:string;status?:string;spaceId?:string}>}) {
-  const admin = await getAdminIdentity();
+  const user = await currentIdentity();
+  const admin = await getAdminIdentity(user);
   if (!admin) {
-    const user = await currentIdentity();
     if (!user) redirect("/login?return_to=%2Fadmin");
     if (user.userId === 1) redirect("/admin/login");
     const search = await searchParams;
