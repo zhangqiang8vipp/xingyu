@@ -96,3 +96,46 @@ test("daily public question quota is persistent and limits anonymous abuse",asyn
     assert.ok(!meta.results.some(x=>x.bucket==="global"),"no upstream call means no global free-model spend");
   }finally{await closeTestHarness(h);}
 });
+
+
+test("Q&A page serves its own stylesheet without swelling the global public CSS",async()=>{
+  const h=await openTestHarness({vars});
+  try{
+    const page=await h.dispatch("/ask",{headers:{Accept:"text/html"}});
+    assert.equal(page.status,200,"site Q&A route must render successfully");
+    assert.match(await page.text(),/问问星屿/);
+    const stylesheet=await h.dispatch("/ask.css");
+    assert.equal(stylesheet.status,200,"route-only CSS must be available as a static asset");
+    assert.match(await stylesheet.text(),/\.xy-ask-page/);
+  }finally{await closeTestHarness(h);}
+});
+
+test("exhausted global OpenRouter budget still returns real sources without making a model request",async()=>{
+  const h=await openTestHarness({vars:{
+    ...vars,OPENROUTER_API_KEY:"integration-test-not-real-credential",
+  }});
+  try{
+    const category=await h.db.prepare(
+      "SELECT id FROM categories WHERE workspace_id=1 ORDER BY id LIMIT 1"
+    ).first();
+    await h.db.prepare(
+      "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,published_at) " +
+      "VALUES(1,'qa-budget-public','Cloudflare 知识文章','qa-budget-public','Cloudflare 技术实践'," +
+      "'# Cloudflare D1 技术实践',?,NULL,'published',CURRENT_TIMESTAMP)"
+    ).bind(category.id).run();
+    await h.db.prepare(
+      "INSERT INTO ai_question_quotas(day,bucket,identity_hash,used) VALUES(?,?,?,40)"
+    ).bind(new Date().toISOString().slice(0,10),"global","hosted-free").run();
+    const response=await ask(h,{
+      question:"Cloudflare 有哪些技术实践？",scope:"public",mode:"answer",
+    });
+    assert.equal(response.status,200,JSON.stringify(response.json));
+    assert.equal(response.json.degraded,true);
+    assert.ok(response.json.sources.some(item=>item.title==="Cloudflare 知识文章"));
+    assert.match(response.json.answer,/额度已满/);
+    const quota=await h.db.prepare(
+      "SELECT used FROM ai_question_quotas WHERE bucket='global'"
+    ).first();
+    assert.equal(quota.used,40,"model request must not overrun the free daily budget");
+  }finally{await closeTestHarness(h);}
+});
