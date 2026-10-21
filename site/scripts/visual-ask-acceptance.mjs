@@ -73,7 +73,7 @@ async function check(browser,origin,label,width,height,dark) {
     const first=await page.goto(origin+"/",{waitUntil:"networkidle0",timeout:70000});
     assert.equal(first.status(),200,label+" homepage");
     await page.waitForSelector(".xy-ai-launcher",{visible:true,timeout:20000});
-    assert.equal(await page.$(".xy-ai-nav-trigger").then(items=>items.length),0,
+    assert.equal(await page.evaluate(()=>document.querySelectorAll(".xy-ai-nav-trigger").length),0,
       label+" no redundant top Ask AI button");
     // Simulate a long article in the real browser without relying on external content.
     await page.evaluate(()=>{
