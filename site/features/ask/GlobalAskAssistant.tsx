@@ -74,6 +74,7 @@ export default function GlobalAskAssistant() {
       <span>询问 AI</span>
     </button> : null}
     {mounted ? <>
+      <link rel="stylesheet" href="/assistant.css" />
       {open ? <button className="xy-ai-backdrop" type="button" aria-label="关闭 AI 助手"
         onClick={() => setOpen(false)} /> : null}
       <aside id="xy-ai-global-panel" className="xy-ai-panel" role="dialog"
