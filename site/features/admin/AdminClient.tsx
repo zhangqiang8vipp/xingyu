@@ -91,29 +91,20 @@ export default function AdminClient({ categories:initialCategories, settings, co
     if (cursor) params.set("cursor", cursor);
     try {
       if (isPersonalAccount) {
-        const suffix = "&q=" + encodeURIComponent(query);
-        const [mineResponse, publicResponse] = await Promise.all([
-          fetch("/api/knowledge/posts?type=mine&limit=50" + suffix, { signal, cache: "no-store" }),
-          fetch("/api/knowledge/posts?type=public&limit=50" + suffix, { signal, cache: "no-store" }),
-        ]);
-        const [mineData, publicData] = await Promise.all([
-          readApiJson<{ posts: Record<string, unknown>[] }>(mineResponse),
-          readApiJson<{ posts: Record<string, unknown>[] }>(publicResponse),
-        ]);
-        if (!mineResponse.ok || !publicResponse.ok) throw new Error("文章列表读取失败");
-        const all = [
-          ...(mineData.posts ?? []).map((post) => mapKnowledgePost(post, "personal", categories)),
-          ...(publicData.posts ?? []).map((post) => mapKnowledgePost(post, "public", categories)),
-        ].filter((post) => {
-          if (status !== "all" && post.status !== status) return false;
-          if (category !== "all" && categories.find((item) => item.id === post.categoryId)?.slug !== category) return false;
-          return !query || (post.title + " " + post.excerpt + " " + post.slug).toLowerCase().includes(query.toLowerCase());
-        }).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-        const pageSize = CONTENT_LIMITS.adminBatch;
-        const offset = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
+        // The API pages across both private and published content in a single,
+        // permission-scoped database query. Never slice two 50-item arrays in JS.
+        const personalParams = new URLSearchParams({
+          type: "all", limit: String(CONTENT_LIMITS.adminBatch),
+          q: query, category, status,
+        });
+        if (cursor) personalParams.set("cursor", cursor);
+        const response = await fetch(`/api/knowledge/posts?${personalParams}`, { signal, cache: "no-store" });
+        const data = await readApiJson<{ posts: Record<string, unknown>[]; nextCursor: string | null }>(response);
+        if (!response.ok) throw new Error("文章列表读取失败");
         if (!signal?.aborted) {
-          setPosts(all.slice(offset, offset + pageSize));
-          setNextCursor(offset + pageSize < all.length ? String(offset + pageSize) : null);
+          setPosts((data.posts ?? []).map(post =>
+            mapKnowledgePost(post, post.visibility === "public" ? "public" : "personal", categories)));
+          setNextCursor(data.nextCursor ?? null);
         }
       } else {
         const response = await fetch(`/api/posts?${params}`, { signal });
