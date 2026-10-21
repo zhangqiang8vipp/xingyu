@@ -124,6 +124,10 @@ export async function answerWithOpenRouter(
         stream:false,
         temperature:0.2,
         max_tokens:QA_MAX_COMPLETION_TOKENS,
+        // Free routing can choose a reasoning model. Reserve most of the
+        // completion budget for user-visible text instead of internal thought.
+        // A "none" setting can be rejected by mandatory-reasoning models.
+        reasoning:{effort:"low"},
         messages:qaMessages(question,sources),
       }),
       signal:controller.signal,

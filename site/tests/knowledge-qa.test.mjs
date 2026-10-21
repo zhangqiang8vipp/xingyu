@@ -42,6 +42,8 @@ test("OpenRouter request never sends a client API key and cites only known artic
   assert.equal(seen.body.stream,false);
   assert.equal(QA_MAX_COMPLETION_TOKENS,2048);
   assert.equal(seen.body.max_tokens,2048,"allow visible output after reasoning budget");
+  assert.deepEqual(seen.body.reasoning,{effort:"low"},"limit reasoning use without disabling mandatory thinking");
+  assert.equal(seen.body.model,"openrouter/free","retain the requested free router");
   assert.ok(!seen.body.messages[1].content.includes("unit-test-only-key"));
 });
 
@@ -238,4 +240,24 @@ test("model answer still caps public output and preserves caller quotas",()=>{
   assert.match(route,/case "output_token_limit"/);
   assert.match(route,/takeAskVisitorQuota\(request,user,mode,isAdmin\)/);
   assert.doesNotMatch(route,/takeAskGlobalQuota/);
+});
+
+
+test("low reasoning effort remains single-call and preserves output-token diagnostics",async()=>{
+  let count=0;
+  await assert.rejects(
+    answerWithOpenRouter("Cloudflare 技术",sources,"private-test-key","https://example.test",
+      async(_url,init)=>{
+        count+=1;
+        const sent=JSON.parse(init.body);
+        assert.equal(sent.model,"openrouter/free");
+        assert.deepEqual(sent.reasoning,{effort:"low"});
+        assert.equal(sent.max_tokens,2048);
+        return new Response(JSON.stringify({choices:[{
+          finish_reason:"length",message:{content:"",reasoning:"NEVER EXPOSE THIS"},
+        }]}),{status:200});
+      }),
+    error=>error instanceof QaProviderError && qaFailureDetails(error).code==="output_token_limit",
+  );
+  assert.equal(count,1,"a failed public question must not silently retry the provider");
 });
