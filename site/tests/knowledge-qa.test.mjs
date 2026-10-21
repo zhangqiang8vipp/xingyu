@@ -5,7 +5,7 @@ import { askSearchTerms } from "../domain/knowledge/qa-terms.ts";
 import { isKnowledgeOverviewQuestion } from "../domain/knowledge/qa-overview.ts";
 import { readLimitedAskBody } from "../domain/knowledge/qa-request.ts";
 import {
-  answerWithOpenRouter,qaMessages,verifiedAnswer,QaProviderError,qaFailureDetails,QA_MODEL,
+  answerWithOpenRouter,qaMessages,verifiedAnswer,QaProviderError,qaFailureDetails,QA_MODEL,QA_MAX_COMPLETION_TOKENS,
 } from "../server/qa-openrouter.ts";
 
 const sources=[
@@ -40,6 +40,8 @@ test("OpenRouter request never sends a client API key and cites only known artic
   assert.equal(seen.headers.Authorization,"Bearer unit-test-only-key");
   assert.equal(seen.body.model,"openrouter/free");
   assert.equal(seen.body.stream,false);
+  assert.equal(QA_MAX_COMPLETION_TOKENS,2048);
+  assert.equal(seen.body.max_tokens,2048,"allow visible output after reasoning budget");
   assert.ok(!seen.body.messages[1].content.includes("unit-test-only-key"));
 });
 
@@ -200,4 +202,40 @@ test("diagnostic logs contain only allowlisted values and preserve newer admin q
   assert.match(provider,/Never read or log an upstream error body/);
   assert.match(chat,/诊断编号/);
   assert.match(chat,/thread\.scrollTo/);
+});
+
+
+test("HTTP 200 with finish_reason=length and empty content gets a precise output-token diagnostic",async()=>{
+  const errorPayload={choices:[{finish_reason:"length",message:{
+    content:"",reasoning:"DO NOT LEAK INTERNAL REASONING",
+  }}],usage:{completion_tokens:650,completion_tokens_details:{reasoning_tokens:649}}};
+  await assert.rejects(
+    answerWithOpenRouter("Cloudflare 技术",sources,"safe-test-key","https://example.test",
+      async()=>new Response(JSON.stringify(errorPayload),{status:200})),
+    error=>{
+      assert.ok(error instanceof QaProviderError);
+      assert.equal(qaFailureDetails(error).code,"output_token_limit");
+      assert.equal(qaFailureDetails(error).status,200);
+      assert.ok(!JSON.stringify(qaFailureDetails(error)).includes("DO NOT LEAK"));
+      return true;
+    },
+  );
+});
+
+test("HTTP 200 with empty content and finish_reason=stop remains an invalid response",async()=>{
+  await assert.rejects(
+    answerWithOpenRouter("文章经验",sources,"safe-test-key","https://example.test",
+      async()=>new Response(JSON.stringify({choices:[{finish_reason:"stop",message:{content:""}}]}),{status:200})),
+    error=>error instanceof QaProviderError&&qaFailureDetails(error).code==="invalid_response",
+  );
+});
+
+test("model answer still caps public output and preserves caller quotas",()=>{
+  const provider=readFileSync(new URL("../server/qa-openrouter.ts",import.meta.url),"utf8");
+  const route=readFileSync(new URL("../app/api/ask/route.ts",import.meta.url),"utf8");
+  assert.match(provider,/REQUEST_TIMEOUT_MS = 35_000/);
+  assert.match(provider,/max_tokens:QA_MAX_COMPLETION_TOKENS/);
+  assert.match(route,/case "output_token_limit"/);
+  assert.match(route,/takeAskVisitorQuota\(request,user,mode,isAdmin\)/);
+  assert.doesNotMatch(route,/takeAskGlobalQuota/);
 });
