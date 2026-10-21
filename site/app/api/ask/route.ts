@@ -35,6 +35,8 @@ export async function POST(request: Request) {
     return fail("无效知识范围",400);
   const mode=body.mode??"answer";
   if(mode!=="answer"&&mode!=="sources")return fail("无效查询模式",400);
+  if(scope!=="public"&&mode==="answer"&&body.confirmedExternalProcessing!==true)
+    return fail("请先确认允许将匹配的私人文章片段发送给模型",400);
   const user=await identityFromRequest(request);
   if(scope!=="public"&&!user)return fail("请先登录后再查询私人知识",401);
   const key=(env as Env & {OPENROUTER_API_KEY?:string}).OPENROUTER_API_KEY?.trim();
