@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isKnowledgeOverviewQuestion } from "../domain/knowledge/qa-overview.ts";
+import { readLimitedAskBody } from "../domain/knowledge/qa-request.ts";
 import {
   answerWithOpenRouter,qaMessages,verifiedAnswer,QaProviderError,QA_MODEL,
 } from "../server/qa-openrouter.ts";
@@ -53,4 +54,17 @@ test("site-topic overview questions sample real articles instead of requiring a 
   assert.equal(isKnowledgeOverviewQuestion("本站主要有哪些内容？"),true);
   assert.equal(isKnowledgeOverviewQuestion("我的知识库主要写了什么？"),true);
   assert.equal(isKnowledgeOverviewQuestion("网站如何部署 Cloudflare？"),false);
+});
+
+test("public ask body is byte-capped even when Content-Length is absent",async()=>{
+  const small=new Request("https://example.test/api/ask",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({question:"技术经验",scope:"public"}),
+  });
+  assert.match(await readLimitedAskBody(small),/技术经验/);
+  const big=new Request("https://example.test/api/ask",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:"x".repeat(3000),
+  });
+  assert.equal(await readLimitedAskBody(big),null);
 });
