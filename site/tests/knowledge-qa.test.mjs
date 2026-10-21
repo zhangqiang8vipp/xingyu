@@ -5,7 +5,7 @@ import { askSearchTerms } from "../domain/knowledge/qa-terms.ts";
 import { isKnowledgeOverviewQuestion } from "../domain/knowledge/qa-overview.ts";
 import { readLimitedAskBody } from "../domain/knowledge/qa-request.ts";
 import {
-  answerWithOpenRouter,qaMessages,verifiedAnswer,QaProviderError,QA_MODEL,
+  answerWithOpenRouter,qaMessages,verifiedAnswer,QaProviderError,qaFailureDetails,QA_MODEL,
 } from "../server/qa-openrouter.ts";
 
 const sources=[
@@ -96,4 +96,71 @@ test("both the global launcher and full page use the same accessible assistant U
   assert.match(css,/\.xy-ai-panel/);
   assert.match(css,/max-width:720px/);
   assert.match(route,/question.length<2/);
+});
+
+
+test("OpenRouter diagnostics distinguish rejected keys, credits, malformed requests and 5xx errors",async()=>{
+  for(const [status,code] of [
+    [400,"invalid_request"],[401,"auth_rejected"],[402,"credits_unavailable"],
+    [403,"auth_rejected"],[404,"model_not_found"],[422,"invalid_request"],
+    [429,"rate_limited"],[502,"upstream_unavailable"],[503,"upstream_unavailable"],
+  ]){
+    await assert.rejects(
+      answerWithOpenRouter("网站技术经验",sources,"private-key-do-not-print","https://example.test",
+        async()=>new Response("provider echoed private-key-do-not-print and user's private question",
+          {status})),
+      error=>{
+        assert.ok(error instanceof QaProviderError);
+        const details=qaFailureDetails(error);
+        assert.equal(details.code,code);
+        assert.equal(details.status,status);
+        assert.ok(details.durationMs>=0);
+        assert.ok(!JSON.stringify(details).includes("private-key"));
+        assert.ok(!error.message.includes("private-key"));
+        return true;
+      },
+    );
+  }
+});
+
+test("AbortError is a timeout, transport errors stay private and malformed 200 is not a success",async()=>{
+  const failed=[
+    [async()=>{const error=new Error("secret response content must remain hidden");error.name="AbortError";throw error;},"timeout"],
+    [async()=>{throw new Error("key=secret response content must remain hidden");},"network"],
+    [async()=>new Response("not-json secret",{status:200}),"invalid_response"],
+    [async()=>new Response(JSON.stringify({choices:[{message:{content:null}}]}),{status:200}),"invalid_response"],
+  ];
+  for(const [fakeFetch,code] of failed){
+    await assert.rejects(
+      answerWithOpenRouter("Cloudflare 技术",sources,"secret","https://example.test",fakeFetch),
+      error=>error instanceof QaProviderError && qaFailureDetails(error).code===code
+        && !JSON.stringify(qaFailureDetails(error)).includes("secret")
+        && !error.message.includes("secret"),
+    );
+  }
+});
+
+test("OpenRouter-compatible structured text parts are accepted but reasoning is ignored",async()=>{
+  const answer=await answerWithOpenRouter(
+    "Cloudflare 有哪些实践？",sources,"private-test-key","https://example.test",
+    async()=>new Response(JSON.stringify({choices:[{message:{content:[
+      {type:"reasoning",text:"INTERNAL COT MUST NOT BE SHOWN"},
+      {type:"text",text:"文章讨论 Cloudflare D1。[1]"},
+    ]}}]}),{status:200}),
+  );
+  assert.match(answer,/Cloudflare D1/);
+  assert.ok(!answer.includes("INTERNAL COT"));
+});
+
+test("UI and route only expose allowlisted metadata for model failure, never upstream body",()=>{
+  const api=readFileSync(new URL("../app/api/ask/route.ts",import.meta.url),"utf8");
+  const provider=readFileSync(new URL("../server/qa-openrouter.ts",import.meta.url),"utf8");
+  const chat=readFileSync(new URL("../features/ask/AskChat.tsx",import.meta.url),"utf8");
+  assert.match(api,/knowledge_qa_provider_failure/);
+  assert.match(api,/qaFailureDetails\(error\)/);
+  assert.match(api,/crypto\.randomUUID/);
+  assert.match(api,/diagnostic:\{code:diagnostic\.code,status:diagnostic\.status,incidentId\}/);
+  assert.doesNotMatch(api,/console\.(warn|error)\([^)]*JSON\.stringify\(body\)/);
+  assert.match(provider,/Never read or log an upstream error body/);
+  assert.match(chat,/诊断编号/);
 });
