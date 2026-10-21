@@ -2,13 +2,16 @@ import type { AskSource } from "@/server/qa-retrieval";
 
 export const QA_MODEL = "openrouter/free";
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-const REQUEST_TIMEOUT_MS = 22_000;
+const REQUEST_TIMEOUT_MS = 35_000;
+// A free reasoning model may spend part of its completion budget on thinking.
+// 650 was too small for reliable visible output with automatic free routing.
+export const QA_MAX_COMPLETION_TOKENS = 2048;
 
-export type QaProviderFailure = "quota" | "unavailable" | "response" | "timeout" | "network";
+export type QaProviderFailure = "quota" | "unavailable" | "response" | "generation_limit" | "timeout" | "network";
 export type QaDiagnosticCode =
   | "rate_limited" | "auth_rejected" | "credits_unavailable" | "invalid_request"
   | "model_not_found" | "upstream_unavailable" | "upstream_http"
-  | "timeout" | "network" | "invalid_response" | "unknown";
+  | "timeout" | "network" | "invalid_response" | "output_token_limit" | "unknown";
 
 export class QaProviderError extends Error {
   readonly reason: QaProviderFailure;
@@ -40,6 +43,7 @@ export function qaFailureDetails(error: unknown): {
     case "timeout": code="timeout";break;
     case "network": code="network";break;
     case "response": code="invalid_response";break;
+    case "generation_limit": code="output_token_limit";break;
     default:
       if(status===408||status===524)code="timeout";
       else if(status===401||status===403)code="auth_rejected";
@@ -119,7 +123,7 @@ export async function answerWithOpenRouter(
         model:QA_MODEL,
         stream:false,
         temperature:0.2,
-        max_tokens:650,
+        max_tokens:QA_MAX_COMPLETION_TOKENS,
         messages:qaMessages(question,sources),
       }),
       signal:controller.signal,
@@ -147,7 +151,14 @@ export async function answerWithOpenRouter(
       ? (data as {choices?:Array<{message?:{content?:unknown}}>}).choices : undefined;
     const content=textFromMessage(choices?.[0]?.message?.content);
     const answer=verifiedAnswer(content,sources.length);
-    if(!answer)throw new QaProviderError("response",response.status);
+    if(!answer) {
+      // HTTP 200 + empty content + finish_reason="length" is a real failure:
+      // some reasoning models used all available output tokens before
+      // producing user-visible text. Do not surface the reasoning content.
+      const finishReason=choices?.[0] && typeof choices[0]==="object"
+        ? (choices[0] as {finish_reason?:unknown}).finish_reason : undefined;
+      throw new QaProviderError(finishReason==="length"?"generation_limit":"response",response.status);
+    }
     return answer;
   } catch(error) {
     const durationMs=Math.max(0,Date.now()-start);
