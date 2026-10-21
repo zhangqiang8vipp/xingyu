@@ -22,7 +22,14 @@ export default async function AskPage({
     <SiteNavigation brandName={settings.brandName} current="ask">
       <span className="xy-ask-nav-center">知识问答</span>
     </SiteNavigation>
-    <AskClient authenticated={isSignedIn} defaultScope={isSignedIn?scope:"public"}/>
+    <div className="xy-ask-surface">
+      <div className="xy-ask-intro">
+        <p>ASK XINGYU / KNOWLEDGE ASSISTANT</p>
+        <h1>问问星屿</h1>
+        <span>随时提问，基于真实文章回答。原文始终可查。</span>
+      </div>
+      <AskClient authenticated={isSignedIn} defaultScope={isSignedIn?scope:"public"}/>
+    </div>
     <footer className="xy-ask-footer">{settings.brandName} · 人与 AI 都能使用的开放知识库</footer>
   </main>;
 }
