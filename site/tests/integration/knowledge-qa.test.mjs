@@ -78,22 +78,24 @@ test("personal search cannot reveal another account or site draft; openrouter fa
   }finally{await closeTestHarness(h);}
 });
 
-test("daily public question quota is persistent and limits anonymous abuse",async()=>{
+test("source-only searches have their own larger daily quota without consuming free-model budget",async()=>{
   const h=await openTestHarness({vars});
   try{
-    for(let i=0;i<3;i++){
-      const result=await ask(h,{question:"search-not-present-anywhere",mode:"sources"},
-        undefined,{"CF-Connecting-IP":"198.51.100.77"});
-      assert.equal(result.status,200,JSON.stringify(result.json));
-      assert.equal(result.json.sources.length,0);
-    }
+    const first=await ask(h,{question:"search-not-present-anywhere",mode:"sources"},
+      undefined,{"CF-Connecting-IP":"198.51.100.77"});
+    assert.equal(first.status,200,JSON.stringify(first.json));
+    await h.db.prepare("UPDATE ai_question_quotas SET used=29 WHERE bucket='visitor:search'").run();
+    const last=await ask(h,{question:"search-not-present-anywhere",mode:"sources"},
+      undefined,{"CF-Connecting-IP":"198.51.100.77"});
+    assert.equal(last.status,200);
     const blocked=await ask(h,{question:"search-not-present-anywhere",mode:"sources"},
       undefined,{"CF-Connecting-IP":"198.51.100.77"});
     assert.equal(blocked.status,429);
     assert.match(blocked.json.error,/额度/);
     const meta=await h.db.prepare("SELECT used,bucket FROM ai_question_quotas").all();
-    assert.ok(meta.results.some(x=>x.bucket==="visitor"&&x.used===3));
-    assert.ok(!meta.results.some(x=>x.bucket==="global"),"no upstream call means no global free-model spend");
+    assert.ok(meta.results.some(x=>x.bucket==="visitor:search"&&x.used===30));
+    assert.ok(!meta.results.some(x=>x.bucket==="visitor:model"||x.bucket==="global"),
+      "search-only requests must not spend free model allocation");
   }finally{await closeTestHarness(h);}
 });
 
