@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { readLimitedAskBody } from "@/domain/knowledge/qa-request";
 import { identityFromRequest } from "@/server/auth/identity-session";
 import { requestHasAdminSession } from "@/db/admin-session";
 import { isPasswordLoginConfigured, isLegacyAdminPasswordAllowed } from "@/server/auth/admin-auth";
@@ -19,10 +20,8 @@ export async function POST(request: Request) {
     return fail("无效请求来源",403);
   if(!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json"))
     return fail("需要 JSON 请求",415);
-  if(Number(request.headers.get("Content-Length")??0)>2400)
-    return fail("请求内容过长",413);
-  const raw=await request.text();
-  if(raw.length>2400)return fail("请求内容过长",413);
+  const raw=await readLimitedAskBody(request);
+  if(raw===null)return fail("请求内容过长",413);
   let body: Record<string,unknown>;
   try {
     const value:unknown=JSON.parse(raw);
