@@ -41,7 +41,8 @@ export function qaFailureDetails(error: unknown): {
     case "network": code="network";break;
     case "response": code="invalid_response";break;
     default:
-      if(status===401||status===403)code="auth_rejected";
+      if(status===408||status===524)code="timeout";
+      else if(status===401||status===403)code="auth_rejected";
       else if(status===402)code="credits_unavailable";
       else if(status===400||status===422)code="invalid_request";
       else if(status===404)code="model_not_found";
@@ -140,7 +141,7 @@ export async function answerWithOpenRouter(
       const candidate=errorPayload.code;
       const status=typeof candidate==="number" && Number.isInteger(candidate)
         && candidate>=400 && candidate<=599 ? candidate : null;
-      throw new QaProviderError(status===429?"quota":"unavailable",status);
+      throw new QaProviderError(status===429?"quota":status===null?"response":"unavailable",status);
     }
     const choices=data && typeof data==="object"
       ? (data as {choices?:Array<{message?:{content?:unknown}}>}).choices : undefined;
