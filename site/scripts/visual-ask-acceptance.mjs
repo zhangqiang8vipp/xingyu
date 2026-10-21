@@ -123,7 +123,7 @@ async function check(browser,origin,label,width,height,dark) {
     await page.click(".xy-ai-only-search");
     await page.waitForFunction(()=>Array.from(document.querySelectorAll(".xy-ai-source-content strong"))
       .some(node=>node.textContent?.includes("温莎技术实践")),{timeout:25000});
-    assert.equal(await page.$eval(".xy-ai-turn-error",nodes=>nodes.length),0,label+" 2-character question accepted");
+    assert.equal(await page.evaluate(()=>document.querySelectorAll(".xy-ai-turn-error").length),0,label+" 2-character question accepted");
     assert.ok(Math.abs((await page.evaluate(()=>window.scrollY))-expectedScroll)<=2,
       label+" new answers must scroll inside chat, not the main document");
     await page.screenshot({path:resolve(output,"ask-cited-"+label+".png"),animations:"disabled"});
