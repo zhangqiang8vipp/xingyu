@@ -1,6 +1,6 @@
-import { listArchivePosts } from "@/db/queries";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
-import { scopedCreateDraft, scopedPosts, WorkspaceContentError } from "@/db/workspace-content";
+import { scopedCreateDraft, WorkspaceContentError } from "@/db/workspace-content";
+import { KnowledgeListError, listKnowledgePage, type KnowledgeListType, type KnowledgeListStatus } from "@/db/knowledge-list";
 import { identityFromRequest } from "@/server/auth/identity-session";
 import { apiJson, readJson } from "@/server/workspace-http";
 
@@ -12,37 +12,20 @@ export async function GET(request: Request) {
   try {
     const workspaceId = await ensurePersonalWorkspace(user.userId);
     const params = new URL(request.url).searchParams;
-    const type = params.get("type") === "public" ? "public" : "mine";
+    const mode = params.get("type");
+    const type: KnowledgeListType = mode === "public" || mode === "all" ? mode : "mine";
     const query = (params.get("q") ?? "").trim().slice(0, 120);
+    const statusRaw = params.get("status");
+    const status: KnowledgeListStatus = statusRaw === "draft" || statusRaw === "published" ? statusRaw : "all";
+    const category = (params.get("category") ?? "all").slice(0, 140);
     const limit = Math.min(50, Math.max(1, Number(params.get("limit") ?? 30) || 30));
-
-    if (type === "mine") {
-      const posts = await scopedPosts(user.userId, workspaceId, query, limit);
-      return apiJson({
-        type,
-        workspaceId,
-        posts: posts.map((post) => ({ ...post, visibility: "personal", canEdit: true })),
-      });
-    }
-
-    const result = await listArchivePosts({
-      query,
-      limit,
-      cursor: params.get("cursor") ?? undefined,
+    const result = await listKnowledgePage({
+      userId: user.userId, workspaceId, type, query, status, category,
+      cursor: params.get("cursor"), limit, origin: new URL(request.url).origin,
     });
-    const origin = new URL(request.url).origin;
-    return apiJson({
-      type,
-      workspaceId,
-      posts: result.rows.map((post) => ({
-        ...post,
-        visibility: "public",
-        canEdit: false,
-        publicUrl: origin + "/posts/" + post.publicId + "/" + post.slug,
-      })),
-      nextCursor: result.nextCursor,
-    });
+    return apiJson({ type, workspaceId, ...result });
   } catch (error) {
+    if (error instanceof KnowledgeListError) return apiJson({ error: error.message }, 400);
     if (error instanceof WorkspaceContentError) return apiJson({ error: error.message }, error.status);
     console.error("personal.knowledge.list.failed", error instanceof Error ? error.name : "unknown");
     return apiJson({ error: "知识空间暂时不可用" }, 500);
