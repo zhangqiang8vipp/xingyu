@@ -255,3 +255,18 @@ test("exhausted visitor AI allowance downgrades to genuine source results",async
     assert.equal(budget,null,"source-only fallback must not consume model provider budget");
   }finally{await closeTestHarness(h);}
 });
+
+
+test("assistant panel discovers legacy admin permission only via an authenticated same-site request",async()=>{
+  const h=await openTestHarness({vars});
+  try{
+    const publicStatus=await jsonRequest(h,"/api/ask",{method:"GET"});
+    assert.equal(publicStatus.status,200);
+    assert.deepEqual(await publicStatus.json(),{authenticated:false});
+    const cookie=await loginAdmin(h);
+    const ownerStatus=await jsonRequest(h,"/api/ask",{method:"GET",cookie});
+    assert.equal(ownerStatus.status,200);
+    assert.deepEqual(await ownerStatus.json(),{authenticated:true});
+    assert.match(ownerStatus.headers.get("cache-control")??"",/no-store/);
+  }finally{await closeTestHarness(h);}
+});
