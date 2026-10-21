@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { isKnowledgeOverviewQuestion } from "../domain/knowledge/qa-overview.ts";
 import {
   answerWithOpenRouter,qaMessages,verifiedAnswer,QaProviderError,QA_MODEL,
 } from "../server/qa-openrouter.ts";
@@ -45,4 +46,11 @@ test("OpenRouter rate limit degrades without returning provider payload",async()
       async()=>new Response("do not expose upstream body",{status:429})),
     error=>error instanceof QaProviderError&&error.reason==="quota",
   );
+});
+
+test("site-topic overview questions sample real articles instead of requiring a literal 技术/经验 match",()=>{
+  assert.equal(isKnowledgeOverviewQuestion("这个网站主要分享哪些技术经验？"),true);
+  assert.equal(isKnowledgeOverviewQuestion("本站主要有哪些内容？"),true);
+  assert.equal(isKnowledgeOverviewQuestion("我的知识库主要写了什么？"),true);
+  assert.equal(isKnowledgeOverviewQuestion("网站如何部署 Cloudflare？"),false);
 });
