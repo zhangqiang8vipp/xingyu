@@ -216,6 +216,20 @@ const worker = {
         }));
       }
       try {
+        const quotaCleanup = await env.DB.prepare(
+          "DELETE FROM ai_question_quotas WHERE day < date('now','-30 days')"
+        ).run();
+        console.log(JSON.stringify({
+          event: "qa_quota_retention_cleanup",
+          pruned: quotaCleanup.meta.changes ?? 0,
+        }));
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "qa_quota_retention_cleanup_failed",
+          errorType: error instanceof Error ? error.name : typeof error,
+        }));
+      }
+      try {
         const health = await collectSiteHealth(env.DB, schemaVersion);
         const anomalies = Object.entries(health.audit)
           .filter(([, count]) => count !== 0)
