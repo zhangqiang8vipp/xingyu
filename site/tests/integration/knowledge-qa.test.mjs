@@ -123,7 +123,7 @@ test("legacy site-wide model usage never blocks OpenRouter; owner accounts bypas
     const quotaSource=readFileSync(new URL("../../server/qa-quotas.ts",import.meta.url),"utf8");
     assert.doesNotMatch(routeSource,/takeAskGlobalQuota/);
     assert.doesNotMatch(quotaSource,/ASK_DAILY_GLOBAL_LIMIT|takeAskGlobalQuota/);
-    const noMatch={question:"absent-super-rare-qa-quota-value-7z8y9x",mode:"answer"};
+    const noMatch={question:"zzzxxyyqnotpresent98765",mode:"answer"};
     const legacyAdmin=await loginAdmin(h);
     for(let i=0;i<3;i++){
       const resp=await ask(h,noMatch,legacyAdmin);
@@ -146,7 +146,7 @@ test("legacy site-wide model usage never blocks OpenRouter; owner accounts bypas
 test("visitors and ordinary signed-in users get 100 daily AI requests, then source-mode fallback",async()=>{
   const h=await openTestHarness({vars:{...vars,OPENROUTER_API_KEY:"integration-only-no-real-model-call"}});
   try{
-    const noMatch={question:"absent-super-rare-qa-quota-value-9k8j7h",scope:"public",mode:"answer"};
+    const noMatch={question:"zzzxxyyqnotpresent98765",scope:"public",mode:"answer"};
     const visitorIp={"CF-Connecting-IP":"198.51.100.220"};
     const first=await ask(h,noMatch,undefined,visitorIp);
     assert.equal(first.status,200,JSON.stringify(first.json));
