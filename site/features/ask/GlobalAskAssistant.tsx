@@ -45,7 +45,7 @@ export default function GlobalAskAssistant() {
     if (!open) return;
     const before = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
+    closeRef.current?.focus({ preventScroll: true });
     let active = true;
     // Only look up login state after opening; do not make every public page dynamic.
     void fetch("/api/ask", { credentials: "same-origin", cache: "no-store" })
@@ -55,7 +55,8 @@ export default function GlobalAskAssistant() {
     return () => {
       active = false;
       document.body.style.overflow = before;
-      lastFocus.current?.focus();
+      if (lastFocus.current?.isConnected)
+        lastFocus.current.focus({ preventScroll: true });
     };
   }, [open]);
 
@@ -67,12 +68,12 @@ export default function GlobalAskAssistant() {
 
   if (isAskPage) return null;
   return <>
-    {!open ? <button className="xy-ai-launcher" type="button"
+    <button className="xy-ai-launcher" type="button"
       aria-label="打开星屿 AI 助手" aria-haspopup="dialog"
-      aria-expanded={false} onClick={openPanel}>
+      aria-expanded={open} aria-controls="xy-ai-global-panel" hidden={open} onClick={openPanel}>
       <span className="xy-ai-launcher-spark" aria-hidden="true">✦</span>
       <span>询问 AI</span>
-    </button> : null}
+    </button>
     {mounted ? <>
       <link rel="stylesheet" href="/assistant.css" />
       {open ? <button className="xy-ai-backdrop" type="button" aria-label="关闭 AI 助手"
