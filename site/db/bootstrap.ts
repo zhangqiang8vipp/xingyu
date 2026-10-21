@@ -11,7 +11,7 @@ import { assertStoredInstanceIdentity, requireRuntimeInstanceIdentity } from "./
 let ready: Promise<void> | null = null;
 
 /** 当前 worker 期望的 D1 schema 版本，供健康检查与迁移门禁共用。 */
-export const schemaVersion = "26";
+export const schemaVersion = "25";
 
 const requiredUniqueIndexes = {
   attachments_object_key_uidx: { table: "attachments", columns: ["object_key"] },
@@ -47,11 +47,11 @@ const requiredUniqueIndexes = {
 const requiredMigrationObjects = {
   table: [
     "admin_login_attempts", "app_meta", "attachment_cleanup_queue", "attachments", "categories",
-    "content_pages", "email_verifications", "identity_login_limits", "ai_question_quotas", "mcp_activity", "personal_access_tokens", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
+    "content_pages", "email_verifications", "identity_login_limits", "mcp_activity", "personal_access_tokens", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
     "oauth_consents", "oauth_rate_limits", "oauth_refresh_tokens", "post_preview_tokens",
     "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_credentials", "user_identities", "user_sessions", "users", "view_request_limits", "workspaces", "workspace_memberships", "workspace_invitations", "organizations", "organization_memberships", "organization_invitations", "organization_units", "organization_unit_memberships", "teams", "team_memberships", "organization_workspaces", "workspace_team_grants", "space_access_policies", "space_principal_grants",
   ],
-  index: [...Object.keys(requiredUniqueIndexes), "personal_access_tokens_user_idx", "ai_question_quotas_day_idx", "workspace_memberships_user_idx", "workspace_invitations_workspace_idx", "organization_memberships_user_idx", "organization_invitations_org_idx", "organization_units_tree_idx", "organization_unit_memberships_user_idx", "teams_org_idx", "team_memberships_user_idx", "organization_workspaces_org_idx", "workspace_team_grants_team_idx", "space_access_policies_workspace_idx", "space_principal_grants_principal_idx", "email_verifications_user_idx", "posts_workspace_updated_idx", "spaces_workspace_parent_idx", "attachments_workspace_idx", "categories_workspace_idx", "mcp_workspace_activity_idx"],
+  index: [...Object.keys(requiredUniqueIndexes), "personal_access_tokens_user_idx", "workspace_memberships_user_idx", "workspace_invitations_workspace_idx", "organization_memberships_user_idx", "organization_invitations_org_idx", "organization_units_tree_idx", "organization_unit_memberships_user_idx", "teams_org_idx", "team_memberships_user_idx", "organization_workspaces_org_idx", "workspace_team_grants_team_idx", "space_access_policies_workspace_idx", "space_principal_grants_principal_idx", "email_verifications_user_idx", "posts_workspace_updated_idx", "spaces_workspace_parent_idx", "attachments_workspace_idx", "categories_workspace_idx", "mcp_workspace_activity_idx"],
   view: ["workspace_effective_grants"],
   trigger: [
     "posts_public_id_required_insert", "posts_public_id_required_update",
@@ -418,8 +418,6 @@ async function initialize() {
     d1.prepare("CREATE TABLE IF NOT EXISTS user_sessions (session_hash TEXT PRIMARY KEY NOT NULL, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL, revoked_at INTEGER, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     d1.prepare("CREATE INDEX IF NOT EXISTS user_sessions_user_expiry_idx ON user_sessions(user_id, expires_at)"),
     d1.prepare("CREATE TABLE IF NOT EXISTS identity_login_limits (identifier TEXT PRIMARY KEY NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, window_started INTEGER NOT NULL, blocked_until INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)"),
-    d1.prepare("CREATE TABLE IF NOT EXISTS ai_question_quotas (day TEXT NOT NULL,bucket TEXT NOT NULL,identity_hash TEXT NOT NULL,used INTEGER NOT NULL DEFAULT 0 CHECK(used>=0),PRIMARY KEY(day,bucket,identity_hash))"),
-    d1.prepare("CREATE INDEX IF NOT EXISTS ai_question_quotas_day_idx ON ai_question_quotas(day)"),
     d1.prepare("CREATE TABLE IF NOT EXISTS workspaces (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,kind TEXT NOT NULL DEFAULT 'personal',owner_user_id INTEGER NOT NULL,slug TEXT NOT NULL,name TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS workspaces_slug_uidx ON workspaces(slug)"),
     d1.prepare("CREATE TABLE IF NOT EXISTS workspace_memberships (workspace_id INTEGER NOT NULL,user_id INTEGER NOT NULL,role TEXT NOT NULL DEFAULT 'owner',status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(workspace_id,user_id))"),
