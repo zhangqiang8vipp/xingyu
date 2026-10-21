@@ -94,6 +94,13 @@ async function check(browser,origin,label,width,height,dark) {
     assert.ok(expectedScroll>250,label+" long article test fixture must be scrollable");
     await page.click(".xy-ai-launcher");
     await page.waitForSelector(".xy-ai-panel:not([hidden]) .xy-ai-composer",{visible:true,timeout:25000});
+    // The second opening uses an already-loaded panel; await its 260ms slide
+    // before checking bounding boxes, otherwise the transitional transform
+    // can legitimately extend a few pixels beyond the viewport.
+    await page.evaluate(async()=>{
+      const element=document.querySelector(".xy-ai-panel");
+      if(element)await Promise.all(element.getAnimations().map(animation=>animation.finished.catch(()=>{})));
+    });
     assert.ok(Math.abs((await page.evaluate(()=>window.scrollY))-expectedScroll)<=2,
       label+" opening AI at article midpoint must keep the document scroll unchanged");
     const dimensions=await page.evaluate(()=>{
@@ -105,6 +112,7 @@ async function check(browser,origin,label,width,height,dark) {
         composer:{top:composer.top,bottom:composer.bottom},
         inner:window.innerWidth,scroll:document.documentElement.scrollWidth };
     });
+    console.log("AI panel layout",label,JSON.stringify(dimensions));
     assert.ok(dimensions.panel.left>=-1&&dimensions.panel.right<=width+1,label+" panel within viewport");
     assert.ok(dimensions.thread.bottom<=dimensions.composer.top+1,label+" conversation above composer");
     assert.ok(dimensions.composer.bottom<=height+1&&dimensions.composer.bottom>=height-80,label+" composer docked to bottom");
