@@ -91,6 +91,14 @@ jobs:
       - name: Confirm production worker and resource bindings
         run: node scripts/verify-production-deploy.mjs config
 
+      - name: Confirm encrypted OpenRouter API secret exists on the production Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_WRITE_LOGS: "false"
+        run: |
+          npx wrangler secret list --config wrangler.production.jsonc --format json > "$RUNNER_TEMP/xingyu-secret-names.json"
+          node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!Array.isArray(x)||!x.some(s=>s.name==="OPENROUTER_API_KEY"&&s.type==="secret_text")){console.error("::error::Configure OPENROUTER_API_KEY as a Cloudflare Worker encrypted Secret before deploying.");process.exit(1)} console.log("OpenRouter encrypted Secret binding verified (value never read or logged)")' "$RUNNER_TEMP/xingyu-secret-names.json"
       # Read-only preflight. This workflow NEVER runs D1 migrations automatically.
       - name: Verify remote production D1 schema and instance identity
         env:
@@ -140,3 +148,10 @@ jobs:
             echo "::error::Unauthenticated production MCP must return 401, got $status."
             exit 1
           fi
+
+      - name: Smoke test knowledge Q&A page and grounded source-only API
+        run: |
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 3 -H 'Accept: text/html' 'https://zhangwansen.click/ask' -o /dev/null
+          status="$(curl --silent --show-error --output "$RUNNER_TEMP/xingyu-qa-source-smoke.json" --write-out "%{http_code}" -H 'Origin: https://zhangwansen.click' -H 'Content-Type: application/json' --data '{"question":"这个网站主要分享哪些技术经验？","scope":"public","mode":"sources"}' 'https://zhangwansen.click/api/ask')"
+          if [[ "$status" != "200" ]]; then echo "::error::Knowledge Q&A public source-only request failed: $status"; exit 1; fi
+          node -e 'const fs=require("node:fs");const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!Array.isArray(v.sources)||typeof v.answer!=="string"){console.error("::error::Unexpected Q&A source-only response");process.exit(1)} console.log("Knowledge Q&A public source-only smoke passed")' "$RUNNER_TEMP/xingyu-qa-source-smoke.json"
