@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     return fail("问答模型尚未配置，请稍后再试；也可使用仅检索资料模式",503);
 
   try{
-    await takeAskVisitorQuota(request,user);
+    await takeAskVisitorQuota(request,user,mode);
     const sources=await findAskSources(question,scope as AskScope,user,new URL(request.url).origin);
     if(!sources.length)return Response.json({
       answer:"没有找到足够相关的文章。请换一个更具体的关键词试试。",
