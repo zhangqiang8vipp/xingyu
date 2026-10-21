@@ -4,8 +4,10 @@ export const QA_MODEL = "openrouter/free";
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
 export class QaProviderError extends Error {
-  constructor(readonly reason: "unavailable" | "quota" | "response") {
+  readonly reason: "unavailable" | "quota" | "response";
+  constructor(reason: "unavailable" | "quota" | "response") {
     super(reason);
+    this.reason = reason;
   }
 }
 
