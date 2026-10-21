@@ -1,5 +1,7 @@
 import { env } from "cloudflare:workers";
 import { identityFromRequest } from "@/server/auth/identity-session";
+import { requestHasAdminSession } from "@/db/admin-session";
+import { isPasswordLoginConfigured, isLegacyAdminPasswordAllowed } from "@/server/auth/admin-auth";
 import { findAskSources, type AskScope } from "@/server/qa-retrieval";
 import { answerWithOpenRouter, QaProviderError, QA_MODEL } from "@/server/qa-openrouter";
 import { AskQuotaError, takeAskGlobalQuota, takeAskVisitorQuota } from "@/server/qa-quotas";
@@ -37,7 +39,10 @@ export async function POST(request: Request) {
   if(mode!=="answer"&&mode!=="sources")return fail("无效查询模式",400);
   if(scope!=="public"&&mode==="answer"&&body.confirmedExternalProcessing!==true)
     return fail("请先确认允许将匹配的私人文章片段发送给模型",400);
-  const user=await identityFromRequest(request);
+  const signedInUser=await identityFromRequest(request);
+  const legacyOwner=!signedInUser && isPasswordLoginConfigured()
+    && await requestHasAdminSession(request) && await isLegacyAdminPasswordAllowed();
+  const user=signedInUser??(legacyOwner?{userId:1}:null);
   if(scope!=="public"&&!user)return fail("请先登录后再查询私人知识",401);
   const key=(env as Env & {OPENROUTER_API_KEY?:string}).OPENROUTER_API_KEY?.trim();
   if(mode==="answer"&&!key)
