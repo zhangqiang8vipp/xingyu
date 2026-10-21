@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import "./assistant.css";
 import GlobalAskAssistant from "@/features/ask/GlobalAskAssistant";
 import ScrollIndicator from "./ScrollIndicator";
 import RouteTransition from "./RouteTransition";
