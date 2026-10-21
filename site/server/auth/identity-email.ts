@@ -171,6 +171,10 @@ export async function confirmPasswordReset(token:string,newPassword:string) {
       .bind(now,subject),
     env.DB.prepare("UPDATE oauth_consents SET revoked_at=? WHERE subject=? AND revoked_at IS NULL")
       .bind(now,subject),
+    // PATs are bearer credentials too: password recovery must invalidate them
+    // together with web sessions and OAuth grants. A revoked PAT cannot rotate.
+    env.DB.prepare("UPDATE personal_access_tokens SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL")
+      .bind(now,row.user_id),
   ]);
   if(!updates[0]?.meta?.changes)throw new IdentityEmailError("账号凭据无法更新，请联系管理员",503);
   return true;
