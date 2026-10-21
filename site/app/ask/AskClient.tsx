@@ -105,7 +105,7 @@ export default function AskClient({authenticated,defaultScope}:{authenticated:bo
         {scope!=="public"?<label className="xy-ask-privacy-checkbox">
           <input type="checkbox" checked={privateConsent}
             onChange={event=>setPrivateConsent(event.target.checked)}/>
-          <span>我同意将本次问题与匹配的私人文章片段发送给 OpenRouter 生成答案。不会自动保存对话，也不会修改知识库。</span>
+          <span>我同意将本次问题和匹配的私人文章片段发送给 OpenRouter 及其选定的模型提供方生成答案。XINGYU 不会自动保存问答或修改知识库；第三方数据处理遵循其隐私政策。</span>
         </label>:null}
       </form>
       {!asked && !result?<div className="xy-ask-examples">
