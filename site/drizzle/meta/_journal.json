@@ -169,6 +169,13 @@
       "when": 1791615600000,
       "tag": "0023_personal_access_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1792612800000,
+      "tag": "0024_ai_question_quotas",
+      "breakpoints": true
     }
   ]
 }
