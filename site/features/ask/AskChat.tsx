@@ -63,12 +63,16 @@ export default function AskChat({
   const sequence = useRef(0);
   const generation = useRef(0);
   const inFlight = useRef(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
   const effectiveScope = authenticated ? scope : "public";
 
   useEffect(() => {
-    if (turns.length) bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    // Never scroll the main document when new assistant turns arrive.
+    // scrollIntoView() also scrolls ancestors and was jumping the website to its footer.
+    const thread = threadRef.current;
+    if (turns.length && thread)
+      thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
   }, [turns]);
 
   function reset() {
@@ -154,7 +158,7 @@ export default function AskChat({
         aria-label="清空当前问答并开始新对话">＋ 新对话</button> : <small>有来源 · 可核对</small>}
     </div>
 
-    <div className="xy-ai-thread" role="log" aria-live="polite" aria-relevant="additions text">
+    <div ref={threadRef} className="xy-ai-thread" role="log" aria-live="polite" aria-relevant="additions text">
       {!turns.length ? <div className="xy-ai-welcome">
         <span className="xy-ai-welcome-mark" aria-hidden="true">✦</span>
         <h2>有什么想了解的？</h2>
@@ -206,7 +210,6 @@ export default function AskChat({
           </div>
         </div>
       </div>)}
-      <div ref={bottomRef} />
     </div>
 
     <div className="xy-ai-composer">

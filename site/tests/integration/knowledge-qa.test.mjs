@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {closeTestHarness,jsonRequest,loginAdmin,openTestHarness} from "./harness.mjs";
 import {makeActiveUser} from "./identity-fixtures.mjs";
+import {readFileSync} from "node:fs";
 
 const vars={VIEWS_IDENTITY_SECRET:"test-qa-hmac-key-longer-than-twenty-characters"};
 
@@ -112,33 +113,69 @@ test("Q&A page serves its own stylesheet without swelling the global public CSS"
   }finally{await closeTestHarness(h);}
 });
 
-test("exhausted global OpenRouter budget still returns real sources without making a model request",async()=>{
-  const h=await openTestHarness({vars:{
-    ...vars,OPENROUTER_API_KEY:"integration-test-not-real-credential",
-  }});
+test("legacy site-wide model usage never blocks OpenRouter; owner accounts bypass local limits",async()=>{
+  const h=await openTestHarness({vars:{...vars,OPENROUTER_API_KEY:"integration-only-no-real-model-call"}});
   try{
-    const category=await h.db.prepare(
-      "SELECT id FROM categories WHERE workspace_id=1 ORDER BY id LIMIT 1"
-    ).first();
-    await h.db.prepare(
-      "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,published_at) " +
-      "VALUES(1,'qa-budget-public','Cloudflare 知识文章','qa-budget-public','Cloudflare 技术实践'," +
-      "'# Cloudflare D1 技术实践',?,NULL,'published',CURRENT_TIMESTAMP)"
-    ).bind(category.id).run();
-    await h.db.prepare(
-      "INSERT INTO oauth_rate_limits(identifier,attempts,window_started,updated_at) VALUES(?,40,?,?)"
-    ).bind("qa:v1:global:"+new Date().toISOString().slice(0,10),Math.floor(Date.now()/86400000)*86400,Math.floor(Date.now()/1000)).run();
-    const response=await ask(h,{
-      question:"Cloudflare 有哪些技术实践？",scope:"public",mode:"answer",
-    });
-    assert.equal(response.status,200,JSON.stringify(response.json));
-    assert.equal(response.json.degraded,true);
-    assert.ok(response.json.sources.some(item=>item.title==="Cloudflare 知识文章"));
-    assert.match(response.json.answer,/额度已满/);
-    const quota=await h.db.prepare(
-      "SELECT attempts FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:global:%'"
-    ).first();
-    assert.equal(quota.attempts,40,"model request must not overrun the free daily budget");
+    const day=new Date().toISOString().slice(0,10);
+    await h.db.prepare("INSERT INTO oauth_rate_limits(identifier,attempts,window_started,updated_at) VALUES(?,1000,?,?)")
+      .bind("qa:v1:global:"+day,Math.floor(Date.now()/86400000)*86400,Math.floor(Date.now()/1000)).run();
+    const routeSource=readFileSync(new URL("../../app/api/ask/route.ts",import.meta.url),"utf8");
+    const quotaSource=readFileSync(new URL("../../server/qa-quotas.ts",import.meta.url),"utf8");
+    assert.doesNotMatch(routeSource,/takeAskGlobalQuota/);
+    assert.doesNotMatch(quotaSource,/ASK_DAILY_GLOBAL_LIMIT|takeAskGlobalQuota/);
+    const noMatch={question:"zzzxxyyqnotpresent98765",mode:"answer"};
+    const legacyAdmin=await loginAdmin(h);
+    for(let i=0;i<3;i++){
+      const resp=await ask(h,noMatch,legacyAdmin);
+      assert.equal(resp.status,200,JSON.stringify(resp.json));
+      assert.deepEqual(resp.json.sources,[],"no upstream model call for empty retrieval");
+    }
+    assert.equal((await h.db.prepare("SELECT COUNT(*) AS n FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:model:%'").first()).n,0,
+      "site password-admin bypasses model daily counters");
+    const siteOwner=await makeActiveUser(h,"qa-site-owner-unlimited");
+    await h.db.prepare("INSERT INTO site_memberships(user_id,role) VALUES(?,'owner')").bind(siteOwner.id).run();
+    const ownerResponse=await ask(h,noMatch,siteOwner.cookie);
+    assert.equal(ownerResponse.status,200,JSON.stringify(ownerResponse.json));
+    assert.equal((await h.db.prepare("SELECT COUNT(*) AS n FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:model:%'").first()).n,0,
+      "verified site owner identity bypasses model daily counters");
+    assert.equal((await h.db.prepare("SELECT attempts FROM oauth_rate_limits WHERE identifier=?")
+      .bind("qa:v1:global:"+day).first()).attempts,1000,"a legacy global counter never changes");
+  }finally{await closeTestHarness(h);}
+});
+
+test("visitors and ordinary signed-in users get 100 daily AI requests, then source-mode fallback",async()=>{
+  const h=await openTestHarness({vars:{...vars,OPENROUTER_API_KEY:"integration-only-no-real-model-call"}});
+  try{
+    const noMatch={question:"zzzxxyyqnotpresent98765",scope:"public",mode:"answer"};
+    const visitorIp={"CF-Connecting-IP":"198.51.100.220"};
+    const first=await ask(h,noMatch,undefined,visitorIp);
+    assert.equal(first.status,200,JSON.stringify(first.json));
+    const rows=await h.db.prepare("SELECT identifier,attempts FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:model:%'").all();
+    assert.equal(rows.results.length,1);
+    assert.equal(rows.results[0].attempts,1);
+    await h.db.prepare("UPDATE oauth_rate_limits SET attempts=99 WHERE identifier=?").bind(rows.results[0].identifier).run();
+    const hundred=await ask(h,noMatch,undefined,visitorIp);
+    assert.equal(hundred.status,200,JSON.stringify(hundred.json));
+    assert.equal((await h.db.prepare("SELECT attempts FROM oauth_rate_limits WHERE identifier=?")
+      .bind(rows.results[0].identifier).first()).attempts,100);
+    const afterHundred=await ask(h,noMatch,undefined,visitorIp);
+    assert.equal(afterHundred.status,200,JSON.stringify(afterHundred.json));
+    assert.deepEqual(afterHundred.json.sources,[]);
+    assert.equal((await h.db.prepare("SELECT attempts FROM oauth_rate_limits WHERE identifier=?")
+      .bind(rows.results[0].identifier).first()).attempts,100);
+    assert.equal((await h.db.prepare("SELECT COUNT(*) AS n FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:search:%'").first()).n,1,
+      "after 100 AI calls the same visitor can still search sources");
+
+    const registered=await makeActiveUser(h,"qa-regular-100");
+    const userStart=await ask(h,noMatch,registered.cookie);
+    assert.equal(userStart.status,200,JSON.stringify(userStart.json));
+    const modelRows=await h.db.prepare("SELECT identifier,attempts FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:model:%'").all();
+    const own=modelRows.results.find(row=>row.identifier!==rows.results[0].identifier);
+    assert.ok(own,"registered user has an independent per-user counter");
+    await h.db.prepare("UPDATE oauth_rate_limits SET attempts=99 WHERE identifier=?").bind(own.identifier).run();
+    assert.equal((await ask(h,noMatch,registered.cookie)).status,200);
+    assert.equal((await ask(h,noMatch,registered.cookie)).status,200);
+    assert.equal((await h.db.prepare("SELECT attempts FROM oauth_rate_limits WHERE identifier=?").bind(own.identifier).first()).attempts,100);
   }finally{await closeTestHarness(h);}
 });
 
@@ -242,7 +279,7 @@ test("exhausted visitor AI allowance downgrades to genuine source results",async
     const before=await ask(h,{question:"absent-unique-exhaust-test",mode:"answer"},undefined,ip);
     assert.equal(before.status,200);
     assert.deepEqual(before.json.sources,[]);
-    await h.db.prepare("UPDATE oauth_rate_limits SET attempts=3 WHERE identifier LIKE 'qa:v1:model:%'").run();
+    await h.db.prepare("UPDATE oauth_rate_limits SET attempts=100 WHERE identifier LIKE 'qa:v1:model:%'").run();
     const limited=await ask(h,{question:"温莎",mode:"answer",scope:"public"},undefined,ip);
     assert.equal(limited.status,200,JSON.stringify(limited.json));
     assert.equal(limited.json.degraded,true);
@@ -252,7 +289,7 @@ test("exhausted visitor AI allowance downgrades to genuine source results",async
     const budget=await h.db.prepare(
       "SELECT identifier FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:global:%'"
     ).first();
-    assert.equal(budget,null,"source-only fallback must not consume model provider budget");
+    assert.equal(budget,null,"source-only fallback must not use any site-wide model counter");
   }finally{await closeTestHarness(h);}
 });
 

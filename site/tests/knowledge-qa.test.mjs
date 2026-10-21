@@ -86,7 +86,7 @@ test("both the global launcher and full page use the same accessible assistant U
   const css=readFileSync(new URL("../public/assistant.css",import.meta.url),"utf8");
   const route=readFileSync(new URL("../app/api/ask/route.ts",import.meta.url),"utf8");
   assert.match(root,/GlobalAskAssistant/);
-  assert.match(nav,/AskAiTrigger/);
+  assert.doesNotMatch(nav,/AskAiTrigger/,"the redundant top navigation Ask AI button was removed");
   assert.match(panel,/aria-modal/);
   assert.match(panel,/xingyu:ask-open/);
   assert.match(chat,/xy-ai-thread/);
@@ -96,4 +96,21 @@ test("both the global launcher and full page use the same accessible assistant U
   assert.match(css,/\.xy-ai-panel/);
   assert.match(css,/max-width:720px/);
   assert.match(route,/question.length<2/);
+});
+
+
+test("floating assistant cannot scroll the parent page and only the launcher remains",()=>{
+  const panel=readFileSync(new URL("../features/ask/GlobalAskAssistant.tsx",import.meta.url),"utf8");
+  const chat=readFileSync(new URL("../features/ask/AskChat.tsx",import.meta.url),"utf8");
+  const nav=readFileSync(new URL("../features/navigation/nav/NavTools.tsx",import.meta.url),"utf8");
+  const globalStyles=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
+  assert.match(panel,/focus\(\{ preventScroll: true \}\)/);
+  assert.match(panel,/hidden=\{open\}/);
+  assert.match(panel,/aria-controls="xy-ai-global-panel"/);
+  assert.match(chat,/threadRef\.current/);
+  assert.match(chat,/thread\.scrollTo\(/);
+  assert.doesNotMatch(chat,/\.scrollIntoView\(/,"scrollIntoView may scroll the main document too");
+  assert.doesNotMatch(nav,/AskAiTrigger/);
+  assert.match(globalStyles,/\.xy-ai-launcher\[hidden\]\{display:none\}/);
+  assert.match(globalStyles,/\.xy-ai-panel\{position:fixed/,"lazy assistant needs a fixed-position shell before remote CSS loads");
 });
