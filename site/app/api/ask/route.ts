@@ -54,7 +54,16 @@ export async function POST(request: Request) {
       answer:"已检索到下列真实文章（未调用 AI 模型）。",
       sources,model:null,degraded:false,
     },{headers});
-    await takeAskGlobalQuota();
+    try {
+      await takeAskGlobalQuota();
+    } catch (error) {
+      if(error instanceof AskQuotaError&&error.code==="daily")
+        return Response.json({
+          answer:"今日免费模型调用额度已满，以下仍可查看知识库检索到的相关文章。",
+          sources,model:null,degraded:true,
+        },{headers});
+      throw error;
+    }
     try{
       const answer=await answerWithOpenRouter(question,sources,key!,new URL(request.url).origin);
       return Response.json({answer,sources,model:QA_MODEL,degraded:false},{headers});
