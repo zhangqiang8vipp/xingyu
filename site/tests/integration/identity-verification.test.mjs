@@ -84,3 +84,32 @@ test("repeat login reuses a provisioned personal workspace without redundant wri
       .bind(alice.workspaceId,"private-u"+alice.id).first());
   }finally{await closeTestHarness(h);}
 });
+
+test("legitimate repeat logins do not trigger throttling and report safe phase timing",async()=>{
+  const h=await openTestHarness();
+  try{
+    const alice=await makeActiveUser(h,"login-rate-success");
+    for(let i=0;i<6;i++){
+      const response=await jsonRequest(h,"/api/identity/login",{
+        method:"POST",body:{email:alice.email,password:TEST_USER_PASSWORD},
+      });
+      assert.equal(response.status,200,"successful login "+(i+1)+" must not exhaust the failure budget");
+      const timing=response.headers.get("Server-Timing")??"";
+      assert.match(timing,/password-hash;dur=[0-9.]+/);
+      assert.match(timing,/workspace;dur=[0-9.]+/);
+      assert.ok(!timing.includes(alice.email),"performance headers must never disclose account IDs");
+    }
+    for(let i=0;i<5;i++){
+      const response=await jsonRequest(h,"/api/identity/login",{
+        method:"POST",body:{email:alice.email,password:"intentionally-invalid-password-12345"},
+      });
+      assert.equal(response.status,401,"the first five incorrect attempts remain checked");
+      assert.doesNotMatch(response.headers.get("Server-Timing") ?? "",/password-hash|identity-db|workspace|session-db/,
+        "failed credentials must not expose authentication phase details");
+    }
+    const rate=await jsonRequest(h,"/api/identity/login",{
+      method:"POST",body:{email:alice.email,password:"intentionally-invalid-password-12345"},
+    });
+    assert.equal(rate.status,429,"the sixth bad attempt must be throttled");
+  }finally{await closeTestHarness(h);}
+});

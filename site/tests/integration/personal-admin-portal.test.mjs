@@ -326,3 +326,83 @@ test("personal article attachments are editable by their owner and inaccessible 
     await closeTestHarness(h);
   }
 });
+
+
+test("personal knowledge listing paginates beyond 50 across private and public without leaking other users",async()=>{
+  const h=await openTestHarness();
+  try{
+    const alice=await makeActiveUser(h,"paging-alice");
+    const bob=await makeActiveUser(h,"paging-bob");
+    const ownCategory=await h.db.prepare("SELECT id,slug FROM categories WHERE workspace_id=? LIMIT 1")
+      .bind(alice.workspaceId).first();
+    const space=await h.db.prepare("SELECT id FROM spaces WHERE workspace_id=? AND parent_id IS NULL LIMIT 1")
+      .bind(alice.workspaceId).first();
+    const publicCategory=await h.db.prepare("SELECT id,slug FROM categories WHERE workspace_id=1 LIMIT 1").first();
+    assert.ok(ownCategory&&space&&publicCategory);
+    await h.db.prepare(
+      "WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n<65) " +
+      "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,featured,author_id,created_by,updated_by,updated_at) " +
+      "SELECT ?,'PAGE_PRIV_'||n,'Paging private '||n,'paging-private-'||n,'private search','body'," +
+      "?,?,'draft',0,?,?,?,datetime('2026-10-21 15:00:00','-'||n||' minutes') FROM seq"
+    ).bind(alice.workspaceId,ownCategory.id,space.id,alice.id,alice.id,alice.id).run();
+    await h.db.prepare(
+      "WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n<11) " +
+      "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,featured,published_at,updated_at) " +
+      "SELECT 1,'PAGE_PUB_'||n,'Paging public '||n,'paging-public-'||n,'public search','body'," +
+      "?,NULL,'published',0,datetime('2026-10-21 15:00:00','-'||n||' minutes')," +
+      "datetime('2026-10-21 15:00:00','-'||n||' minutes') FROM seq"
+    ).bind(publicCategory.id).run();
+    await h.db.prepare(
+      "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,featured,author_id,created_by,updated_by) " +
+      "VALUES(?,?,'Paging collaborator secret',?,'hidden','secret',?,?,'draft',0,?,?,?)"
+    ).bind(alice.workspaceId,"PAGE_OTHER_"+bob.id,"paging-other-"+bob.id,ownCategory.id,space.id,bob.id,bob.id,bob.id).run();
+    const get=async(cookie,parameters)=>{
+      const response=await jsonRequest(h,"/api/knowledge/posts?"+parameters,{cookie});
+      return {status:response.status,data:await response.json()};
+    };
+    const seen=new Set();
+    let cursor=null;
+    let batches=0;
+    do{
+      const params=new URLSearchParams({type:"all",q:"Paging",limit:"20"});
+      if(cursor)params.set("cursor",cursor);
+      const page=await get(alice.cookie,params.toString());
+      assert.equal(page.status,200,JSON.stringify(page.data));
+      assert.ok(page.data.posts.length<=20);
+      for(const item of page.data.posts){
+        assert.ok(!seen.has(item.publicId),"stable cursor must never repeat a post");
+        assert.notEqual(item.publicId,"PAGE_OTHER_"+bob.id);
+        if(item.visibility==="personal")assert.equal(item.canEdit,true);
+        else assert.equal(item.canEdit,false);
+        seen.add(item.publicId);
+      }
+      cursor=page.data.nextCursor;
+      batches++;
+      assert.ok(batches<12,"cursor should make forward progress");
+    }while(cursor);
+    assert.equal(seen.size,76,"all 65 private and 11 public posts remain browsable");
+    assert.ok(seen.has("PAGE_PRIV_65"),"the post beyond the old 50 limit is reachable");
+    assert.ok(seen.has("PAGE_PUB_11"));
+    const mine=await get(alice.cookie,"type=mine&q=Paging&limit=50");
+    assert.equal(mine.status,200);
+    assert.equal(mine.data.posts.length,50);
+    assert.ok(mine.data.nextCursor);
+    const second=await get(alice.cookie,"type=mine&q=Paging&limit=50&cursor="+encodeURIComponent(mine.data.nextCursor));
+    assert.equal(second.status,200);
+    assert.equal(second.data.posts.length,15);
+    assert.equal(second.data.nextCursor,null);
+    const search=await get(alice.cookie,"type=all&q=Paging%20private%2065");
+    assert.equal(search.data.posts.length,1);
+    assert.equal(search.data.posts[0].publicId,"PAGE_PRIV_65");
+    const filtered=await get(alice.cookie,"type=all&q=Paging&category="+encodeURIComponent(ownCategory.slug));
+    assert.equal(filtered.data.posts.length,30);
+    assert.ok(filtered.data.posts.every(post=>post.visibility==="personal"));
+    const publicOnly=await get(alice.cookie,"type=all&q=Paging&status=published");
+    assert.equal(publicOnly.data.posts.length,11);
+    assert.ok(publicOnly.data.posts.every(post=>post.visibility==="public"));
+    assert.equal((await get(alice.cookie,"type=all&cursor=not_valid")).status,400);
+    const bobList=await get(bob.cookie,"type=mine&q=Paging");
+    assert.equal(bobList.status,200);
+    assert.equal(bobList.data.posts.length,0,"other user cannot read Alice private posts");
+  }finally{await closeTestHarness(h);}
+});

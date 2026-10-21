@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {randomBytes,createHash} from "node:crypto";
-import {closeTestHarness,jsonRequest,loginAdmin,openTestHarness,TEST_ADMIN_PASSWORD} from "./harness.mjs";
+import {closeTestHarness,jsonRequest,loginAdmin,openTestHarness,TEST_ADMIN_PASSWORD,callMcpRaw} from "./harness.mjs";
 import {identityCookie,makeActiveUser,TEST_USER_PASSWORD} from "./identity-fixtures.mjs";
 
 test("owner keeps the existing password; old admin password-only access retires after migration",async()=>{
@@ -32,7 +32,24 @@ test("reset token is purpose-bound and single-use; new password revokes old web/
     const accessHash=createHash("sha256").update(access).digest("hex");
     await h.db.prepare("INSERT INTO oauth_access_tokens(token_hash,client_id,subject,resource,scope,expires_at) VALUES(?,?,?,?,?,?)")
       .bind(accessHash,"chatgpt-xingyu","user:"+user.id,h.origin+"/mcp","xingyu.read",now+3600).run();
-    const token=randomBytes(32).toString("base64url");
+    const patResponse=await jsonRequest(h,"/api/identity/tokens",{
+      method:"POST",cookie:user.cookie,
+      body:{name:"Password reset PAT",scopes:["xingyu.read"],lifetime:"never"},
+    });
+    assert.equal(patResponse.status,201,await patResponse.clone().text());
+    const {created:pat}=await patResponse.json();
+    const unaffected=await makeActiveUser(h,"password-reset-unaffected");
+    const otherPatResponse=await jsonRequest(h,"/api/identity/tokens",{
+      method:"POST",cookie:unaffected.cookie,
+      body:{name:"Unrelated account",scopes:["xingyu.read"],lifetime:"never"},
+    });
+    assert.equal(otherPatResponse.status,201);
+    const {created:otherPat}=await otherPatResponse.json();
+    const init={jsonrpc:"2.0",id:1,method:"initialize",params:{
+      protocolVersion:"2024-11-05",capabilities:{},clientInfo:{name:"reset-test",version:"1"},
+    }};
+    assert.equal((await callMcpRaw(h,init,{token:pat.token})).status,200);
+        const token=randomBytes(32).toString("base64url");
     await h.db.prepare("INSERT INTO email_verifications(token_hash,purpose,user_id,expires_at) VALUES(?,'reset_password',?,?)")
       .bind(createHash("sha256").update(token).digest("hex"),user.id,now+1800).run();
 
@@ -50,6 +67,16 @@ test("reset token is purpose-bound and single-use; new password revokes old web/
     assert.equal((await (await jsonRequest(h,"/api/identity/me",{cookie:user.cookie})).json()).user,null);
     const oldToken=await h.db.prepare("SELECT revoked_at FROM oauth_access_tokens WHERE token_hash=?").bind(accessHash).first();
     assert.ok(oldToken?.revoked_at);
+    const patRow=await h.db.prepare("SELECT revoked_at FROM personal_access_tokens WHERE id=?")
+      .bind(pat.id).first();
+    assert.ok(patRow?.revoked_at,"password recovery must revoke active PATs");
+    assert.equal((await callMcpRaw(h,init,{token:pat.token})).status,401,
+      "leaked PATs must not survive a password reset");
+    assert.equal((await callMcpRaw(h,init,{token:otherPat.token})).status,200,
+      "unrelated account PATs must remain usable");
+    assert.equal((await jsonRequest(h,"/api/identity/tokens",{
+      method:"PATCH",cookie:unaffected.cookie,body:{id:pat.id},
+    })).status,404,"other users cannot rotate a revoked PAT");
     assert.equal((await jsonRequest(h,"/api/identity/login",{
       method:"POST",body:{email:user.email,password:TEST_USER_PASSWORD},
     })).status,401);

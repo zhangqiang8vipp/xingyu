@@ -70,12 +70,12 @@ async function consumeLoginLimit(identifier:string,windowSeconds:number,maxAttem
     "attempts=CASE WHEN ?-window_started>=? THEN 1 ELSE attempts+1 END, "+
     "window_started=CASE WHEN ?-window_started>=? THEN ? ELSE window_started END, "+
     "blocked_until=CASE WHEN blocked_until>? THEN blocked_until "+
-    "WHEN (CASE WHEN ?-window_started>=? THEN 1 ELSE attempts+1 END)>=? THEN ?+? ELSE 0 END, "+
+    "WHEN (CASE WHEN ?-window_started>=? THEN 1 ELSE attempts+1 END)>? THEN ?+? ELSE 0 END, "+
     "updated_at=? RETURNING attempts,blocked_until"
   ).bind(identifier,now,now,now,windowSeconds,now,windowSeconds,now,now,now,windowSeconds,
     maxAttempts,now,banSeconds,now).first<{attempts:number;blocked_until:number}>();
   if(!row)throw new Error("登录限流数据库不可用");
-  return {allowed:row.attempts<maxAttempts&&row.blocked_until<=now,
+  return {allowed:row.attempts<=maxAttempts&&row.blocked_until<=now,
     retryAfter:row.blocked_until>now?row.blocked_until-now:0};
 }
 
@@ -94,28 +94,54 @@ export async function identityRateLimit(request:Request,email:string){
     retryAfter:Math.max(perIp.retryAfter,perAccount.retryAfter)};
 }
 
-export async function signInWithEmail(email: string, password: string) {
+/** Called only after verified credentials; failed attempts retain their atomic limits. */
+export async function clearSuccessfulLoginLimits(request: Request, email: string) {
+  const address = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const [byIp, byAccount] = await Promise.all([
+    digest("login-ip:" + address + ":" + email),
+    digest("login-account:" + email),
+  ]);
+  await env.DB.prepare("DELETE FROM identity_login_limits WHERE identifier IN (?,?)")
+    .bind(byIp, byAccount).run();
+}
+
+export type LoginPerformance = {
+  identityQueryMs: number; passwordVerifyMs: number; workspaceMs: number; sessionMs: number;
+};
+const elapsed = (started: number) => Math.round((performance.now() - started) * 10) / 10;
+
+export async function signInWithEmail(
+  email: string, password: string, record?: (metrics: LoginPerformance) => void,
+) {
   await ensureDatabase();
   if (!validSessionSecret() || password.length < 12 || password.length > 256) return null;
+  const queryStarted=performance.now();
   const row = await env.DB.prepare(
     "SELECT u.id, u.status, c.password_hash, c.legacy_admin FROM user_identities i JOIN users u ON u.id=i.user_id JOIN user_credentials c ON c.user_id=u.id WHERE i.provider='email' AND i.subject=?",
   ).bind(email).first<{ id: number; status: string; password_hash: string | null; legacy_admin: number }>();
+  const identityQueryMs=elapsed(queryStarted);
+  const passwordStarted=performance.now();
   if (!row || row.status !== "active") return null;
   const verified = row.password_hash
     ? await verifyPassword(password, row.password_hash)
     : row.legacy_admin === 1 && row.id === 1 && email === ADMIN_EMAIL && await verifyLocalAdminPassword(password);
+  const passwordVerifyMs=elapsed(passwordStarted);
   if (!verified) return null;
   if (!row.password_hash) {
     const encoded = await hashPassword(password);
     await env.DB.prepare("UPDATE user_credentials SET password_hash=?, legacy_admin=0, updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND password_hash IS NULL")
       .bind(encoded, row.id).run();
   }
+  const workspaceStarted=performance.now();
+  await ensurePersonalWorkspace(row.id);
+  const workspaceMs=elapsed(workspaceStarted);
+  const sessionStarted=performance.now();
   const raw = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)));
   const hash = await sessionDigest(raw);
   const expires = Math.floor(Date.now() / 1000) + SESSION_SECONDS;
-  await ensurePersonalWorkspace(row.id);
   await env.DB.prepare("INSERT INTO user_sessions(session_hash,user_id,expires_at) VALUES(?,?,?)").bind(hash, row.id, expires).run();
   (await cookies()).set(IDENTITY_COOKIE, raw, { httpOnly: true, secure: adminRuntimeEnv().APP_ENV !== "development", sameSite: "lax", path: "/", maxAge: SESSION_SECONDS });
+  record?.({identityQueryMs,passwordVerifyMs,workspaceMs,sessionMs:elapsed(sessionStarted)});
   return { userId: row.id };
 }
 
