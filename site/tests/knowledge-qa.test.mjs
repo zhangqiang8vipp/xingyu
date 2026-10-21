@@ -13,7 +13,7 @@ const sources=[
 test("answer instructions restrict the model to evidence and literal citation indices",()=>{
   const messages=qaMessages("有哪些技术经验？",sources);
   assert.equal(messages.length,2);
-  assert.match(messages[0].content,/不能.*外部知识/);
+  assert.match(messages[0].content,/不允许使用外部知识/);
   assert.match(messages[0].content,/不可信/);
   assert.ok(messages[1].content.includes("Cloudflare D1 技术经验"));
   assert.ok(messages[1].content.includes("[1]"));
