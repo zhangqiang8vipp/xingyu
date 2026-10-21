@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {closeTestHarness,jsonRequest,openTestHarness} from "./harness.mjs";
+import {closeTestHarness,jsonRequest,loginAdmin,openTestHarness} from "./harness.mjs";
 import {makeActiveUser} from "./identity-fixtures.mjs";
 
 const vars={VIEWS_IDENTITY_SECRET:"test-qa-hmac-key-longer-than-twenty-characters"};
@@ -137,5 +137,62 @@ test("exhausted global OpenRouter budget still returns real sources without maki
       "SELECT used FROM ai_question_quotas WHERE bucket='global'"
     ).first();
     assert.equal(quota.used,40,"model request must not overrun the free daily budget");
+  }finally{await closeTestHarness(h);}
+});
+
+
+test("broad site question cites actual topic articles without requiring 技术 or 经验 in their text",async()=>{
+  const h=await openTestHarness({vars});
+  try{
+    const category=await h.db.prepare(
+      "SELECT id FROM categories WHERE workspace_id=1 ORDER BY id LIMIT 1"
+    ).first();
+    for(const [id,title,content] of [
+      ["qa-topic-workers","Cloudflare Workers 部署实践","# Worker 路由和缓存管理"],
+      ["qa-topic-ts","TypeScript 类型规范","# 类型系统与编译器选项"],
+    ]){
+      await h.db.prepare(
+        "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,published_at) " +
+        "VALUES(1,?,?,?,?,?,?,NULL,'published',CURRENT_TIMESTAMP)"
+      ).bind(id,title,id,"开发笔记",content,category.id).run();
+    }
+    const answer=await ask(h,{
+      question:"这个网站主要分享哪些技术经验？",scope:"public",mode:"sources",
+    });
+    assert.equal(answer.status,200,JSON.stringify(answer.json));
+    assert.equal(answer.json.sources.length,2);
+    assert.ok(answer.json.sources.some(x=>x.title==="Cloudflare Workers 部署实践"));
+    assert.ok(answer.json.sources.some(x=>x.title==="TypeScript 类型规范"));
+    assert.ok(answer.json.sources.every(x=>x.url.includes("/posts/")));
+  }finally{await closeTestHarness(h);}
+});
+
+test("password-based legacy site admin can ask about authorized private knowledge",async()=>{
+  const h=await openTestHarness({vars});
+  try{
+    const cookie=await loginAdmin(h);
+    const category=await h.db.prepare(
+      "SELECT id FROM categories WHERE workspace_id=1 ORDER BY id LIMIT 1"
+    ).first();
+    const space=await h.db.prepare(
+      "INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(1,NULL,'QA admin space','qa-admin-space') RETURNING id"
+    ).first();
+    await h.db.prepare(
+      "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,author_id,created_by) " +
+      "VALUES(1,'qa-legacy-secret','Site owner private Cloudflare knowledge','qa-legacy-secret'," +
+      "'cloudflare backend','# Secret admin article',?,?,'draft',1,1)"
+    ).bind(category.id,space.id).run();
+    const result=await ask(h,{
+      question:"Site owner private Cloudflare knowledge",scope:"mine",mode:"sources",
+    },cookie);
+    assert.equal(result.status,200,JSON.stringify(result.json));
+    assert.equal(result.json.sources.length,1);
+    assert.equal(result.json.sources[0].title,"Site owner private Cloudflare knowledge");
+    assert.equal(result.json.sources[0].visibility,"personal");
+    assert.ok(result.json.sources[0].url.startsWith("/admin?"));
+    const page=await h.dispatch("/ask?scope=mine",{
+      headers:{cookie,Accept:"text/html"},
+    });
+    assert.equal(page.status,200,"legacy admin must be able to open Q&A page");
   }finally{await closeTestHarness(h);}
 });
