@@ -1,0 +1,147 @@
+name: One-time production deploy - Ask UX and quotas
+
+# Temporary marker-only production release. Remove this workflow and marker after the run.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .deploy-once-ask-ux-quota-20261021
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xingyu-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: contains(github.event.head_commit.message, 'ONE-TIME-PRODUCTION-DEPLOY-ASK-UX-QUOTA-20261021')
+    name: Verify release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify one-time marker contents
+        working-directory: .
+        run: test "$(cat .deploy-once-ask-ux-quota-20261021)" = "ONE-TIME-PRODUCTION-DEPLOY-ASK-UX-QUOTA-20261021"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.18.0
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Run the full CI suite
+        run: npm run ci
+      - name: Validate production bindings without contacting production
+        run: node scripts/verify-production-deploy.mjs config
+
+  deploy:
+    if: contains(github.event.head_commit.message, 'ONE-TIME-PRODUCTION-DEPLOY-ASK-UX-QUOTA-20261021')
+    name: Production approval and deployment
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: CLOUDFLARE
+      url: https://zhangwansen.click
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - name: Require production opt-in and Cloudflare credentials
+        working-directory: .
+        env:
+          PRODUCTION_DEPLOY_ENABLED: ${{ vars.PRODUCTION_DEPLOY_ENABLED }}
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [[ "$PRODUCTION_DEPLOY_ENABLED" != "true" ]]; then
+            echo "::error::CLOUDFLARE environment must set PRODUCTION_DEPLOY_ENABLED=true."
+            exit 1
+          fi
+          if [[ -z "$CF_API_TOKEN" || -z "$CF_ACCOUNT_ID" ]]; then
+            echo "::error::CLOUDFLARE environment must contain both Cloudflare secrets."
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.18.0
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Confirm production worker and resource bindings
+        run: node scripts/verify-production-deploy.mjs config
+      - name: Confirm encrypted OpenRouter API secret exists on the production Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_WRITE_LOGS: "false"
+        run: |
+          npx wrangler secret list --config wrangler.production.jsonc --format json > "$RUNNER_TEMP/xingyu-secret-names.json"
+          node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!Array.isArray(x)||!x.some(s=>s.name==="OPENROUTER_API_KEY"&&s.type==="secret_text")){console.error("::error::Configure OPENROUTER_API_KEY as a Cloudflare Worker encrypted Secret before deploying.");process.exit(1)} console.log("OpenRouter encrypted Secret binding verified (value never read or logged)")' "$RUNNER_TEMP/xingyu-secret-names.json"
+      - name: Verify remote production D1 schema and instance identity
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_WRITE_LOGS: "false"
+        run: |
+          npx wrangler d1 execute DB \
+            --config wrangler.production.jsonc \
+            --remote \
+            --command "SELECT key, value FROM app_meta WHERE key IN ('schema_version', 'app_environment', 'instance_id')" \
+            --json > "$RUNNER_TEMP/xingyu-production-d1-meta.json"
+          node scripts/verify-production-deploy.mjs d1 "$RUNNER_TEMP/xingyu-production-d1-meta.json"
+      - name: Build and deploy Cloudflare Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_WRITE_LOGS: "false"
+        run: npm run deploy:production
+      - name: Smoke test homepage, OAuth discovery and protected MCP
+        run: |
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 3 "https://zhangwansen.click/" -o /dev/null
+          confirmed=0
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error "https://zhangwansen.click/.well-known/oauth-authorization-server" -o "$RUNNER_TEMP/xingyu-oauth-metadata.json" && node scripts/verify-production-deploy.mjs oauth "$RUNNER_TEMP/xingyu-oauth-metadata.json"; then
+              confirmed=1
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$confirmed" != "1" ]]; then echo "::error::Production OAuth discovery failed after deploy."; exit 1; fi
+          status="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "https://zhangwansen.click/mcp")"
+          if [[ "$status" != "401" ]]; then echo "::error::Unauthenticated production MCP must return 401, got $status."; exit 1; fi
+
+      - name: Smoke test knowledge Q&A page and grounded source-only API
+        run: |
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 3 -H 'Accept: text/html' 'https://zhangwansen.click/ask' -o /dev/null
+          status="$(curl --silent --show-error --output "$RUNNER_TEMP/xingyu-qa-source-smoke.json" --write-out "%{http_code}" -H 'Origin: https://zhangwansen.click' -H 'Content-Type: application/json' --data '{"question":"这个网站主要分享哪些技术经验？","scope":"public","mode":"sources"}' 'https://zhangwansen.click/api/ask')"
+          if [[ "$status" != "200" ]]; then echo "::error::Knowledge Q&A public source-only request failed: $status"; exit 1; fi
+          node -e 'const fs=require("node:fs");const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!Array.isArray(v.sources)||typeof v.answer!=="string"){console.error("::error::Unexpected Q&A source-only response");process.exit(1)} console.log("Knowledge Q&A public source-only smoke passed")' "$RUNNER_TEMP/xingyu-qa-source-smoke.json"
+
+      - name: Smoke test global AI assets and two-character Chinese source-only API
+        run: |
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 3 'https://zhangwansen.click/assistant.css' -o "$RUNNER_TEMP/xingyu-assistant.css"
+          grep -qF '.xy-ai-panel' "$RUNNER_TEMP/xingyu-assistant.css" || { echo "::error::Global AI panel stylesheet was not deployed"; exit 1; }
+          status="$(curl --silent --show-error --output "$RUNNER_TEMP/xingyu-short-query.json" --write-out "%{http_code}" -H 'Origin: https://zhangwansen.click' -H 'Content-Type: application/json' --data '{"question":"温莎","scope":"public","mode":"sources"}' 'https://zhangwansen.click/api/ask')"
+          if [[ "$status" != "200" ]]; then echo "::error::Two-character Chinese source-only API failed: $status"; exit 1; fi
+          node -e 'const fs=require("node:fs");const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(!Array.isArray(d.sources)||typeof d.answer!=="string"||d.model!==null||d.sources.some(s=>s.visibility!=="public")){console.error("::error::Short-query search response must contain only authorized real source records, no model call");process.exit(1)} console.log("Short Chinese source-only search passed (without model call)")' "$RUNNER_TEMP/xingyu-short-query.json"
+          curl --fail --silent --show-error -H 'Accept: application/json' 'https://zhangwansen.click/api/ask' -o "$RUNNER_TEMP/xingyu-ask-session.json"
+          node -e 'const fs=require("node:fs");const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(d.authenticated!==false){console.error("::error::Anonymous public Q&A session unexpectedly marked authenticated");process.exit(1)}console.log("Public ask auth discovery verified")' "$RUNNER_TEMP/xingyu-ask-session.json"
+
+      - name: Smoke test updated floating AI widget shell
+        run: |
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 3 'https://zhangwansen.click/assistant.css?release=4bcf681' -o "$RUNNER_TEMP/xingyu-ask-ux.css"
+          grep -qF '.xy-ai-launcher[hidden]' "$RUNNER_TEMP/xingyu-ask-ux.css" || { echo "::error::Floating launcher update not found in production assets"; exit 1; }
+          echo 'Updated floating AI CSS asset found. Scroll regression was separately verified with desktop, mobile and dark-mode Chromium.'
