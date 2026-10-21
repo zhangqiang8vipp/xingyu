@@ -73,8 +73,29 @@ async function check(browser,origin,label,width,height,dark) {
     const first=await page.goto(origin+"/",{waitUntil:"networkidle0",timeout:70000});
     assert.equal(first.status(),200,label+" homepage");
     await page.waitForSelector(".xy-ai-launcher",{visible:true,timeout:20000});
+    assert.equal(await page.$(".xy-ai-nav-trigger").then(items=>items.length),0,
+      label+" no redundant top Ask AI button");
+    // Simulate a long article in the real browser without relying on external content.
+    await page.evaluate(()=>{
+      const spacer=document.createElement("div");
+      spacer.style.height="1850px";
+      spacer.dataset.qaScrollTest="true";
+      document.body.append(spacer);
+      document.documentElement.style.scrollBehavior="auto";
+      window.scrollTo(0,0);
+    });
     await page.click(".xy-ai-launcher");
     await page.waitForSelector(".xy-ai-panel:not([hidden]) .xy-ai-composer",{visible:true,timeout:25000});
+    assert.equal(await page.evaluate(()=>window.scrollY),0,label+" opening from top must not scroll page");
+    await page.click(".xy-ai-close");
+    await page.waitForSelector(".xy-ai-launcher:not([hidden])",{visible:true,timeout:10000});
+    await page.evaluate(()=>window.scrollTo(0,460));
+    const expectedScroll=await page.evaluate(()=>window.scrollY);
+    assert.ok(expectedScroll>250,label+" long article test fixture must be scrollable");
+    await page.click(".xy-ai-launcher");
+    await page.waitForSelector(".xy-ai-panel:not([hidden]) .xy-ai-composer",{visible:true,timeout:25000});
+    assert.ok(Math.abs((await page.evaluate(()=>window.scrollY))-expectedScroll)<=2,
+      label+" opening AI at article midpoint must keep the document scroll unchanged");
     const dimensions=await page.evaluate(()=>{
       const panel=document.querySelector(".xy-ai-panel").getBoundingClientRect();
       const thread=document.querySelector(".xy-ai-thread").getBoundingClientRect();
@@ -94,10 +115,14 @@ async function check(browser,origin,label,width,height,dark) {
     await page.click(".xy-ai-only-search");
     await page.waitForFunction(()=>Array.from(document.querySelectorAll(".xy-ai-source-content strong"))
       .some(node=>node.textContent?.includes("温莎技术实践")),{timeout:25000});
-    assert.equal(await page.$$eval(".xy-ai-turn-error",nodes=>nodes.length),0,label+" 2-character question accepted");
+    assert.equal(await page.$eval(".xy-ai-turn-error",nodes=>nodes.length),0,label+" 2-character question accepted");
+    assert.ok(Math.abs((await page.evaluate(()=>window.scrollY))-expectedScroll)<=2,
+      label+" new answers must scroll inside chat, not the main document");
     await page.screenshot({path:resolve(output,"ask-cited-"+label+".png"),animations:"disabled"});
     await page.click(".xy-ai-close");
-    await page.waitForSelector(".xy-ai-launcher",{visible:true,timeout:10000});
+    await page.waitForSelector(".xy-ai-launcher:not([hidden])",{visible:true,timeout:10000});
+    assert.ok(Math.abs((await page.evaluate(()=>window.scrollY))-expectedScroll)<=2,
+      label+" closing AI must not jump to document footer");
     const route=await page.goto(origin+"/ask",{waitUntil:"networkidle0",timeout:70000});
     assert.equal(route.status(),200,label+" full-page /ask");
     await page.waitForSelector(".xy-ai-chat--page .xy-ai-composer",{visible:true,timeout:20000});
