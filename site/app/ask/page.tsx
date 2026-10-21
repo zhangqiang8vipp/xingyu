@@ -18,6 +18,7 @@ export default async function AskPage({
   const isSignedIn=Boolean(identity||legacyAdmin);
   const scope=params.scope==="mine"||params.scope==="all"?params.scope:"public";
   return <main className="xy-ask-page">
+    <link rel="stylesheet" href="/assistant.css" />
     <link rel="stylesheet" href="/ask.css" />
     <SiteNavigation brandName={settings.brandName} current="ask">
       <span className="xy-ask-nav-center">知识问答</span>
