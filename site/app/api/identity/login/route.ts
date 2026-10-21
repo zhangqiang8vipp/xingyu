@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     event: "identity_login_performance", rateMs, authMs, clearMs, totalMs,
     ...(phases ?? {}),
   }));
-  const parts = [
+  const parts: Array<[string,number]> = [
     ["rate-limit", rateMs],
     ["authentication", authMs],
     ["limit-cleanup", clearMs],
