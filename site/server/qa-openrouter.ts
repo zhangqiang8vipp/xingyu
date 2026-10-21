@@ -2,13 +2,54 @@ import type { AskSource } from "@/server/qa-retrieval";
 
 export const QA_MODEL = "openrouter/free";
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const REQUEST_TIMEOUT_MS = 22_000;
+
+export type QaProviderFailure = "quota" | "unavailable" | "response" | "timeout" | "network";
+export type QaDiagnosticCode =
+  | "rate_limited" | "auth_rejected" | "credits_unavailable" | "invalid_request"
+  | "model_not_found" | "upstream_unavailable" | "upstream_http"
+  | "timeout" | "network" | "invalid_response" | "unknown";
 
 export class QaProviderError extends Error {
-  readonly reason: "unavailable" | "quota" | "response";
-  constructor(reason: "unavailable" | "quota" | "response") {
+  readonly reason: QaProviderFailure;
+  readonly status: number | null;
+  readonly durationMs: number | null;
+  constructor(
+    reason: QaProviderFailure,
+    status: number | null = null,
+    durationMs: number | null = null,
+  ) {
     super(reason);
-    this.reason = reason;
+    this.name = "QaProviderError";
+    this.reason=reason;
+    this.status=status;
+    this.durationMs=durationMs;
   }
+}
+
+/** Small, strictly allowlisted diagnostics. No upstream bodies, prompts, keys or raw errors. */
+export function qaFailureDetails(error: unknown): {
+  code: QaDiagnosticCode; status: number | null; durationMs: number | null;
+} {
+  if (!(error instanceof QaProviderError))
+    return {code:"unknown",status:null,durationMs:null};
+  const status=error.status;
+  let code:QaDiagnosticCode;
+  switch(error.reason) {
+    case "quota": code="rate_limited";break;
+    case "timeout": code="timeout";break;
+    case "network": code="network";break;
+    case "response": code="invalid_response";break;
+    default:
+      if(status===408||status===524)code="timeout";
+      else if(status===401||status===403)code="auth_rejected";
+      else if(status===402)code="credits_unavailable";
+      else if(status===400||status===422)code="invalid_request";
+      else if(status===404)code="model_not_found";
+      else if(status!==null&&status>=500)code="upstream_unavailable";
+      else code="upstream_http";
+  }
+  return {code,status,durationMs:error.durationMs};
 }
 
 export function qaMessages(question: string, sources: AskSource[]) {
@@ -46,12 +87,25 @@ export function verifiedAnswer(text: string, count: number) {
   ).trim().slice(0, 3000);
 }
 
+function textFromMessage(message: unknown): string {
+  if (typeof message === "string") return message;
+  // Some OpenRouter-compatible providers return typed text parts. Never use
+  // reasoning, tool calls or arbitrary objects as user-facing evidence.
+  if (!Array.isArray(message)) return "";
+  return message.map((part: unknown) => {
+    if (!part || typeof part !== "object") return "";
+    const item=part as Record<string,unknown>;
+    return item.type==="text" && typeof item.text==="string" ? item.text : "";
+  }).filter(Boolean).join("\n");
+}
+
 export async function answerWithOpenRouter(
   question: string, sources: AskSource[], apiKey: string, origin: string,
   fetcher: typeof fetch = fetch,
 ) {
+  const start=Date.now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 22_000);
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const response = await fetcher(ENDPOINT,{
       method:"POST",
@@ -70,21 +124,37 @@ export async function answerWithOpenRouter(
       }),
       signal:controller.signal,
     });
-    if(response.status===429)return Promise.reject(new QaProviderError("quota"));
-    if(!response.ok)throw new QaProviderError("unavailable");
+    // Never read or log an upstream error body: it can echo private prompts,
+    // identifiers, credentials or provider-specific diagnostics.
+    if(response.status===429)throw new QaProviderError("quota",429);
+    if(!response.ok)throw new QaProviderError("unavailable",response.status);
     const raw = await response.text();
-    if(raw.length > 100_000)throw new QaProviderError("response");
-    const data = JSON.parse(raw) as {
-      choices?: Array<{message?: {content?: unknown}}>;
-    };
-    const message=data.choices?.[0]?.message?.content;
-    const content=typeof message==="string" ? message : "";
+    if(raw.length > 100_000)throw new QaProviderError("response",response.status);
+    let data:unknown;
+    try {data=JSON.parse(raw);}catch{throw new QaProviderError("response",response.status);}
+    // OpenRouter can return an embedded error even with HTTP 200 if generation
+    // started and the upstream model failed. Inspect only its numeric code,
+    // NEVER propagate the potentially sensitive error.message or metadata.
+    const errorPayload=data && typeof data==="object"
+      ? (data as {error?:{code?:unknown}}).error : undefined;
+    if(errorPayload) {
+      const candidate=errorPayload.code;
+      const status=typeof candidate==="number" && Number.isInteger(candidate)
+        && candidate>=400 && candidate<=599 ? candidate : null;
+      throw new QaProviderError(status===429?"quota":status===null?"response":"unavailable",status);
+    }
+    const choices=data && typeof data==="object"
+      ? (data as {choices?:Array<{message?:{content?:unknown}}>}).choices : undefined;
+    const content=textFromMessage(choices?.[0]?.message?.content);
     const answer=verifiedAnswer(content,sources.length);
-    if(!answer)throw new QaProviderError("response");
+    if(!answer)throw new QaProviderError("response",response.status);
     return answer;
   } catch(error) {
-    if(error instanceof QaProviderError)throw error;
-    throw new QaProviderError("unavailable");
+    const durationMs=Math.max(0,Date.now()-start);
+    if(error instanceof QaProviderError)
+      throw new QaProviderError(error.reason,error.status,durationMs);
+    throw new QaProviderError(controller.signal.aborted || (error instanceof Error && error.name==="AbortError")
+      ?"timeout":"network",null,durationMs);
   } finally {
     clearTimeout(timeout);
   }
