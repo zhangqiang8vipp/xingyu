@@ -182,7 +182,11 @@ const worker = {
     const publicStorageAllowed=cacheable&&responseAllowsPublicStorage(appResponse);
     const response = addSecurityHeaders(appResponse, url, publicStorageAllowed,revision,identityBearing,htmlDocument);
     applyCsp(response.headers, env, htmlDocument);
-    response.headers.set("Server-Timing", `${cacheable?`cache-revision;dur=${revisionDuration.toFixed(1)}, `:""}app;dur=${(performance.now() - requestStartedAt).toFixed(1)}`);
+    const appTiming = `${cacheable?`cache-revision;dur=${revisionDuration.toFixed(1)}, `:""}app;dur=${(performance.now() - requestStartedAt).toFixed(1)}`;
+    // Preserve route-specific timings (notably the private login breakdown)
+    // rather than clobbering them with the outer Worker total.
+    const routeTiming = response.headers.get("Server-Timing");
+    response.headers.set("Server-Timing", routeTiming ? appTiming + ", " + routeTiming : appTiming);
     if (cacheKey && publicStorageAllowed) {
       const cachedResponse = response.clone();
       cachedResponse.headers.set("Cache-Control",publicDocumentStorageCacheControl());
