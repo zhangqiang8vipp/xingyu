@@ -217,8 +217,8 @@ const worker = {
       }
       try {
         const quotaCleanup = await env.DB.prepare(
-          "DELETE FROM ai_question_quotas WHERE day < date('now','-30 days')"
-        ).run();
+          "DELETE FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:%' AND window_started < ?"
+        ).bind(Math.floor(Date.now()/1000)-30*86400).run();
         console.log(JSON.stringify({
           event: "qa_quota_retention_cleanup",
           pruned: quotaCleanup.meta.changes ?? 0,
