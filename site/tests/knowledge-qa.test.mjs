@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { askSearchTerms } from "../domain/knowledge/qa-terms.ts";
 import { isKnowledgeOverviewQuestion } from "../domain/knowledge/qa-overview.ts";
 import { readLimitedAskBody } from "../domain/knowledge/qa-request.ts";
 import {
@@ -67,4 +69,31 @@ test("public ask body is byte-capped even when Content-Length is absent",async()
     body:"x".repeat(3000),
   });
   assert.equal(await readLimitedAskBody(big),null);
+});
+
+
+test("short Chinese names stay searchable rather than failing the old three-character gate",()=>{
+  assert.deepEqual(askSearchTerms("温莎"),["温莎"]);
+  assert.ok(askSearchTerms("介绍一下温莎").includes("温莎"));
+  assert.ok(askSearchTerms("星屿").includes("星屿"));
+});
+
+test("both the global launcher and full page use the same accessible assistant UI",()=>{
+  const root=readFileSync(new URL("../app/layout.tsx",import.meta.url),"utf8");
+  const nav=readFileSync(new URL("../features/navigation/nav/NavTools.tsx",import.meta.url),"utf8");
+  const panel=readFileSync(new URL("../features/ask/GlobalAskAssistant.tsx",import.meta.url),"utf8");
+  const chat=readFileSync(new URL("../features/ask/AskChat.tsx",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../app/assistant.css",import.meta.url),"utf8");
+  const route=readFileSync(new URL("../app/api/ask/route.ts",import.meta.url),"utf8");
+  assert.match(root,/GlobalAskAssistant/);
+  assert.match(nav,/AskAiTrigger/);
+  assert.match(panel,/aria-modal/);
+  assert.match(panel,/xingyu:ask-open/);
+  assert.match(chat,/xy-ai-thread/);
+  assert.match(chat,/xy-ai-composer/);
+  assert.match(chat,/urlTransform=/,"model-generated URLs must not be trusted");
+  assert.match(chat,/confirmedExternalProcessing/,"private-model consent must not disappear");
+  assert.match(css,/\.xy-ai-panel/);
+  assert.match(css,/max-width:720px/);
+  assert.match(route,/question.length<2/);
 });
