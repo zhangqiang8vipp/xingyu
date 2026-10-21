@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./assistant.css";
+import GlobalAskAssistant from "@/features/ask/GlobalAskAssistant";
 import ScrollIndicator from "./ScrollIndicator";
 import RouteTransition from "./RouteTransition";
 import { getSiteSettings } from "@/db/queries";
@@ -25,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html:preferenceBootstrap }} /></head>
-      <body id="page-content"><RouteTransition>{children}</RouteTransition><ScrollIndicator /><DismissibleDetails /></body>
+      <body id="page-content"><RouteTransition>{children}</RouteTransition><ScrollIndicator /><DismissibleDetails /><GlobalAskAssistant /></body>
     </html>
   );
 }
