@@ -7,9 +7,10 @@ import type { AskIdentity } from "@/server/qa-retrieval";
  * avoiding an outage-prone D1 migration just to launch a small public beta.
  * No OAuth or login counter keys are read, mutated or pruned by Q&A code.
  */
-export const ASK_DAILY_GLOBAL_LIMIT = 40;
-const INDIVIDUAL_ANONYMOUS_LIMIT = 3;
-const INDIVIDUAL_SIGNED_IN_LIMIT = 8;
+// There is no site-wide daily model cap: OpenRouter owns the provider-side
+// free-model limits. Per-person daily model usage is limited to 100 requests.
+// Verified site administrators bypass app-specific Q&A quotas entirely.
+export const ASK_DAILY_PERSON_LIMIT = 100;
 const ANONYMOUS_SEARCH_LIMIT = 30;
 const SIGNED_IN_SEARCH_LIMIT = 100;
 
@@ -30,8 +31,7 @@ async function digestIdentity(value: string) {
 }
 
 /**
- * Atomic UPSERT with the limit check in SQL: simultaneous requests cannot
- * overdraw the hosted model's shared free budget.
+ * Atomic UPSERT with the limit check in SQL for per-person quotas.
  * Callers include UTC date in the key; window_started is for safe retention.
  */
 async function increment(identifier: string, limit: number) {
@@ -48,7 +48,11 @@ async function increment(identifier: string, limit: number) {
 
 export async function takeAskVisitorQuota(
   request: Request,identity: AskIdentity,mode: "answer" | "sources",
+  isAdmin = false,
 ) {
+  // A verified site owner / legacy admin is exempt from Q&A usage limits.
+  // Caller must derive this from authenticated credentials on the server.
+  if (isAdmin) return;
   const day=new Date().toISOString().slice(0,10);
   const label=identity
     ? "user:" + identity.userId
@@ -57,16 +61,9 @@ export async function takeAskVisitorQuota(
   const edge=await env.VIEW_RATE_LIMITER.limit({key:"ask:"+hash});
   if(!edge.success)throw new AskQuotaError("throttled");
   const modelRequest=mode==="answer";
-  const limit=modelRequest
-    ? identity ? INDIVIDUAL_SIGNED_IN_LIMIT : INDIVIDUAL_ANONYMOUS_LIMIT
+  const limit=modelRequest ? ASK_DAILY_PERSON_LIMIT
     : identity ? SIGNED_IN_SEARCH_LIMIT : ANONYMOUS_SEARCH_LIMIT;
   const name="qa:v1:"+(modelRequest?"model":"search")+":"+hash;
   if(!await increment(name,limit))throw new AskQuotaError("daily");
 }
 
-export async function takeAskGlobalQuota() {
-  const day=new Date().toISOString().slice(0,10);
-  const identifier="qa:v1:global:"+day;
-  if(!await increment(identifier,ASK_DAILY_GLOBAL_LIMIT))
-    throw new AskQuotaError("daily");
-}
