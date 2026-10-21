@@ -100,6 +100,10 @@ test("personal accounts use the same original admin console with only data and p
     assert.ok(client.includes(panel),"the shared AdminClient must retain "+panel);
   assert.match(sidebar,/const visibleGroups = isPersonalAccount \? NAV_GROUPS\.filter\(\(group\) => group\.id !== "site"\) : NAV_GROUPS;/,"personal accounts use the original sidebar without site management");
   assert.match(client,/readOnly=\{isPersonalAccount\}/,"site-only controls are read-only for personal accounts");
-  assert.match(client,/\/api\/knowledge\/posts\?type=mine/);
-  assert.match(client,/\/api\/knowledge\/posts\?type=public/);
+  assert.match(client,/type: "all", limit: String\(CONTENT_LIMITS\.adminBatch\)/,
+    "the personal console should request the server-side unified page");
+  assert.match(client,/setNextCursor\(data\.nextCursor \?\? null\)/,
+    "the browser must continue with the server's opaque cursor");
+  assert.doesNotMatch(client,/mineResponse, publicResponse/,
+    "do not concatenate and truncate two fixed-size lists in the browser");
 });
