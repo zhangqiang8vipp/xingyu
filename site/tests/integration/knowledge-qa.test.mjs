@@ -198,3 +198,60 @@ test("password-based legacy site admin can ask about authorized private knowledg
     assert.equal(page.status,200,"legacy admin must be able to open Q&A page");
   }finally{await closeTestHarness(h);}
 });
+
+
+test("two-character Chinese proper names search titles even when older than 40 newer body mentions",async()=>{
+  const h=await openTestHarness({vars});
+  try{
+    const category=await h.db.prepare("SELECT id FROM categories WHERE workspace_id=1 ORDER BY id LIMIT 1").first();
+    assert.ok(category);
+    await h.db.prepare(
+      "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,published_at,updated_at) " +
+      "VALUES(1,'qa-windsor-old','温莎项目实践','qa-windsor-old','温莎专门记录','# 关于温莎的实践经验',?,NULL,'published',CURRENT_TIMESTAMP,'2020-01-01 00:00:00')"
+    ).bind(category.id).run();
+    await h.db.prepare(
+      "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status) " +
+      "VALUES(1,'qa-windsor-draft','温莎私人草稿','qa-windsor-draft','不可见','# 温莎未发布内部资料',?,NULL,'draft')"
+    ).bind(category.id).run();
+    for(let i=0;i<45;i++){
+      await h.db.prepare(
+        "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,published_at) " +
+        "VALUES(1,?,?,?,?,?,?,NULL,'published',CURRENT_TIMESTAMP)"
+      ).bind("qa-windsor-new-"+i,"更新记录 "+i,"qa-windsor-new-"+i,"普通记录","# 文章正文仅提到温莎。",category.id).run();
+    }
+    const result=await ask(h,{question:"温莎",scope:"public",mode:"sources"});
+    assert.equal(result.status,200,JSON.stringify(result.json));
+    assert.ok(result.json.sources.some(s=>s.title==="温莎项目实践"),
+      "older exact-title hit must outrank recent body-only mentions");
+    assert.ok(result.json.sources.every(s=>s.visibility==="public"));
+    assert.ok(result.json.sources.every(s=>s.title!=="温莎私人草稿"),
+      "public search must never reveal drafts");
+    assert.ok(result.json.sources.every(s=>s.url.startsWith(h.origin+"/posts/")));
+  }finally{await closeTestHarness(h);}
+});
+
+test("exhausted visitor AI allowance downgrades to genuine source results",async()=>{
+  const h=await openTestHarness({vars:{...vars,OPENROUTER_API_KEY:"integration-only-key"}});
+  try{
+    const category=await h.db.prepare("SELECT id FROM categories WHERE workspace_id=1 ORDER BY id LIMIT 1").first();
+    await h.db.prepare(
+      "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,published_at) " +
+      "VALUES(1,'qa-windsor-quota','温莎技术实践','qa-windsor-quota','温莎公开记录','# 温莎技术实践',?,NULL,'published',CURRENT_TIMESTAMP)"
+    ).bind(category.id).run();
+    const ip={"CF-Connecting-IP":"203.0.113.90"};
+    const before=await ask(h,{question:"absent-unique-exhaust-test",mode:"answer"},undefined,ip);
+    assert.equal(before.status,200);
+    assert.deepEqual(before.json.sources,[]);
+    await h.db.prepare("UPDATE oauth_rate_limits SET attempts=3 WHERE identifier LIKE 'qa:v1:model:%'").run();
+    const limited=await ask(h,{question:"温莎",mode:"answer",scope:"public"},undefined,ip);
+    assert.equal(limited.status,200,JSON.stringify(limited.json));
+    assert.equal(limited.json.degraded,true);
+    assert.equal(limited.json.model,null);
+    assert.match(limited.json.answer,/次数已用完/);
+    assert.ok(limited.json.sources.some(s=>s.title==="温莎技术实践"));
+    const budget=await h.db.prepare(
+      "SELECT identifier FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:global:%'"
+    ).first();
+    assert.equal(budget,null,"source-only fallback must not consume model provider budget");
+  }finally{await closeTestHarness(h);}
+});
