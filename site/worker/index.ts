@@ -216,6 +216,20 @@ const worker = {
         }));
       }
       try {
+        const quotaCleanup = await env.DB.prepare(
+          "DELETE FROM oauth_rate_limits WHERE identifier LIKE 'qa:v1:%' AND window_started < ?"
+        ).bind(Math.floor(Date.now()/1000)-30*86400).run();
+        console.log(JSON.stringify({
+          event: "qa_quota_retention_cleanup",
+          pruned: quotaCleanup.meta.changes ?? 0,
+        }));
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "qa_quota_retention_cleanup_failed",
+          errorType: error instanceof Error ? error.name : typeof error,
+        }));
+      }
+      try {
         const health = await collectSiteHealth(env.DB, schemaVersion);
         const anomalies = Object.entries(health.audit)
           .filter(([, count]) => count !== 0)

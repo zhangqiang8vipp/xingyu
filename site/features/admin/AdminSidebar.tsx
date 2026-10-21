@@ -166,6 +166,7 @@ export default function AdminSidebar({
           onSelect={select}
         />)}
       </div>)}
+      <Link data-icon="✧" title="问问知识库" className="admin-desktop-utility" href="/ask?scope=mine">问问知识库</Link>
       <Link data-icon="↗" title="查看前台" className="admin-desktop-utility" href="/" target="_blank">查看前台</Link>
       <button data-icon="⏻" title="安全退出" className="admin-desktop-utility" type="button" onClick={onSignOut}>安全退出</button>
     </nav>
@@ -174,6 +175,7 @@ export default function AdminSidebar({
         {ACCOUNT_LINKS.map(item=><Link key={item.area} href={item.href}
           aria-current={accountArea===item.area?"page":undefined}
           className={accountArea===item.area?"selected":undefined}>{item.label}</Link>)}
+        <Link href="/ask?scope=mine">问问知识库</Link>
         <Link href="/">返回博客</Link>
       </nav> : <>
       {moreOpen ? <div className="admin-more-sheet">
