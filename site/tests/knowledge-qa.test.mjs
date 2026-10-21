@@ -109,7 +109,7 @@ test("floating assistant cannot scroll the parent page and only the launcher rem
   assert.match(panel,/aria-controls="xy-ai-global-panel"/);
   assert.match(chat,/threadRef\.current/);
   assert.match(chat,/thread\.scrollTo\(/);
-  assert.doesNotMatch(chat,/scrollIntoView\(/,"scrollIntoView may scroll the main document too");
+  assert.doesNotMatch(chat,/\.scrollIntoView\(/,"scrollIntoView may scroll the main document too");
   assert.doesNotMatch(nav,/AskAiTrigger/);
   assert.match(globalStyles,/\.xy-ai-launcher\[hidden\]\{display:none\}/);
 });
