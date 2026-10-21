@@ -1391,15 +1391,10 @@ tbody tr:hover{background:var(--admin-control)}
 /* The admin navigation belongs to the active appearance, not to a fixed dark shell. */
 
 /* 2026 navigation refinement: one center rail owns search and archive filtering. */
-.brand{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-size:18px;font-weight:760;letter-spacing:-.07em;line-height:1}
+.brand{display:inline-flex;align-items:center;gap:9px;color:var(--ink);font-size:18px;font-weight:760;letter-spacing:-.07em;line-height:1}
 .brand .brand-word{color:inherit}
-.brand-orbit{position:relative;width:9px;height:9px;flex:none;color:inherit!important;border:1px solid rgba(0,113,227,.28);border-radius:50%;transform:translateY(1px);transition:transform .4s cubic-bezier(.2,.8,.2,1),border-color .3s}
-.brand-orbit::before{content:"";position:absolute;inset:-4px;border:1px solid rgba(87,125,255,.1);border-radius:50%;opacity:0;transform:scale(.65);transition:opacity .3s,transform .45s cubic-bezier(.2,.8,.2,1)}
-.brand-orbit i{position:absolute;top:-1px;right:-1px;width:4px;height:4px;border-radius:50%;background:linear-gradient(145deg,#47a4ff,#755cff 58%,#ff72ad);box-shadow:0 0 7px rgba(66,139,255,.55)}
-.brand:hover .brand-orbit{border-color:rgba(0,113,227,.48);transform:translateY(1px) rotate(18deg)}
-.brand:hover .brand-orbit::before{opacity:1;transform:scale(1)}
+.brand .brand-axis{display:block;width:25px;height:25px;flex:none}
 html[data-theme="dark"] .brand{color:#f4f4f6}
-html[data-theme="dark"] .brand-orbit{border-color:rgba(106,168,255,.42)}
 
 .site-nav nav>.archive-nav-center{position:absolute;z-index:12;top:50%;left:50%;width:min(360px,34%);height:40px;transform:translate(-50%,-50%);pointer-events:none}
 .archive-nav-center>.island-search{position:absolute;z-index:3;top:50%;left:50%;width:142px;transform:translate(-50%,-50%);pointer-events:auto;transition:left .42s cubic-bezier(.2,.82,.18,1),width .42s cubic-bezier(.2,.82,.18,1)}
