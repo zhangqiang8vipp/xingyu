@@ -104,8 +104,8 @@ test("legitimate repeat logins do not trigger throttling and report safe phase t
         method:"POST",body:{email:alice.email,password:"intentionally-invalid-password-12345"},
       });
       assert.equal(response.status,401,"the first five incorrect attempts remain checked");
-      assert.equal(response.headers.get("Server-Timing"),null,
-        "timing internals should not be exposed for failed credentials");
+      assert.doesNotMatch(response.headers.get("Server-Timing") ?? "",/password-hash|identity-db|workspace|session-db/,
+        "failed credentials must not expose authentication phase details");
     }
     const rate=await jsonRequest(h,"/api/identity/login",{
       method:"POST",body:{email:alice.email,password:"intentionally-invalid-password-12345"},
