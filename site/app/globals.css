@@ -2332,3 +2332,9 @@ html[data-theme="dark"] .mermaid-dialog-toolbar span{color:#a1abba}
 @media (prefers-reduced-motion: reduce) {
   .reader-open-once { animation: none; }
 }
+
+/* Critical, tiny launcher chrome. The full assistant panel stylesheet is loaded only on use. */
+.xy-ai-launcher{position:fixed;right:24px;bottom:24px;z-index:900;display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:0 19px 0 15px;border:1px solid rgba(255,255,255,.65);border-radius:18px;background:rgba(29,31,36,.94);color:white;font-size:13px;font-weight:700;box-shadow:0 12px 40px rgba(20,25,40,.2)}
+.xy-ai-launcher-spark{display:grid;place-items:center;width:28px;height:28px;border-radius:10px;background:#487bd2;color:white;font-size:17px}
+.xy-ai-nav-trigger{display:inline-flex;align-items:center;gap:6px;flex:none;border:1px solid rgba(42,86,150,.14);border-radius:999px;background:rgba(50,109,206,.065);color:var(--blue,#0071e3);font-weight:700;font-size:12px;padding:7px 10px;white-space:nowrap}
+@media(max-width:720px){.xy-ai-launcher{right:15px;bottom:calc(17px + env(safe-area-inset-bottom));min-height:49px}.xy-ai-nav-trigger{font-size:11px;padding:7px 9px}}

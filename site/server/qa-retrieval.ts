@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { ensurePersonalWorkspace, workspaceGrant } from "@/db/workspace-access";
 import { accessibleSpaceIds } from "@/db/space-acl";
 import { isKnowledgeOverviewQuestion } from "@/domain/knowledge/qa-overview";
+import { askSearchTerms } from "@/domain/knowledge/qa-terms";
 
 export type AskScope = "public" | "mine" | "all";
 export type AskIdentity = { userId: number } | null;
@@ -18,25 +19,6 @@ type Row = {
   id: number; publicId: string; title: string; slug: string;
   excerpt: string; content: string; updatedAt: string;
 };
-
-const STOP_WORDS = new Set([
-  "这个", "那个", "网站", "请问", "请", "问", "哪些", "什么",
-  "主要", "分享", "关于", "相关", "一下", "告诉", "我们", "可以",
-  "是否", "如何", "怎么", "就是", "内容", "文章", "里面", "都有",
-  "the", "with", "from", "this", "that", "which", "what", "where",
-  "are", "was", "were", "has", "have", "does", "for", "and", "about",
-  "can", "please", "site", "website", "posts", "articles",
-]);
-
-/** Search keywords are never interpreted as SQL or FTS syntax. */
-export function askSearchTerms(question: string): string[] {
-  const normalized = question.normalize("NFKC").slice(0, 240);
-  const words = Array.from(new Intl.Segmenter("zh", { granularity: "word" }).segment(normalized))
-    .filter(part => part.isWordLike)
-    .map(part => part.segment.toLocaleLowerCase("en-US").replace(/[^\p{L}\p{N}#+._-]/gu, ""))
-    .filter(part => part.length >= 2 && part.length <= 45 && !STOP_WORDS.has(part));
-  return Array.from(new Set(words)).slice(0, 6);
-}
 
 function snippetFrom(row: Row, terms: string[]) {
   const plain = row.content.replace(/<[^>]*>/g, " ")
@@ -74,6 +56,17 @@ async function queryRows(where: string, args: unknown[], terms: string[]) {
       .all<Row>();
     for (const item of fts.results ?? []) result.set(item.id, item);
   }
+  // Retrieve title/excerpt hits separately. A rare, older exact-title article
+  // must not disappear behind 40 newer posts which only mention a common term.
+  const headlinePatterns = terms.map(term =>
+    "%" + term.replace(/[\\%_]/g, char => "\\" + char) + "%");
+  const headlineClauses = headlinePatterns.map(() =>
+    "(p.title LIKE ? ESCAPE '\\' OR p.excerpt LIKE ? ESCAPE '\\')").join(" OR ");
+  const headlines = await env.DB.prepare(select + "FROM posts p WHERE " + where +
+    " AND (" + headlineClauses + ") ORDER BY p.updated_at DESC,p.id DESC LIMIT 60")
+    .bind(...args, ...headlinePatterns.flatMap(pattern => [pattern, pattern])).all<Row>();
+  for (const item of headlines.results ?? []) result.set(item.id, item);
+
   // Short Chinese words (e.g. 技术, 经验) cannot be matched by trigram FTS5.
   // Also search title/excerpt/body to cover mixed-language phrasing.
   const patterns = terms.map(term => "%" + term.replace(/[\\%_]/g, char => "\\" + char) + "%");
