@@ -4,7 +4,7 @@ import { identityFromRequest } from "@/server/auth/identity-session";
 import { requestHasAdminSession } from "@/db/admin-session";
 import { isPasswordLoginConfigured, isLegacyAdminPasswordAllowed } from "@/server/auth/admin-auth";
 import { findAskSources, type AskScope } from "@/server/qa-retrieval";
-import { answerWithOpenRouter, QaProviderError, QA_MODEL } from "@/server/qa-openrouter";
+import { answerWithOpenRouter, qaFailureDetails, QA_MODEL } from "@/server/qa-openrouter";
 import { AskQuotaError, takeAskVisitorQuota } from "@/server/qa-quotas";
 
 const headers = {
@@ -14,6 +14,21 @@ const headers = {
 };
 const fail = (message: string, status: number) =>
   Response.json({error:message},{status,headers});
+
+const qaFailureMessage = (code:string) => {
+  switch(code) {
+    case "auth_rejected": return "OpenRouter 拒绝了模型请求的认证或权限，请检查 API Key 和权限设置。以下是匹配到的真实原文。";
+    case "credits_unavailable": return "OpenRouter 账户或 API Key 的可用额度不足。以下是匹配到的真实原文。";
+    case "invalid_request": return "OpenRouter 拒绝了模型请求参数。以下是匹配到的真实原文。";
+    case "model_not_found": return "OpenRouter 未找到所请求的模型路由。以下是匹配到的真实原文。";
+    case "timeout": return "模型在 22 秒内没有完成回答。以下是匹配到的真实原文。";
+    case "invalid_response": return "模型没有返回可显示的回答。以下是匹配到的真实原文。";
+    case "network": return "连接 OpenRouter 时遇到网络错误。以下是匹配到的真实原文。";
+    case "upstream_unavailable": return "OpenRouter 或所选免费模型暂时不可用。以下是匹配到的真实原文。";
+    case "rate_limited": return "OpenRouter 的模型请求已被限流。以下是匹配到的真实原文。";
+    default: return "模型暂时无法回答，以下是匹配到的真实原文。";
+  }
+};
 
 /** Only called when an assistant panel opens; supports both identity and legacy admin sessions. */
 export async function GET(request: Request) {
@@ -89,11 +104,22 @@ export async function POST(request: Request) {
       const answer=await answerWithOpenRouter(question,sources,key!,new URL(request.url).origin);
       return Response.json({answer,sources,model:QA_MODEL,degraded:false},{headers});
     }catch(error){
-      const isQuota=error instanceof QaProviderError&&error.reason==="quota";
+      const diagnostic=qaFailureDetails(error);
+      const incidentId=crypto.randomUUID();
+      // Only allowlisted metadata. Never log API keys, user questions,
+      // article snippets, upstream response bodies, request headers, or IPs.
+      console.warn({
+        event:"knowledge_qa_provider_failure",
+        incidentId,
+        code:diagnostic.code,
+        httpStatus:diagnostic.status,
+        durationMs:diagnostic.durationMs,
+        model:QA_MODEL,
+      });
       return Response.json({
-        answer:isQuota?"免费模型的调用额度暂时已满，以下是知识库检索到的相关文章。"
-          :"AI 模型暂时无法回答，以下是知识库检索到的相关文章。",
+        answer:qaFailureMessage(diagnostic.code),
         sources,model:QA_MODEL,degraded:true,
+        diagnostic:{code:diagnostic.code,status:diagnostic.status,incidentId},
       },{headers});
     }
   }catch(error) {
