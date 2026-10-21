@@ -13,6 +13,7 @@ type Source = {
 };
 type AskResult = {
   answer: string; sources: Source[]; model: string | null; degraded: boolean;
+  diagnostic?: { code: string; status: number | null; incidentId: string };
 };
 type Turn = {
   id: number; question: string; mode: Mode;
@@ -119,7 +120,8 @@ export default function AskChat({
         turn.id === id ? {
           ...turn, pending: false,
           result: { answer: data.answer!, sources: data.sources!,
-            degraded: Boolean(data.degraded), model: data.model ?? null },
+            degraded: Boolean(data.degraded), model: data.model ?? null,
+            diagnostic: data.diagnostic },
         } : turn));
     } catch (error) {
       if (generation.current === version) setTurns(previous => previous.map(turn =>
@@ -186,6 +188,12 @@ export default function AskChat({
                   : turn.result.model ? "知识库 AI 回答" : "原文检索结果"}
               </div>
               <TrustedAnswer answer={turn.result.answer} sources={turn.result.sources}/>
+              {turn.result.degraded && turn.result.diagnostic ? <p className="xy-ai-no-sources"
+                aria-label="模型错误诊断">
+                错误类别：{turn.result.diagnostic.code}
+                {turn.result.diagnostic.status !== null ? " · HTTP " + turn.result.diagnostic.status : ""}
+                {" · 诊断编号：" + turn.result.diagnostic.incidentId}
+              </p> : null}
               {turn.result.sources.length ? <div className="xy-ai-sources">
                 <p>参考来源 <span>{turn.result.sources.length} 篇</span></p>
                 {turn.result.sources.map(source => <a key={source.id}
