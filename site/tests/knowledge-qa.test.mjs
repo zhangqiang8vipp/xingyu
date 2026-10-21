@@ -83,7 +83,7 @@ test("both the global launcher and full page use the same accessible assistant U
   const nav=readFileSync(new URL("../features/navigation/nav/NavTools.tsx",import.meta.url),"utf8");
   const panel=readFileSync(new URL("../features/ask/GlobalAskAssistant.tsx",import.meta.url),"utf8");
   const chat=readFileSync(new URL("../features/ask/AskChat.tsx",import.meta.url),"utf8");
-  const css=readFileSync(new URL("../app/assistant.css",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../public/assistant.css",import.meta.url),"utf8");
   const route=readFileSync(new URL("../app/api/ask/route.ts",import.meta.url),"utf8");
   assert.match(root,/GlobalAskAssistant/);
   assert.match(nav,/AskAiTrigger/);
