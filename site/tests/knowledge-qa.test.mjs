@@ -5,7 +5,7 @@ import { askSearchTerms } from "../domain/knowledge/qa-terms.ts";
 import { isKnowledgeOverviewQuestion } from "../domain/knowledge/qa-overview.ts";
 import { readLimitedAskBody } from "../domain/knowledge/qa-request.ts";
 import {
-  answerWithOpenRouter,qaMessages,verifiedAnswer,QaProviderError,QA_MODEL,
+  answerWithOpenRouter,qaMessages,verifiedAnswer,QaProviderError,qaFailureDetails,QA_MODEL,
 } from "../server/qa-openrouter.ts";
 
 const sources=[
@@ -113,4 +113,91 @@ test("floating assistant cannot scroll the parent page and only the launcher rem
   assert.doesNotMatch(nav,/AskAiTrigger/);
   assert.match(globalStyles,/\.xy-ai-launcher\[hidden\]\{display:none\}/);
   assert.match(globalStyles,/\.xy-ai-panel\{position:fixed/,"lazy assistant needs a fixed-position shell before remote CSS loads");
+});
+
+
+test("OpenRouter errors are safely classified by HTTP status without leaking response bodies",async()=>{
+  for (const [status,code] of [
+    [400,"invalid_request"],[401,"auth_rejected"],[402,"credits_unavailable"],
+    [403,"auth_rejected"],[404,"model_not_found"],[408,"timeout"],
+    [422,"invalid_request"],[429,"rate_limited"],
+    [502,"upstream_unavailable"],[503,"upstream_unavailable"],[524,"timeout"],
+  ]) {
+    await assert.rejects(
+      answerWithOpenRouter("Cloudflare 经验",sources,"private-test-secret","https://example.test",
+        async()=>new Response("never log private-test-secret or the user's private article",{status})),
+      error=>{
+        assert.ok(error instanceof QaProviderError);
+        const diagnostic=qaFailureDetails(error);
+        assert.equal(diagnostic.code,code);
+        assert.equal(diagnostic.status,status);
+        assert.ok(diagnostic.durationMs>=0);
+        assert.ok(!JSON.stringify(diagnostic).includes("private-test-secret"));
+        assert.ok(!error.message.includes("private-test-secret"));
+        return true;
+      },
+    );
+  }
+});
+
+test("provider HTTP 200 embedded errors are classified, not silently shown as empty answers",async()=>{
+  for (const [body,expected] of [
+    [{error:{code:429,message:"private-test-secret"}},"rate_limited"],
+    [{error:{code:502,message:"private-test-secret"}},"upstream_unavailable"],
+    [{error:{message:"private-test-secret"}},"invalid_response"],
+  ]) {
+    await assert.rejects(
+      answerWithOpenRouter("技术",sources,"private-test-secret","https://example.test",
+        async()=>new Response(JSON.stringify(body),{status:200})),
+      error=>{
+        assert.ok(error instanceof QaProviderError);
+        assert.equal(qaFailureDetails(error).code,expected);
+        assert.ok(!JSON.stringify(qaFailureDetails(error)).includes("private-test-secret"));
+        return true;
+      },
+    );
+  }
+});
+
+test("abort, connection failures and malformed successful responses stay sanitized",async()=>{
+  const fakeRequests=[
+    [async()=>{const e=new Error("secret upstream trace");e.name="AbortError";throw e;},"timeout"],
+    [async()=>{throw new Error("secret upstream trace");},"network"],
+    [async()=>new Response("not JSON, private article",{status:200}),"invalid_response"],
+    [async()=>new Response(JSON.stringify({choices:[{message:{content:null}}]}),{status:200}),"invalid_response"],
+  ];
+  for (const [mock,expected] of fakeRequests) {
+    await assert.rejects(
+      answerWithOpenRouter("Cloudflare",sources,"private-test-secret","https://example.test",mock),
+      error=>error instanceof QaProviderError &&
+        qaFailureDetails(error).code===expected &&
+        !error.message.includes("secret upstream trace"),
+    );
+  }
+});
+
+test("typed OpenRouter text response ignores reasoning and unsupported parts",async()=>{
+  const output=await answerWithOpenRouter("Cloudflare 经验",sources,"test-key","https://example.test",
+    async()=>new Response(JSON.stringify({choices:[{message:{content:[
+      {type:"reasoning",text:"INTERNAL PRIVATE REASONING"},
+      {type:"text",text:"这篇文章使用 Cloudflare D1。[1]"},
+    ]}}]}),{status:200}));
+  assert.match(output,/Cloudflare D1/);
+  assert.doesNotMatch(output,/INTERNAL PRIVATE REASONING/);
+});
+
+test("diagnostic logs contain only allowlisted values and preserve newer admin quotas and no-scroll UX",()=>{
+  const route=readFileSync(new URL("../app/api/ask/route.ts",import.meta.url),"utf8");
+  const provider=readFileSync(new URL("../server/qa-openrouter.ts",import.meta.url),"utf8");
+  const chat=readFileSync(new URL("../features/ask/AskChat.tsx",import.meta.url),"utf8");
+  assert.match(route,/knowledge_qa_provider_failure/);
+  assert.match(route,/qaFailureDetails\(error\)/);
+  assert.match(route,/crypto\.randomUUID\(\)/);
+  assert.match(route,/diagnostic:\{code:diagnostic\.code,status:diagnostic\.status,incidentId\}/);
+  assert.match(route,/takeAskVisitorQuota\(request,user,mode,isAdmin\)/);
+  assert.doesNotMatch(route,/takeAskGlobalQuota/);
+  assert.doesNotMatch(route,/console\.(?:warn|error)\([^)]*JSON\.stringify\(body\)/);
+  assert.match(provider,/Never read or log an upstream error body/);
+  assert.match(chat,/诊断编号/);
+  assert.match(chat,/thread\.scrollTo/);
 });
