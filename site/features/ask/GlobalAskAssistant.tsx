@@ -48,9 +48,9 @@ export default function GlobalAskAssistant() {
     closeRef.current?.focus();
     let active = true;
     // Only look up login state after opening; do not make every public page dynamic.
-    void fetch("/api/identity/me", { credentials: "same-origin", cache: "no-store" })
-      .then(async response => response.ok ? response.json() as Promise<{ user?: unknown }> : { user: null })
-      .then(data => { if (active) setAuthenticated(Boolean(data.user)); })
+    void fetch("/api/ask", { credentials: "same-origin", cache: "no-store" })
+      .then(async response => response.ok ? response.json() as Promise<{ authenticated?: boolean }> : { authenticated: false })
+      .then(data => { if (active) setAuthenticated(Boolean(data.authenticated)); })
       .catch(() => { if (active) setAuthenticated(false); });
     return () => {
       active = false;
