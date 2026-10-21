@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - "site/app/ask/**"
-      - "site/app/assistant.css"
+      - "site/public/assistant.css"
       - "site/app/layout.tsx"
       - "site/features/ask/**"
       - "site/features/navigation/nav/**"
