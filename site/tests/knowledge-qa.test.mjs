@@ -112,4 +112,5 @@ test("floating assistant cannot scroll the parent page and only the launcher rem
   assert.doesNotMatch(chat,/\.scrollIntoView\(/,"scrollIntoView may scroll the main document too");
   assert.doesNotMatch(nav,/AskAiTrigger/);
   assert.match(globalStyles,/\.xy-ai-launcher\[hidden\]\{display:none\}/);
+  assert.match(globalStyles,/\.xy-ai-panel\{position:fixed/,"lazy assistant needs a fixed-position shell before remote CSS loads");
 });
