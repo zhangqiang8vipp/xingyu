@@ -15,6 +15,14 @@ const headers = {
 const fail = (message: string, status: number) =>
   Response.json({error:message},{status,headers});
 
+/** Only called when an assistant panel opens; supports both identity and legacy admin sessions. */
+export async function GET(request: Request) {
+  const signedInUser=await identityFromRequest(request);
+  const legacyOwner=!signedInUser && isPasswordLoginConfigured()
+    && await requestHasAdminSession(request) && await isLegacyAdminPasswordAllowed();
+  return Response.json({authenticated:Boolean(signedInUser||legacyOwner)},{headers});
+}
+
 export async function POST(request: Request) {
   if(request.headers.get("Origin")!==new URL(request.url).origin)
     return fail("无效请求来源",403);
