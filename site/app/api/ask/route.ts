@@ -5,7 +5,7 @@ import { requestHasAdminSession } from "@/db/admin-session";
 import { isPasswordLoginConfigured, isLegacyAdminPasswordAllowed } from "@/server/auth/admin-auth";
 import { findAskSources, type AskScope } from "@/server/qa-retrieval";
 import { answerWithOpenRouter, QaProviderError, QA_MODEL } from "@/server/qa-openrouter";
-import { AskQuotaError, takeAskGlobalQuota, takeAskVisitorQuota } from "@/server/qa-quotas";
+import { AskQuotaError, takeAskVisitorQuota } from "@/server/qa-quotas";
 
 const headers = {
   "Cache-Control": "no-store, private",
@@ -51,6 +51,11 @@ export async function POST(request: Request) {
     && await requestHasAdminSession(request) && await isLegacyAdminPasswordAllowed();
   const user=signedInUser??(legacyOwner?{userId:1}:null);
   if(scope!=="public"&&!user)return fail("请先登录后再查询私人知识",401);
+  // Being an owner of a personal workspace does NOT make someone a site admin.
+  // Only the verified legacy admin or a site_memberships owner is exempt.
+  const isAdmin=legacyOwner || Boolean(signedInUser && await env.DB.prepare(
+    "SELECT 1 AS yes FROM site_memberships WHERE user_id=? AND role='owner'"
+  ).bind(signedInUser.userId).first());
   const key=(env as Env & {OPENROUTER_API_KEY?:string}).OPENROUTER_API_KEY?.trim();
   if(mode==="answer"&&!key)
     return fail("问答模型尚未配置，请稍后再试；也可使用仅检索资料模式",503);
@@ -60,10 +65,10 @@ export async function POST(request: Request) {
     // articles using the independent search allowance. No model call occurs.
     let modelQuotaReached=false;
     try {
-      await takeAskVisitorQuota(request,user,mode);
+      await takeAskVisitorQuota(request,user,mode,isAdmin);
     } catch(error) {
       if(mode==="answer"&&error instanceof AskQuotaError&&error.code==="daily") {
-        await takeAskVisitorQuota(request,user,"sources");
+        await takeAskVisitorQuota(request,user,"sources",isAdmin);
         modelQuotaReached=true;
       } else throw error;
     }
@@ -80,16 +85,6 @@ export async function POST(request: Request) {
       answer:"今天的免费 AI 回答次数已用完，下面仍可查看检索到的真实原文。",
       sources,model:null,degraded:true,
     },{headers});
-    try {
-      await takeAskGlobalQuota();
-    } catch (error) {
-      if(error instanceof AskQuotaError&&error.code==="daily")
-        return Response.json({
-          answer:"今日免费模型调用额度已满，以下仍可查看知识库检索到的相关文章。",
-          sources,model:null,degraded:true,
-        },{headers});
-      throw error;
-    }
     try{
       const answer=await answerWithOpenRouter(question,sources,key!,new URL(request.url).origin);
       return Response.json({answer,sources,model:QA_MODEL,degraded:false},{headers});
