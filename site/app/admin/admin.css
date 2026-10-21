@@ -276,10 +276,9 @@ html[data-theme="dark"] .admin-sidebar-top .theme-button{
 }
 .admin-shell,.admin-sidebar{transition:padding-left .42s cubic-bezier(.2,.82,.18,1),width .42s cubic-bezier(.2,.82,.18,1)}
 .admin-sidebar-top{min-height:36px}
-.admin-brand{min-width:0;overflow:hidden;white-space:nowrap}
-.admin-brand-full{display:inline}
-.admin-brand-compact{display:none}
-.admin-brand-point{color:var(--admin-accent);font-size:11px;font-style:normal}
+.admin-brand{min-width:0;gap:8px;overflow:hidden;white-space:nowrap}
+.admin-brand-full{display:inline;color:inherit!important}
+.admin-brand .admin-brand-axis{width:25px;height:25px}
 .admin-sidebar nav button,.admin-sidebar nav a{align-items:center;gap:10px;overflow:hidden;white-space:nowrap}
 .admin-sidebar nav button::before,.admin-sidebar nav a::before{width:18px;display:none;flex:none;color:var(--admin-muted);content:attr(data-icon);font-size:14px;font-weight:500;text-align:center}
 .admin-sidebar nav .selected::before{color:var(--admin-accent)}
@@ -292,7 +291,6 @@ html[data-theme="dark"] .admin-sidebar-top .theme-button{
 .admin-shell.sidebar-collapsed .admin-sidebar-top{justify-content:center}
 .admin-shell.sidebar-collapsed .admin-brand{padding:0;justify-content:center}
 .admin-shell.sidebar-collapsed .admin-brand-full{display:none}
-.admin-shell.sidebar-collapsed .admin-brand-compact{display:inline}
 .admin-shell.sidebar-collapsed .admin-sidebar-top .theme-button{display:none}
 .admin-shell.sidebar-collapsed .admin-sidebar nav{margin-top:18px}
 .admin-shell.sidebar-collapsed .admin-nav-group{display:none}
@@ -322,7 +320,6 @@ html[data-theme="dark"] .admin-search-island .admin-article-search-trigger{backg
   .admin-shell.sidebar-collapsed .admin-sidebar{width:100%;padding:0 13px}
   .admin-shell.sidebar-collapsed .admin-sidebar-top{justify-content:space-between}
   .admin-shell.sidebar-collapsed .admin-brand-full{display:inline}
-  .admin-shell.sidebar-collapsed .admin-brand-compact{display:none}
   .admin-shell.sidebar-collapsed .admin-sidebar-top .theme-button{display:grid}
   .admin-shell.sidebar-collapsed .admin-sidebar nav{margin:0;padding:5px}
   .admin-shell.sidebar-collapsed .admin-sidebar nav>*{height:46px}

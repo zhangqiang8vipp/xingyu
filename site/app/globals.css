@@ -1393,8 +1393,12 @@ tbody tr:hover{background:var(--admin-control)}
 /* 2026 navigation refinement: one center rail owns search and archive filtering. */
 .brand{display:inline-flex;align-items:center;gap:9px;color:var(--ink);font-size:18px;font-weight:760;letter-spacing:-.07em;line-height:1}
 .brand .brand-word{color:inherit}
-.brand .brand-axis{display:block;width:25px;height:25px;flex:none}
+.axis-mark{--axis-blue:#0A84FF;display:block;flex:none}
+.brand .brand-axis{width:25px;height:25px}
+html[data-theme="dark"] .axis-mark{--axis-blue:#67B2FF}
 html[data-theme="dark"] .brand{color:#f4f4f6}
+@media(max-width:700px){.site-nav .brand{gap:5px}.site-nav .brand .brand-axis{width:21px;height:21px}}
+@media(max-width:370px){.site-nav .brand{gap:4px}.site-nav .brand .brand-axis{width:18px;height:18px}}
 
 .site-nav nav>.archive-nav-center{position:absolute;z-index:12;top:50%;left:50%;width:min(360px,34%);height:40px;transform:translate(-50%,-50%);pointer-events:none}
 .archive-nav-center>.island-search{position:absolute;z-index:3;top:50%;left:50%;width:142px;transform:translate(-50%,-50%);pointer-events:auto;transition:left .42s cubic-bezier(.2,.82,.18,1),width .42s cubic-bezier(.2,.82,.18,1)}

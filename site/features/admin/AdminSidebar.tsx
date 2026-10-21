@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import ThemeToggle from "../navigation/ThemeToggle";
+import AxisMark from "../navigation/AxisMark";
 import type { AdminSection, AdminStats } from "./admin-types";
 
 type NavItem = {
@@ -136,10 +137,9 @@ export default function AdminSidebar({
 
   return <aside className="admin-sidebar">
     <div className="admin-sidebar-top">
-      <Link className="brand admin-brand" href="/">
+      <Link className="brand admin-brand" href="/" aria-label={brandName + "首页"}>
+        <AxisMark className="brand-axis admin-brand-axis" />
         <span className="admin-brand-full">{brandName}</span>
-        <span className="admin-brand-compact">屿</span>
-        <i className="admin-brand-point">。</i>
       </Link>
       <div className="admin-mobile-actions">
         <Link href="/" target="_blank" aria-label="查看前台">↗</Link>

@@ -1,0 +1,16 @@
+/** AXIS Tahoe V3: shared navigation emblem. Colors follow the site's own theme switch. */
+export default function AxisMark({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={`axis-mark ${className}`.trim()}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 100 100"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path fill="var(--axis-blue, #0A84FF)" d="M62.1 18.8H75.5C78.6 18.8 80.1 21.5 78.2 24.1L54.3 55.8 43.7 41.5 59.4 21.6C60.4 20.3 60.9 18.8 62.1 18.8Z" />
+      <path fill="var(--axis-blue, #0A84FF)" d="M41.5 47.5 51.6 61.8 39.1 78.3C38.2 79.5 36.9 80.2 35.4 80.2H21.3C18.5 80.2 17.2 77.8 19.3 75.2Z" />
+      <path fill="currentColor" d="M21.4 18.8H34.2C36 18.8 37.3 19.5 38.3 20.9L78.3 74.6C80.4 77.4 78.9 80.2 75.8 80.2H62.6C61 80.2 59.6 79.5 58.6 78.1L18.8 24.6C16.7 21.8 18.3 18.8 21.4 18.8Z" />
+    </svg>
+  );
+}

@@ -708,3 +708,23 @@ test("P2 consistency cleanup: services merged, auth relocated, imports aliased, 
   assert.ok(await missingFile("../../article.html"), "root prototype article.html must be removed");
   assert.ok(await missingFile("../server/services/categories.ts"), "server/services directory must be removed");
 });
+
+test("AXIS Tahoe uses the same mark across both navigations and the browser icon", async () => {
+  const [mark, nav, sidebar, globalCss, adminCss, favicon] = await Promise.all([
+    source("features/navigation/AxisMark.tsx"),
+    source("features/navigation/SiteNavigation.tsx"),
+    source("features/admin/AdminSidebar.tsx"),
+    source("app/globals.css"),
+    source("app/admin/admin.css"),
+    source("public/favicon.svg"),
+  ]);
+  for (const segment of ["M62.1 18.8H75.5", "M41.5 47.5", "M21.4 18.8H34.2"]) {
+    assert.ok(mark.includes(segment), `missing AXIS Tahoe path ${segment}`);
+    assert.ok(favicon.includes(segment), `favicon path differs: ${segment}`);
+  }
+  assert.ok(nav.includes('<AxisMark className="brand-axis" />'));
+  assert.ok(sidebar.includes('<AxisMark className="brand-axis admin-brand-axis" />'));
+  assert.ok(globalCss.includes('html[data-theme="dark"] .axis-mark{--axis-blue:#67B2FF}'));
+  assert.ok(adminCss.includes(".admin-brand .admin-brand-axis{width:25px;height:25px}"));
+  assert.ok(favicon.includes("prefers-color-scheme:dark"));
+});
