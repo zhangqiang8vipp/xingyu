@@ -8,7 +8,12 @@ permissions:
   contents: read
 jobs:
   real_api_probe:
+    # This job only reads OPENROUTER_API_KEY in the existing protected GitHub
+    # Actions Environment. It never touches Cloudflare resources or deploys.
+    if: github.repository == 'zhangqiang8vipp/xingyu' && github.ref == 'refs/heads/test/openrouter-live-parameters-20261021'
     runs-on: ubuntu-latest
+    environment:
+      name: CLOUDFLARE
     timeout-minutes: 5
     steps:
       - name: Use Node 22
@@ -22,8 +27,8 @@ jobs:
           node <<'JS'
           const secret=process.env.OPENROUTER_API_KEY;
           if(!secret){
-            console.log("LIVE_PROBE_BLOCKED: GitHub Actions secret OPENROUTER_API_KEY is not configured");
-            process.exit(0);
+            console.error("LIVE_PROBE_BLOCKED: OPENROUTER_API_KEY is unavailable to the CLOUDFLARE environment job");
+            process.exit(1);
           }
           const prompt=[
             {role:"system",content:"只根据给定资料用简短中文回答，末尾标注 [1]。"},
