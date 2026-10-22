@@ -61,6 +61,23 @@ test("site-topic overview questions sample real articles instead of requiring a 
   assert.equal(isKnowledgeOverviewQuestion("网站如何部署 Cloudflare？"),false);
 });
 
+test("named topics in website-level wording must use relevance search, not category overview sampling",()=>{
+  for(const question of [
+    "网站有哪些 Cloudflare Workers 和 D1 相关的技术实践？",
+    "网站有哪些性能优化经验？",
+    "网站关于温莎都分享了什么？",
+    "知识库包含哪些 TypeScript 类型相关内容？",
+    "本站有哪些 MCP API 开发经验？",
+    "这个博客分享了哪些 Git 工作流方面的经验？",
+  ])assert.equal(isKnowledgeOverviewQuestion(question),false,question);
+  for(const question of [
+    "这个网站主要分享哪些技术经验？",
+    "本站主要有哪些内容？",
+    "我的知识库主要写了什么？",
+    "网站包含哪些技术主题？",
+  ])assert.equal(isKnowledgeOverviewQuestion(question),true,question);
+});
+
 test("public ask body is byte-capped even when Content-Length is absent",async()=>{
   const small=new Request("https://example.test/api/ask",{
     method:"POST",headers:{"Content-Type":"application/json"},
