@@ -1,4 +1,5 @@
 name: OpenRouter isolated real API parameter probes
+# Fresh push to pick up secrets configured after previous run.
 on:
   push:
     branches:
