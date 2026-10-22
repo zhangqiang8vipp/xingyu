@@ -63,6 +63,29 @@ test("only verified site admins can change the Q&A model; regular users cannot u
   }finally{await closeTestHarness(h);}
 });
 
+
+test("verified site owner can change settings, but a personal workspace owner cannot",async()=>{
+  const h=await openTestHarness();
+  try{
+    const personal=await makeActiveUser(h,"qa-config-personal-owner");
+    // Every account owns a personal workspace. Only site_memberships.role=owner
+    // grants control of site-wide AI settings.
+    assert.equal((await call(h,"PATCH",settings,personal.cookie)).status,401);
+    await h.db.prepare("INSERT INTO site_memberships(user_id,role) VALUES(?,'owner')")
+      .bind(personal.id).run();
+    const saved=await call(h,"PATCH",settings,personal.cookie);
+    assert.equal(saved.status,200,JSON.stringify(saved.data));
+    assert.deepEqual(saved.data.config,settings);
+    const read=await call(h,"GET",undefined,personal.cookie);
+    assert.equal(read.status,200);
+    assert.deepEqual(read.data.config,settings);
+    const persisted=await h.db.prepare(
+      "SELECT value FROM app_meta WHERE key='qa:runtime-config:v1'"
+    ).first();
+    assert.deepEqual(JSON.parse(persisted.value),settings);
+  }finally{await closeTestHarness(h);}
+});
+
 test("paid models, unsupported settings, unexpected JSON and oversized bodies are rejected",async()=>{
   const h=await openTestHarness();
   try{
