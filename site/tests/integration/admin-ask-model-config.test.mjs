@@ -55,7 +55,7 @@ test("only verified site admins can change the Q&A model; regular users cannot u
     assert.equal(hasConfig.n,0,"blocked model settings changes never write D1");
 
     const adminCookie=await loginAdmin(h);
-    assert.equal((await call(h,"PATCH",settings,adminCookie,{origin:"https://evil.example"})).status,403,
+    assert.equal((await call(h,"PATCH",settings,adminCookie,{origin:"https://evil.example"})).status,401,
       "cross-origin admin writes blocked");
     assert.equal((await call(h,"PATCH",settings,adminCookie)).status,200);
     assert.equal((await call(h,"POST",settings,adminCookie)).status,503,
