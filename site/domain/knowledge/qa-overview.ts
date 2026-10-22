@@ -1,4 +1,4 @@
-import { askSearchTerms } from "./qa-terms";
+import { askSearchTerms } from "./qa-terms.ts";
 
 /**
  * A real question about a named topic must be searched, not sampled from
