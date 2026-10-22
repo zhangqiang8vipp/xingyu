@@ -6,6 +6,7 @@ import { isKnowledgeOverviewQuestion } from "../domain/knowledge/qa-overview.ts"
 import { readLimitedAskBody } from "../domain/knowledge/qa-request.ts";
 import {
   answerWithOpenRouter,qaMessages,verifiedAnswer,QaProviderError,qaFailureDetails,QA_MODEL,QA_MAX_COMPLETION_TOKENS,
+  parseQaModelConfig, DEFAULT_QA_MODEL_CONFIG, QaModelConfigError,
 } from "../server/qa-openrouter.ts";
 
 const sources=[
@@ -238,4 +239,74 @@ test("model answer still caps public output and preserves caller quotas",()=>{
   assert.match(route,/case "output_token_limit"/);
   assert.match(route,/takeAskVisitorQuota\(request,user,mode,isAdmin\)/);
   assert.doesNotMatch(route,/takeAskGlobalQuota/);
+});
+
+
+test("admin model config accepts free models only and preserves the existing safe default",()=>{
+  assert.equal(DEFAULT_QA_MODEL_CONFIG.model,"openrouter/free");
+  assert.equal(DEFAULT_QA_MODEL_CONFIG.reasoningEffort,"default");
+  assert.equal(DEFAULT_QA_MODEL_CONFIG.maxTokens,2048);
+  assert.equal(DEFAULT_QA_MODEL_CONFIG.timeoutMs,35000);
+  const free=parseQaModelConfig({
+    model:" minimax/minimax-m3.1-flash:free ",
+    reasoningEffort:"low",maxTokens:4096,timeoutMs:45000,
+  });
+  assert.equal(free.model,"minimax/minimax-m3.1-flash:free");
+  assert.deepEqual(free,{
+    model:"minimax/minimax-m3.1-flash:free",
+    reasoningEffort:"low",maxTokens:4096,timeoutMs:45000,
+  });
+  for(const invalid of [
+    {model:"openrouter/auto",reasoningEffort:"default",maxTokens:2048,timeoutMs:35000},
+    {model:"openai/gpt-4o",reasoningEffort:"low",maxTokens:2048,timeoutMs:35000},
+    {model:"minimax/m3:free\nAuthorization: Bad",reasoningEffort:"low",maxTokens:2048,timeoutMs:35000},
+    {model:"openrouter/free",reasoningEffort:"none",maxTokens:2048,timeoutMs:35000},
+    {model:"openrouter/free",reasoningEffort:"default",maxTokens:999999,timeoutMs:35000},
+    {model:"openrouter/free",reasoningEffort:"low",maxTokens:2048,timeoutMs:600000},
+    {},
+  ])assert.throws(()=>parseQaModelConfig(invalid),QaModelConfigError);
+});
+
+test("saved free model settings drive each provider request without a deploy or extra model call",async()=>{
+  const captured=[];
+  const fakeFetch=async(url,init)=>{
+    const body=JSON.parse(init.body);
+    captured.push(body);
+    return new Response(JSON.stringify({
+      choices:[{message:{content:"文章讨论了 D1。[1]"}}],
+    }),{status:200});
+  };
+  const cfg=parseQaModelConfig({
+    model:"minimax/minimax-m3.1-flash:free",reasoningEffort:"low",
+    maxTokens:4096,timeoutMs:42000,
+  });
+  const answer=await answerWithOpenRouter(
+    "网站如何使用 D1？",sources,"secret-key","https://example.test",fakeFetch,cfg,
+  );
+  assert.match(answer,/\[1\]/);
+  assert.equal(captured.length,1);
+  assert.equal(captured[0].model,"minimax/minimax-m3.1-flash:free");
+  assert.equal(captured[0].max_tokens,4096);
+  assert.deepEqual(captured[0].reasoning,{effort:"low"});
+  await answerWithOpenRouter("D1 怎么用",sources,"secret-key","https://example.test",fakeFetch);
+  assert.equal(captured[1].model,"openrouter/free");
+  assert.equal("reasoning" in captured[1],false,
+    "default reasoning must omit the field rather than force an unsupported value");
+});
+
+test("admin model settings are server-scoped, authenticated, and excluded from public knowledge APIs",()=>{
+  const config=readFileSync(new URL("../server/qa-runtime-config.ts",import.meta.url),"utf8");
+  const route=readFileSync(new URL("../app/api/admin/ask-config/route.ts",import.meta.url),"utf8");
+  const askRoute=readFileSync(new URL("../app/api/ask/route.ts",import.meta.url),"utf8");
+  const admin=readFileSync(new URL("../features/admin/AdminIntegrationsPanel.tsx",import.meta.url),"utf8");
+  assert.match(config,/qa:runtime-config:v1/);
+  assert.match(config,/INSERT INTO app_meta/);
+  assert.match(route,/isAdminRequest/);
+  assert.match(route,/readLimitedAskBody/);
+  assert.match(route,/request\.headers\.get\("origin"\)/);
+  assert.match(askRoute,/getQaModelConfig\(\)/);
+  assert.match(askRoute,/takeAskVisitorQuota\(request,user,mode,isAdmin\)/);
+  assert.doesNotMatch(askRoute,/takeAskGlobalQuota/);
+  assert.match(admin,/<AdminAskModelPanel/);
+  assert.match(admin,/!isPersonalAccount/);
 });
