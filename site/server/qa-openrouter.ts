@@ -7,6 +7,48 @@ const REQUEST_TIMEOUT_MS = 35_000;
 // 650 was too small for reliable visible output with automatic free routing.
 export const QA_MAX_COMPLETION_TOKENS = 2048;
 
+/** Site-wide model choice can be changed by a verified administrator in D1.
+ * Secrets NEVER belong in this configuration. Only free endpoint IDs are
+ * accepted; paid routes require separate explicit pricing controls. */
+export type QaReasoningEffort = "default" | "low" | "medium" | "high";
+export type QaModelConfig = {
+  model: string;
+  reasoningEffort: QaReasoningEffort;
+  maxTokens: number;
+  timeoutMs: number;
+};
+export const DEFAULT_QA_MODEL_CONFIG: Readonly<QaModelConfig> = Object.freeze({
+  model: QA_MODEL,
+  reasoningEffort: "default",
+  maxTokens: QA_MAX_COMPLETION_TOKENS,
+  timeoutMs: REQUEST_TIMEOUT_MS,
+});
+export class QaModelConfigError extends Error {
+  constructor(message: string) { super(message); this.name="QaModelConfigError"; }
+}
+export function parseQaModelConfig(input: unknown): QaModelConfig {
+  if (!input || typeof input!=="object" || Array.isArray(input))
+    throw new QaModelConfigError("模型设置必须是对象");
+  const value=input as Record<string,unknown>;
+  const model=typeof value.model==="string" ? value.model.trim() : "";
+  // Restrict this version to explicitly free model endpoints only.
+  if(model.length>130 || !(
+    model==="openrouter/free" ||
+    /^[a-z0-9][a-z0-9._-]{0,60}\/[a-z0-9][a-z0-9._-]{0,100}:free$/i.test(model)
+  )) throw new QaModelConfigError("模型只能设置为 openrouter/free 或以 :free 结尾的免费模型 ID");
+  const effort=value.reasoningEffort;
+  if(effort!=="default"&&effort!=="low"&&effort!=="medium"&&effort!=="high")
+    throw new QaModelConfigError("推理强度必须是默认、低、中或高");
+  const maxTokens=value.maxTokens;
+  if(!Number.isInteger(maxTokens)||Number(maxTokens)<512||Number(maxTokens)>8192)
+    throw new QaModelConfigError("输出 Token 必须在 512 到 8192 之间");
+  const timeoutMs=value.timeoutMs;
+  if(!Number.isInteger(timeoutMs)||Number(timeoutMs)<10000||Number(timeoutMs)>60000)
+    throw new QaModelConfigError("超时时间必须在 10 到 60 秒之间");
+  return {model,reasoningEffort:effort,maxTokens:Number(maxTokens),timeoutMs:Number(timeoutMs)};
+}
+
+
 export type QaProviderFailure = "quota" | "unavailable" | "response" | "generation_limit" | "timeout" | "network";
 export type QaDiagnosticCode =
   | "rate_limited" | "auth_rejected" | "credits_unavailable" | "invalid_request"
@@ -106,10 +148,11 @@ function textFromMessage(message: unknown): string {
 export async function answerWithOpenRouter(
   question: string, sources: AskSource[], apiKey: string, origin: string,
   fetcher: typeof fetch = fetch,
+  config: Readonly<QaModelConfig> = DEFAULT_QA_MODEL_CONFIG,
 ) {
   const start=Date.now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
   try {
     const response = await fetcher(ENDPOINT,{
       method:"POST",
@@ -120,10 +163,11 @@ export async function answerWithOpenRouter(
         "X-Title":"XINGYU Knowledge Q&A",
       },
       body:JSON.stringify({
-        model:QA_MODEL,
+        model:config.model,
         stream:false,
         temperature:0.2,
-        max_tokens:QA_MAX_COMPLETION_TOKENS,
+        max_tokens:config.maxTokens,
+        ...(config.reasoningEffort!=="default" ? {reasoning:{effort:config.reasoningEffort}} : {}),
         messages:qaMessages(question,sources),
       }),
       signal:controller.signal,

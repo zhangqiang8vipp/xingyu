@@ -4,7 +4,8 @@ import { identityFromRequest } from "@/server/auth/identity-session";
 import { requestHasAdminSession } from "@/db/admin-session";
 import { isPasswordLoginConfigured, isLegacyAdminPasswordAllowed } from "@/server/auth/admin-auth";
 import { findAskSources, type AskScope } from "@/server/qa-retrieval";
-import { answerWithOpenRouter, qaFailureDetails, QA_MODEL } from "@/server/qa-openrouter";
+import { answerWithOpenRouter, qaFailureDetails } from "@/server/qa-openrouter";
+import { getQaModelConfig } from "@/server/qa-runtime-config";
 import { AskQuotaError, takeAskVisitorQuota } from "@/server/qa-quotas";
 
 const headers = {
@@ -101,9 +102,12 @@ export async function POST(request: Request) {
       answer:"今天的免费 AI 回答次数已用完，下面仍可查看检索到的真实原文。",
       sources,model:null,degraded:true,
     },{headers});
+    // Load the site-admin-selected model only when an actual model call
+    // will occur. D1 config changes take effect on the very next question.
+    const modelConfig=await getQaModelConfig();
     try{
-      const answer=await answerWithOpenRouter(question,sources,key!,new URL(request.url).origin);
-      return Response.json({answer,sources,model:QA_MODEL,degraded:false},{headers});
+      const answer=await answerWithOpenRouter(question,sources,key!,new URL(request.url).origin,fetch,modelConfig);
+      return Response.json({answer,sources,model:modelConfig.model,degraded:false},{headers});
     }catch(error){
       const diagnostic=qaFailureDetails(error);
       const incidentId=crypto.randomUUID();
@@ -115,11 +119,11 @@ export async function POST(request: Request) {
         code:diagnostic.code,
         httpStatus:diagnostic.status,
         durationMs:diagnostic.durationMs,
-        model:QA_MODEL,
+        model:modelConfig.model,
       });
       return Response.json({
         answer:qaFailureMessage(diagnostic.code),
-        sources,model:QA_MODEL,degraded:true,
+        sources,model:modelConfig.model,degraded:true,
         diagnostic:{code:diagnostic.code,status:diagnostic.status,incidentId},
       },{headers});
     }

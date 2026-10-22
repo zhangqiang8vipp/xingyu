@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import PersonalTokensPanel from "./PersonalTokensPanel";
+import AdminAskModelPanel from "./AdminAskModelPanel";
 import ClientSetupGuide from "./ClientSetupGuide";
 import { useState } from "react";
 import { readApiJson } from "@/app/api-response";
@@ -88,6 +89,7 @@ export default function AdminIntegrationsPanel({
     </header>
 
     <div className="config-form activation-config">
+      {!isPersonalAccount&&<AdminAskModelPanel />}
       <PersonalTokensPanel />
       <ClientSetupGuide />
       {!isPersonalAccount&&<section className="editor-section activation-overview">
