@@ -235,7 +235,8 @@ test("model answer still caps public output and preserves caller quotas",()=>{
   const provider=readFileSync(new URL("../server/qa-openrouter.ts",import.meta.url),"utf8");
   const route=readFileSync(new URL("../app/api/ask/route.ts",import.meta.url),"utf8");
   assert.match(provider,/REQUEST_TIMEOUT_MS = 35_000/);
-  assert.match(provider,/max_tokens:QA_MAX_COMPLETION_TOKENS/);
+  assert.match(provider,/max_tokens:config\.maxTokens/);
+  assert.match(provider,/maxTokens: QA_MAX_COMPLETION_TOKENS/);
   assert.match(route,/case "output_token_limit"/);
   assert.match(route,/takeAskVisitorQuota\(request,user,mode,isAdmin\)/);
   assert.doesNotMatch(route,/takeAskGlobalQuota/);
