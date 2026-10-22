@@ -206,6 +206,44 @@ test("broad site question cites actual topic articles without requiring 技术 o
   }finally{await closeTestHarness(h);}
 });
 
+test("specific public topics in site-overview wording retrieve relevant evidence, not random category samples",async()=>{
+  const h=await openTestHarness({vars});
+  try{
+    const category=await h.db.prepare(
+      "SELECT id FROM categories WHERE workspace_id=1 ORDER BY id LIMIT 1"
+    ).first();
+    assert.ok(category);
+    for(const [publicId,title,excerpt,content] of [
+      ["qa-topic-specific-workers","Cloudflare Workers 与 D1 技术实践",
+        "Workers 路由与 D1 数据库实战","# 使用 Cloudflare Workers 连接 D1 并管理数据库索引"],
+      ["qa-topic-specific-windsor","温莎古堡旅行记录",
+        "温莎旅行中的路线笔记","# 英国温莎城堡参观路线与景点"],
+      ["qa-topic-specific-unrelated","Windows 开发环境管理",
+        "版本管理与系统维护","# PowerShell 的环境变量排错与工具安装"],
+    ]){
+      await h.db.prepare(
+        "INSERT INTO posts(workspace_id,public_id,title,slug,excerpt,content,category_id,space_id,status,published_at)"+
+        " VALUES(1,?,?,?,?,?,?,NULL,'published',CURRENT_TIMESTAMP)"
+      ).bind(publicId,title,publicId,excerpt,content,category.id).run();
+    }
+    const topical=await ask(h,{
+      question:"网站有哪些 Cloudflare Workers 和 D1 相关的技术实践？",
+      scope:"public",mode:"sources",
+    });
+    assert.equal(topical.status,200,JSON.stringify(topical.json));
+    assert.ok(topical.json.sources.some(s=>s.title==="Cloudflare Workers 与 D1 技术实践"));
+    assert.ok(!topical.json.sources.some(s=>s.title==="Windows 开发环境管理"),
+      "unrelated article must not be added by overview category sampling");
+    assert.ok(topical.json.sources.every(s=>s.visibility==="public"));
+    const named=await ask(h,{
+      question:"网站关于温莎都分享了什么？",scope:"public",mode:"sources",
+    });
+    assert.equal(named.status,200,JSON.stringify(named.json));
+    assert.ok(named.json.sources.some(s=>s.title==="温莎古堡旅行记录"));
+    assert.ok(!named.json.sources.some(s=>s.title==="Windows 开发环境管理"));
+  }finally{await closeTestHarness(h);}
+});
+
 test("password-based legacy site admin can ask about authorized private knowledge",async()=>{
   const h=await openTestHarness({vars});
   try{
