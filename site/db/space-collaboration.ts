@@ -77,6 +77,11 @@ async function effectiveRole(userId:number,space:Space):Promise<SpaceCollaborati
     // grants existing workspace managers or explicitly invited users.
     if(role==="owner"||role==="admin")base=role;
   }catch(e){if(!(e instanceof WorkspaceAccessError))throw e;}
+  if(!base){
+    const ownedOrg=await env.DB.prepare("SELECT 1 FROM organization_workspaces ow JOIN organizations o ON o.id=ow.organization_id AND o.status='active' JOIN workspaces w ON w.id=ow.workspace_id AND w.kind='organization' AND w.status='active' WHERE ow.workspace_id=? AND o.owner_user_id=? AND w.owner_user_id=? LIMIT 1")
+      .bind(space.workspaceId,userId,userId).first();
+    if(ownedOrg)base="owner";
+  }
   const result=await env.DB.prepare(LINEAGE_SQL).bind(space.id,userId).all<{role:string}>();
   for(const row of result.results??[]){
     if(ROLE_LEVEL[row.role]>(base?ROLE_LEVEL[base]:0))base=row.role as SpaceCollaborationRole;
@@ -93,9 +98,19 @@ export async function spaceAccess(userId:number,spaceId:number,action:"read"|"wr
 }
 export async function listCollaborativeSpaces(userId:number){
   await ensureDatabase();
-  // Direct membership grants are the only cross-workspace discovery route.
-  const rows=await env.DB.prepare("SELECT DISTINCT s.id,s.name,s.workspace_id AS workspaceId,w.name AS workspaceName FROM space_collaboration_members m JOIN spaces s ON s.id=m.space_id AND s.workspace_id=m.workspace_id JOIN workspaces w ON w.id=s.workspace_id AND w.status='active' WHERE m.user_id=? ORDER BY s.id DESC LIMIT 100")
-    .bind(userId).all<{id:number;name:string;workspaceId:number;workspaceName:string}>();
+  // Owners discover their own personal/organization spaces; invited users
+  // discover direct invitations only, never an uninvited sibling workspace.
+  const rows=await env.DB.prepare([
+    "SELECT DISTINCT s.id,s.name,s.workspace_id AS workspaceId,w.name AS workspaceName",
+    "FROM spaces s JOIN workspaces w ON w.id=s.workspace_id AND w.status='active'",
+    "LEFT JOIN space_collaboration_members m ON m.space_id=s.id AND m.user_id=?",
+    "WHERE m.user_id=? OR (w.kind='personal' AND w.owner_user_id=?)",
+    "OR (w.kind='organization' AND w.owner_user_id=? AND EXISTS(",
+    "SELECT 1 FROM organization_workspaces ow JOIN organizations o ON o.id=ow.organization_id",
+    "AND o.owner_user_id=? AND o.status='active' WHERE ow.workspace_id=w.id))",
+    "ORDER BY s.id DESC LIMIT 200",
+  ].join(" ")).bind(userId,userId,userId,userId,userId)
+    .all<{id:number;name:string;workspaceId:number;workspaceName:string}>();
   const result=[];
   for(const row of rows.results??[]){
     const allowed=await spaceAccess(userId,row.id).catch(()=>null);
@@ -339,15 +354,15 @@ export async function proposeDocumentChange(userId:number,identifier:string,base
 }
 export async function resolveDocumentProposal(userId:number,identifier:string,proposalId:string,expectedVersion:number,resolvedContent:string,clientLabel:string){
   const post=await rawDocument(identifier);
-  const access=await spaceAccess(userId,post.spaceId!,"manage");
+  await spaceAccess(userId,post.spaceId!,"manage");
   ensureId(expectedVersion);contentLimit(resolvedContent);
   const proposal=await env.DB.prepare("SELECT id FROM document_merge_proposals WHERE id=? AND post_id=? AND workspace_id=? AND space_id=? AND status='pending'")
     .bind(proposalId,post.id,post.workspaceId,post.spaceId).first();
   if(!proposal)throw new SpaceCollaborationError("待处理冲突不存在",404);
   if(expectedVersion!==post.version)throw new SpaceCollaborationError("解决冲突前文档已有更新，请重新审阅",409);
   const result=await env.DB.batch([
-    env.DB.prepare("UPDATE posts SET content=?,version=version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND workspace_id=? AND space_id=? AND version=? AND "+gateSql("manage")+" RETURNING version")
-      .bind(resolvedContent,userId,post.id,post.workspaceId,post.spaceId,expectedVersion,...gateParams(post.workspaceId,userId,post.spaceId!)),
+    env.DB.prepare("UPDATE posts SET content=?,version=version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND workspace_id=? AND space_id=? AND version=? AND EXISTS(SELECT 1 FROM document_merge_proposals p WHERE p.id=? AND p.post_id=posts.id AND p.status='pending') AND "+gateSql("manage")+" RETURNING version")
+      .bind(resolvedContent,userId,post.id,post.workspaceId,post.spaceId,expectedVersion,proposalId,...gateParams(post.workspaceId,userId,post.spaceId!)),
     env.DB.prepare("UPDATE document_merge_proposals SET status='resolved',resolved_at=CURRENT_TIMESTAMP WHERE id=? AND post_id=? AND status='pending' AND changes()=1 RETURNING id")
       .bind(proposalId,post.id),
     env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,changed_fields,summary,client_label) SELECT workspace_id,'update_post',id,public_id,title,'[\"content\"]',?,? FROM posts WHERE id=? AND workspace_id=? AND version=? AND changes()=1")
@@ -357,7 +372,7 @@ export async function resolveDocumentProposal(userId:number,identifier:string,pr
   return {status:"resolved" as const,version:(result[0].results[0] as {version:number}).version,proposalId};
 }
 export async function restoreDocumentRevision(userId:number,identifier:string,revision:number,expectedVersion:number,clientLabel:string){
-  const post=await rawDocument(identifier),access=await spaceAccess(userId,post.spaceId!,"manage");
+  const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!,"manage");
   ensureId(revision);ensureId(expectedVersion);
   if(post.version!==expectedVersion)throw new SpaceCollaborationError("文档已更新，请重新检查后恢复",409);
   const previous=await env.DB.prepare("SELECT content FROM document_revisions WHERE post_id=? AND workspace_id=? AND version=?")
