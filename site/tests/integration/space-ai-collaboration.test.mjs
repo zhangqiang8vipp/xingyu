@@ -132,7 +132,7 @@ test("subspaces inherit permissions until an admin restricts them; invitations f
     assert.equal((await api(h,"/api/space-invitations",{method:"POST",cookie:invited.cookie,body:{token}})).status,200);
     const parent="/api/space-collaboration/"+root;
     const child=await api(h,parent,{method:"POST",cookie:invited.cookie,body:{action:"create_child",name:"Engineering"}});
-    assert.equal(child.status,200);
+    assert.equal(child.status,201);
     const childId=child.body.result.id;
     assert.equal((await api(h,"/api/space-collaboration/"+childId,{cookie:invited.cookie})).status,200);
     const restricted=await api(h,"/api/space-collaboration/"+childId,{method:"POST",cookie:owner.cookie,
