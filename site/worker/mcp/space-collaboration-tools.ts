@@ -13,7 +13,7 @@ import {
 const id=z.number().int().positive();
 const docId=z.string().trim().min(1).max(100);
 const role=z.enum(["admin","editor","viewer"]);
-const output={result:z.record(z.string(),z.unknown()).optional(),...MCP_ERROR_OUTPUT_FIELDS};
+const output={result:z.unknown().optional(),...MCP_ERROR_OUTPUT_FIELDS};
 export function registerSpaceCollaborationTools({server,auth,origin,clientLabel}:McpToolContext){
   async function execute(scope:"xingyu.read"|"xingyu.draft",call:(userId:number)=>Promise<unknown>){
     try{
