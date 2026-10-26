@@ -184,7 +184,7 @@ export default function CollaborationClient({initialSpaceId}:{initialSpaceId:num
           <label>新建子空间<input style={field} value={childName} onChange={e=>setChildName(e.target.value)} maxLength={100} required/></label>
           <button type="submit" disabled={busy} style={button}>创建子空间</button>
         </form>:null}
-        {access.canManage&&access.parentId?<button style={button} disabled={busy} onClick={()=>{
+        {access.canWrite&&access.parentId?<button style={button} disabled={busy} onClick={()=>{
           if(window.confirm("只能删除完全为空的子空间，确定删除？"))
             void run(()=>scopeAction("delete_empty",{}),"空子空间已删除");
         }}>删除空子空间</button>:null}
