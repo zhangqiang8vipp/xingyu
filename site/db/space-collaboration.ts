@@ -262,9 +262,9 @@ export async function listCollaborativeChildren(userId:number,parentSpaceId:numb
   return result;
 }
 export async function removeCollaborativeEmptySpace(userId:number,spaceId:number){
-  const access=await spaceAccess(userId,spaceId,"manage");
+  const access=await spaceAccess(userId,spaceId,"write");
   if(access.parentId===null)throw new SpaceCollaborationError("根空间不可从协作入口删除",403);
-  const result=await env.DB.prepare("DELETE FROM spaces WHERE id=? AND workspace_id=? AND NOT EXISTS(SELECT 1 FROM spaces s WHERE s.parent_id=?) AND NOT EXISTS(SELECT 1 FROM posts p WHERE p.space_id=?) AND NOT EXISTS(SELECT 1 FROM space_access_policies p WHERE p.space_id=spaces.id) AND "+gateSql("manage")+" RETURNING id")
+  const result=await env.DB.prepare("DELETE FROM spaces WHERE id=? AND workspace_id=? AND NOT EXISTS(SELECT 1 FROM spaces s WHERE s.parent_id=?) AND NOT EXISTS(SELECT 1 FROM posts p WHERE p.space_id=?) AND NOT EXISTS(SELECT 1 FROM space_access_policies p WHERE p.space_id=spaces.id) AND NOT EXISTS(SELECT 1 FROM space_collaboration_members m WHERE m.space_id=spaces.id) AND NOT EXISTS(SELECT 1 FROM space_collaboration_invites i WHERE i.space_id=spaces.id AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>unixepoch()) AND "+gateSql("write")+" RETURNING id")
     .bind(spaceId,access.workspaceId,spaceId,spaceId,...gateParams(access.workspaceId,userId,spaceId)).first();
   if(!result)throw new SpaceCollaborationError("只能删除没有子空间或文章的空间",409);
   return {deleted:true};
