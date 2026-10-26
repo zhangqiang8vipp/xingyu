@@ -14,6 +14,7 @@ type ResponseData={
  members?:Member[];invitations?:Invite[];settings?:{inheritPermissions:boolean};
  document?:Document;result?:Document|Conflict|Record<string,unknown>;
  revisions?:History[];revision?:{content:string;title:string;version:number};
+ proposal?:{id:string;baseVersion:number;headVersion:number;proposedContent:string;clientLabel:string};
  proposals?:Array<{id:string;baseVersion:number;headVersion:number;actorUserId:number;clientLabel:string;createdAt:string}>;
 };
 const field:CSSProperties={display:"block",width:"100%",minWidth:0,padding:10,border:"1px solid #b0b8c580",borderRadius:10,background:"transparent",color:"inherit"};
@@ -91,7 +92,7 @@ export default function CollaborationClient({initialSpaceId}:{initialSpaceId:num
       setSelected(data.document);setText(data.document.content);
       const [a,b]=await Promise.all([
         request(root+"/documents/"+encodeURIComponent(publicId)+"?history=1"),
-        request(root+"/documents/"+encodeURIComponent(publicId)+"?proposals=1"),
+        data.document.canManage?request(root+"/documents/"+encodeURIComponent(publicId)+"?proposals=1"):Promise.resolve({proposals:[]}),
       ]);
       setHistory(a.revisions??[]);setProposals(b.proposals??[]);
     }catch(e){setNotice(e instanceof Error?e.message:"读取文档失败");}
@@ -221,6 +222,15 @@ export default function CollaborationClient({initialSpaceId}:{initialSpaceId:num
         <h3>空间协作者</h3>
         {(detail?.members??[]).map(member=><div key={member.userId} style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
           <span style={{flex:1}}>{member.name} <small>{member.email??""}</small> · {member.role}</span>
+          <select aria-label={"修改 "+member.name+" 的权限"} style={{...field,width:"auto"}} value={member.role}
+            disabled={busy||member.role==="admin"&&access.role!=="owner"} onChange={e=>{
+              const role=e.target.value;
+              if(window.confirm("将 "+member.name+" 的权限修改为 "+role+"？"))
+                void run(()=>scopeAction("set_role",{userId:member.userId,role}),"成员角色已更新");
+            }}>
+            {access.role==="owner"?<option value="admin">管理员</option>:null}
+            <option value="editor">可编辑</option><option value="viewer">仅阅读</option>
+          </select>
           <button style={button} disabled={busy} onClick={()=>{
             if(window.confirm("移除 "+member.name+" 的空间访问权限？"))
               void run(()=>scopeAction("remove_member",{userId:member.userId}),"成员已移除");
@@ -265,7 +275,18 @@ export default function CollaborationClient({initialSpaceId}:{initialSpaceId:num
         </div>)}
       </div>
       {proposals.length?<div><h3>待处理的冲突提案</h3>
-        {proposals.map(p=><p key={p.id}>{p.id} · 基于 V{p.baseVersion} · {p.clientLabel}（需要管理员审核）</p>)}
+        {proposals.map(p=><div key={p.id} style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
+          <span>{p.id} · 基于 V{p.baseVersion} · {p.clientLabel}</span>
+          <button style={button} disabled={busy} onClick={()=>void run(async()=>{
+            const path=root+"/documents/"+encodeURIComponent(selected.publicId);
+            const [review,latest]=await Promise.all([request(path+"?proposal="+p.id),request(path)]);
+            if(!review.proposal||!latest.document)throw new Error("无法获取冲突提案或最新文档");
+            setConflict({status:"conflict",proposalId:p.id,currentVersion:latest.document.version,
+              baseVersion:p.baseVersion,reason:"manual_review"});
+            setHeadAfterConflict(latest.document);setText(review.proposal.proposedContent);
+            setManualMerge("");setNotice("请核对提案与当前版本，填写最终合并内容");
+          },"已加载待复核提案",false)}>查看并解决</button>
+        </div>)}
       </div>:null}
     </section>:null}
   </div>;
