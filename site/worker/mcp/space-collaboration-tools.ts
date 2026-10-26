@@ -6,7 +6,7 @@ import {
  listSpaceMembers,listSpaceInvitations,sendSpaceInvitation,revokeSpaceInvitation,
  setSpaceMemberRole,removeSpaceMember,setSpaceInheritance,createCollaborativeChildSpace,
  removeCollaborativeEmptySpace,createCollaborativeDocument,getCollaborativeDocument,
- listDocumentRevisions,getDocumentRevision,listDocumentProposals,proposeDocumentChange,
+ listDocumentRevisions,getDocumentRevision,listDocumentProposals,getDocumentProposal,proposeDocumentChange,
  resolveDocumentProposal,restoreDocumentRevision,
 } from "@/db/space-collaboration";
 
@@ -14,7 +14,6 @@ const id=z.number().int().positive();
 const docId=z.string().trim().min(1).max(100);
 const role=z.enum(["admin","editor","viewer"]);
 const output={result:z.record(z.string(),z.unknown()).optional(),...MCP_ERROR_OUTPUT_FIELDS};
-const listOutput={results:z.array(z.record(z.string(),z.unknown())).optional(),...MCP_ERROR_OUTPUT_FIELDS};
 export function registerSpaceCollaborationTools({server,auth,origin,clientLabel}:McpToolContext){
   async function execute(scope:"xingyu.read"|"xingyu.draft",call:(userId:number)=>Promise<unknown>){
     try{
@@ -110,6 +109,12 @@ export function registerSpaceCollaborationTools({server,auth,origin,clientLabel}
     title:"查询尚未解决的文档冲突",description:"列出冲突版本标识；不会代替用户做强制覆盖。",
     inputSchema:{public_id:docId},outputSchema:output,annotations:readable,
   },async({public_id})=>execute("xingyu.read",userId=>listDocumentProposals(userId,public_id)));
+  server.registerTool("get_document_conflict",{
+    title:"供管理员审阅完整冲突提案",
+    description:"仅读取指定空间管理员可见的未解决冲突，包含提案全文。必须与当前文档及基础版本比较后再确认合并。",
+    inputSchema:{public_id:docId,proposal_id:z.string().uuid()},outputSchema:output,annotations:readable,
+  },async({public_id,proposal_id})=>execute("xingyu.read",userId=>getDocumentProposal(userId,public_id,proposal_id)));
+
   server.registerTool("resolve_document_conflict",{
     title:"提交已确认的冲突解决方案",
     description:"仅空间管理员可执行，要求当前文档 expected_version 并由用户明确审阅解决后的完整 Markdown。不得自行强制覆盖。",
