@@ -48,7 +48,7 @@ export function registerSpaceCollaborationTools({server,auth,origin,clientLabel}
     inputSchema:{parent_space_id:id,name:z.string().trim().min(1).max(100)},outputSchema:output,annotations:write,
   },async({parent_space_id,name})=>execute("xingyu.draft",userId=>createCollaborativeChildSpace(userId,parent_space_id,name)));
   server.registerTool("delete_collaboration_empty_space",{
-    title:"删除空协作子空间",description:"必须经明确确认；仅允许管理者删除完全为空的子空间，不能递归删除文章。",
+    title:"删除空协作子空间",description:"必须经明确确认；有编辑权限者只能删除无子空间、无文章、无独立协作者或待接受邀请的空子空间，不能递归删除文章。",
     inputSchema:{space_id:id},outputSchema:output,annotations:sensitive,
   },async({space_id})=>execute("xingyu.draft",userId=>removeCollaborativeEmptySpace(userId,space_id)));
   server.registerTool("list_space_collaborators",{
