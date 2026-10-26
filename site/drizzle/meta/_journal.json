@@ -169,6 +169,13 @@
       "when": 1791615600000,
       "tag": "0023_personal_access_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1793010000000,
+      "tag": "0024_space_collaboration_revisions",
+      "breakpoints": true
     }
   ]
 }
