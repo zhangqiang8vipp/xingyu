@@ -515,3 +515,45 @@ export const spacePrincipalGrants = sqliteTable("space_principal_grants",{
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 },t=>[primaryKey({columns:[t.spaceId,t.principalType,t.principalId]}),
   index("space_principal_grants_principal_idx").on(t.principalType,t.principalId,t.workspaceId)]);
+
+/** Permission-scoped invitations (different from workspace-wide invitations). */
+export const spaceCollaborationSettings=sqliteTable("space_collaboration_settings",{
+  spaceId:integer("space_id").primaryKey(),workspaceId:integer("workspace_id").notNull(),
+  inheritPermissions:integer("inherit_permissions").notNull().default(1),
+});
+export const spaceCollaborationMembers=sqliteTable("space_collaboration_members",{
+  spaceId:integer("space_id").notNull(),workspaceId:integer("workspace_id").notNull(),
+  userId:integer("user_id").notNull(),role:text("role",{enum:["admin","editor","viewer"]}).notNull(),
+  invitedBy:integer("invited_by").notNull(),createdAt:text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[primaryKey({columns:[t.spaceId,t.userId]}),index("space_collaboration_members_user_idx").on(t.userId,t.spaceId)]);
+export const spaceCollaborationInvites=sqliteTable("space_collaboration_invites",{
+  id:integer("id").primaryKey({autoIncrement:true}),spaceId:integer("space_id").notNull(),
+  workspaceId:integer("workspace_id").notNull(),email:text("email").notNull(),
+  role:text("role",{enum:["admin","editor","viewer"]}).notNull(),tokenHash:text("token_hash").notNull(),
+  invitedBy:integer("invited_by").notNull(),expiresAt:integer("expires_at").notNull(),
+  acceptedBy:integer("accepted_by"),acceptedAt:integer("accepted_at"),revokedAt:integer("revoked_at"),
+  createdAt:text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[
+  uniqueIndex("space_collaboration_invites_token_uidx").on(t.tokenHash),
+  uniqueIndex("space_collaboration_invites_pending_uidx").on(t.spaceId,t.email)
+    .where(sql`${t.acceptedAt} IS NULL AND ${t.revokedAt} IS NULL`),
+  index("space_collaboration_invites_space_idx").on(t.spaceId,t.createdAt),
+]);
+export const documentRevisions=sqliteTable("document_revisions",{
+  postId:integer("post_id").notNull(),workspaceId:integer("workspace_id").notNull(),
+  spaceId:integer("space_id"),version:integer("version").notNull(),title:text("title").notNull(),
+  content:text("content").notNull(),actorUserId:integer("actor_user_id"),
+  clientLabel:text("client_label").notNull().default("legacy"),
+  createdAt:text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+},t=>[
+  primaryKey({columns:[t.postId,t.version]}),
+  index("document_revisions_space_idx").on(t.workspaceId,t.spaceId,t.postId,t.version),
+]);
+export const documentMergeProposals=sqliteTable("document_merge_proposals",{
+  id:text("id").primaryKey(),postId:integer("post_id").notNull(),
+  workspaceId:integer("workspace_id").notNull(),spaceId:integer("space_id").notNull(),
+  baseVersion:integer("base_version").notNull(),headVersion:integer("head_version").notNull(),
+  proposedContent:text("proposed_content").notNull(),actorUserId:integer("actor_user_id").notNull(),
+  clientLabel:text("client_label").notNull(),status:text("status",{enum:["pending","resolved","cancelled"]}).notNull().default("pending"),
+  createdAt:text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),resolvedAt:text("resolved_at"),
+},t=>[index("document_merge_proposals_post_idx").on(t.postId,t.status,t.createdAt)]);

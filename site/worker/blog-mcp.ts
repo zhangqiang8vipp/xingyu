@@ -10,6 +10,7 @@ import { registerSpaceTools } from "./mcp/space-tools";
 import { registerPersonalKnowledgeTools } from "./mcp/personal-knowledge-tools";
 import { registerOrganizationTools } from "./mcp/organization-tools";
 import { registerPublicKnowledgeTools } from "./mcp/public-knowledge-tools";
+import { registerSpaceCollaborationTools } from "./mcp/space-collaboration-tools";
 
 const MCP_PATH = "/mcp";
 
@@ -54,6 +55,7 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
       registerPublicKnowledgeTools(context);
     }
   }
+  if (auth.userId) registerSpaceCollaborationTools(context);
   return server;
 }
 
@@ -82,7 +84,7 @@ export async function handleBlogMcpRequest(
   const origin = new URL(request.url).origin;
   const clientLabel = auth.authType === "legacy"
     ? (request.headers.get("User-Agent") || "remote-mcp").slice(0, 160)
-    : `${auth.authType}:${auth.clientId}:${auth.subject}`;
+    : `${auth.authType}:${auth.clientId}:${auth.subject}:credential:${auth.tokenId ?? auth.patId ?? "none"}`;
   const server = createBlogMcpServer(origin, clientLabel, auth);
   const response = await createMcpHandler(server, {
     route: MCP_PATH,
