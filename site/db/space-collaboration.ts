@@ -286,6 +286,8 @@ export async function createCollaborativeDocument(userId:number,spaceId:number,t
   const result=await env.DB.batch([
     env.DB.prepare("INSERT INTO posts(workspace_id,public_id,title,slug,content,excerpt,category_id,space_id,status,author_id,created_by,updated_by) SELECT ?,?,?,?,?,?,?,?,'draft',?,?,? WHERE "+gate+" RETURNING id")
       .bind(space.workspaceId,publicId,title,slug,content,"",category.id,spaceId,userId,userId,userId,...gateParams(space.workspaceId,userId,spaceId)),
+    env.DB.prepare("UPDATE document_revisions SET client_label=? WHERE post_id=(SELECT id FROM posts WHERE public_id=?) AND version=1 AND changes()=1")
+      .bind(safeClient(clientLabel),publicId),
     env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,changed_fields,summary,client_label) SELECT workspace_id,'create_draft',id,public_id,title,'[\"content\"]','创建协作文档',? FROM posts WHERE public_id=? AND changes()=1")
       .bind(safeClient(clientLabel),publicId),
   ]);
@@ -307,13 +309,13 @@ export async function getCollaborativeDocument(userId:number,identifier:string){
 export async function listDocumentRevisions(userId:number,identifier:string,limit=30){
   const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!);
   const num=Math.max(1,Math.min(100,Number.isInteger(limit)?limit:30));
-  const rows=await env.DB.prepare("SELECT version,title,actor_user_id AS actorUserId,created_at AS createdAt,length(content) AS contentLength FROM document_revisions WHERE post_id=? AND workspace_id=? ORDER BY version DESC LIMIT ?")
+  const rows=await env.DB.prepare("SELECT version,title,actor_user_id AS actorUserId,client_label AS clientLabel,created_at AS createdAt,length(content) AS contentLength FROM document_revisions WHERE post_id=? AND workspace_id=? ORDER BY version DESC LIMIT ?")
     .bind(post.id,post.workspaceId,num).all();
   return rows.results??[];
 }
 export async function getDocumentRevision(userId:number,identifier:string,version:number){
   const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!);ensureId(version);
-  const rev=await env.DB.prepare("SELECT version,title,content,actor_user_id AS actorUserId,created_at AS createdAt FROM document_revisions WHERE post_id=? AND workspace_id=? AND version=?")
+  const rev=await env.DB.prepare("SELECT version,title,content,actor_user_id AS actorUserId,client_label AS clientLabel,created_at AS createdAt FROM document_revisions WHERE post_id=? AND workspace_id=? AND version=?")
     .bind(post.id,post.workspaceId,version).first();
   if(!rev)throw new SpaceCollaborationError("历史版本不存在",404);
   return rev;
@@ -353,6 +355,8 @@ export async function proposeDocumentChange(userId:number,identifier:string,base
   const result=await env.DB.batch([
     env.DB.prepare("UPDATE posts SET content=?,version=version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND workspace_id=? AND space_id=? AND version=? AND "+gate+" RETURNING version")
       .bind(merged.content,userId,post.id,post.workspaceId,post.spaceId,post.version,...gateParams(post.workspaceId,userId,post.spaceId!)),
+    env.DB.prepare("UPDATE document_revisions SET client_label=? WHERE post_id=? AND version=? AND changes()=1")
+      .bind(safeClient(clientLabel),post.id,post.version+1),
     env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,changed_fields,summary,client_label) SELECT workspace_id,'update_post',id,public_id,title,'[\"content\"]',?,? FROM posts WHERE id=? AND workspace_id=? AND version=? AND changes()=1")
       .bind(summary,safeClient(clientLabel),post.id,post.workspaceId,post.version+1),
   ]);
@@ -371,6 +375,8 @@ export async function resolveDocumentProposal(userId:number,identifier:string,pr
   const result=await env.DB.batch([
     env.DB.prepare("UPDATE posts SET content=?,version=version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND workspace_id=? AND space_id=? AND version=? AND EXISTS(SELECT 1 FROM document_merge_proposals p WHERE p.id=? AND p.post_id=posts.id AND p.status='pending') AND "+gateSql("manage")+" RETURNING version")
       .bind(resolvedContent,userId,post.id,post.workspaceId,post.spaceId,expectedVersion,proposalId,...gateParams(post.workspaceId,userId,post.spaceId!)),
+    env.DB.prepare("UPDATE document_revisions SET client_label=? WHERE post_id=? AND version=? AND changes()=1")
+      .bind(safeClient(clientLabel),post.id,post.version+1),
     env.DB.prepare("UPDATE document_merge_proposals SET status='resolved',resolved_at=CURRENT_TIMESTAMP WHERE id=? AND post_id=? AND status='pending' AND changes()=1 RETURNING id")
       .bind(proposalId,post.id),
     env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,changed_fields,summary,client_label) SELECT workspace_id,'update_post',id,public_id,title,'[\"content\"]',?,? FROM posts WHERE id=? AND workspace_id=? AND version=? AND changes()=1")
@@ -389,6 +395,8 @@ export async function restoreDocumentRevision(userId:number,identifier:string,re
   const result=await env.DB.batch([
     env.DB.prepare("UPDATE posts SET content=?,version=version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND workspace_id=? AND space_id=? AND version=? AND "+gateSql("manage")+" RETURNING version")
       .bind(previous.content,userId,post.id,post.workspaceId,post.spaceId,expectedVersion,...gateParams(post.workspaceId,userId,post.spaceId!)),
+    env.DB.prepare("UPDATE document_revisions SET client_label=? WHERE post_id=? AND version=? AND changes()=1")
+      .bind(safeClient(clientLabel),post.id,post.version+1),
     env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,changed_fields,summary,client_label) SELECT workspace_id,'update_post',id,public_id,title,'[\"content\"]',?,? FROM posts WHERE id=? AND workspace_id=? AND version=? AND changes()=1")
       .bind("恢复历史版本 "+revision,safeClient(clientLabel),post.id,post.workspaceId,post.version+1)
   ]);
