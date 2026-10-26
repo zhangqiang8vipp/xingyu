@@ -104,7 +104,7 @@ export async function listCollaborativeSpaces(userId:number){
     "SELECT DISTINCT s.id,s.name,s.workspace_id AS workspaceId,w.name AS workspaceName",
     "FROM spaces s JOIN workspaces w ON w.id=s.workspace_id AND w.status='active'",
     "LEFT JOIN space_collaboration_members m ON m.space_id=s.id AND m.user_id=?",
-    "WHERE m.user_id=? OR (w.kind='personal' AND w.owner_user_id=?)",
+    "WHERE m.user_id=? OR (w.kind IN ('personal','shared') AND w.owner_user_id=?)",
     "OR (w.kind='organization' AND w.owner_user_id=? AND EXISTS(",
     "SELECT 1 FROM organization_workspaces ow JOIN organizations o ON o.id=ow.organization_id",
     "AND o.owner_user_id=? AND o.status='active' WHERE ow.workspace_id=w.id))",
