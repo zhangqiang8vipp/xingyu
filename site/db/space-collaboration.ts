@@ -319,14 +319,22 @@ export async function getDocumentRevision(userId:number,identifier:string,versio
   return rev;
 }
 export async function listDocumentProposals(userId:number,identifier:string){
-  const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!);
+  const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!,"manage");
   const rows=await env.DB.prepare("SELECT id,base_version AS baseVersion,head_version AS headVersion,actor_user_id AS actorUserId,client_label AS clientLabel,created_at AS createdAt FROM document_merge_proposals WHERE post_id=? AND status='pending' ORDER BY created_at DESC LIMIT 30")
     .bind(post.id).all();
   return rows.results??[];
 }
+export async function getDocumentProposal(userId:number,identifier:string,proposalId:string){
+  const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!,"manage");
+  const row=await env.DB.prepare("SELECT id,base_version AS baseVersion,head_version AS headVersion,proposed_content AS proposedContent,actor_user_id AS actorUserId,client_label AS clientLabel,created_at AS createdAt FROM document_merge_proposals WHERE id=? AND post_id=? AND workspace_id=? AND status='pending'")
+    .bind(proposalId,post.id,post.workspaceId).first();
+  if(!row)throw new SpaceCollaborationError("冲突提案不存在或已被处理",404);
+  return row;
+}
+
 export async function proposeDocumentChange(userId:number,identifier:string,baseVersion:number,proposedContent:string,clientLabel:string,summaryInput="更新协作文档"){
   ensureId(baseVersion);const content=contentLimit(proposedContent);
-  const post=await rawDocument(identifier),access=await spaceAccess(userId,post.spaceId!,"write");
+  const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!,"write");
   if(baseVersion>post.version)throw new SpaceCollaborationError("提交版本不可能晚于当前版本",409);
   const base=await env.DB.prepare("SELECT content FROM document_revisions WHERE post_id=? AND workspace_id=? AND version=?")
     .bind(post.id,post.workspaceId,baseVersion).first<{content:string}>();
