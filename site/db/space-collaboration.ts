@@ -204,8 +204,8 @@ export async function acceptSpaceInvitation(userId:number,token:string){
   const invited=await previewSpaceInvitation(userId,token);
   const stamp=now(),hash=await sessionDigest(token);
   const res=await env.DB.batch([
-    env.DB.prepare("UPDATE space_collaboration_invites SET accepted_at=?,accepted_by=? WHERE id=? AND token_hash=? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>? AND EXISTS(SELECT 1 FROM user_identities e JOIN users u ON u.id=e.user_id WHERE e.user_id=? AND e.provider='email' AND e.subject=space_collaboration_invites.email AND u.status='active') RETURNING id")
-      .bind(stamp,userId,invited.id,hash,stamp,userId),
+    env.DB.prepare("UPDATE space_collaboration_invites SET accepted_at=?,accepted_by=? WHERE id=? AND token_hash=? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>? AND EXISTS(SELECT 1 FROM user_identities e JOIN users u ON u.id=e.user_id WHERE e.user_id=? AND e.provider='email' AND e.subject=space_collaboration_invites.email AND u.status='active') AND "+gateSql("manage")+" AND (?<>'admin' OR EXISTS(SELECT 1 FROM workspace_effective_grants owner WHERE owner.workspace_id=? AND owner.user_id=? AND owner.role='owner')) RETURNING id")
+      .bind(stamp,userId,invited.id,hash,stamp,userId,...gateParams(invited.workspaceId,invited.invitedBy,invited.spaceId),invited.role,invited.workspaceId,invited.invitedBy),
     env.DB.prepare("INSERT INTO space_collaboration_members(space_id,workspace_id,user_id,role,invited_by) SELECT space_id,workspace_id,?,role,invited_by FROM space_collaboration_invites WHERE id=? AND accepted_at=? AND accepted_by=? AND changes()=1 ON CONFLICT(space_id,user_id) DO UPDATE SET role=excluded.role RETURNING user_id")
       .bind(userId,invited.id,stamp,userId),
   ]);
@@ -264,7 +264,7 @@ export async function listCollaborativeChildren(userId:number,parentSpaceId:numb
 export async function removeCollaborativeEmptySpace(userId:number,spaceId:number){
   const access=await spaceAccess(userId,spaceId,"manage");
   if(access.parentId===null)throw new SpaceCollaborationError("根空间不可从协作入口删除",403);
-  const result=await env.DB.prepare("DELETE FROM spaces WHERE id=? AND workspace_id=? AND NOT EXISTS(SELECT 1 FROM spaces s WHERE s.parent_id=?) AND NOT EXISTS(SELECT 1 FROM posts p WHERE p.space_id=?) AND "+gateSql("manage")+" RETURNING id")
+  const result=await env.DB.prepare("DELETE FROM spaces WHERE id=? AND workspace_id=? AND NOT EXISTS(SELECT 1 FROM spaces s WHERE s.parent_id=?) AND NOT EXISTS(SELECT 1 FROM posts p WHERE p.space_id=?) AND NOT EXISTS(SELECT 1 FROM space_access_policies p WHERE p.space_id=spaces.id) AND "+gateSql("manage")+" RETURNING id")
     .bind(spaceId,access.workspaceId,spaceId,spaceId,...gateParams(access.workspaceId,userId,spaceId)).first();
   if(!result)throw new SpaceCollaborationError("只能删除没有子空间或文章的空间",409);
   return {deleted:true};
@@ -382,7 +382,7 @@ export async function resolveDocumentProposal(userId:number,identifier:string,pr
     env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,changed_fields,summary,client_label) SELECT workspace_id,'update_post',id,public_id,title,'[\"content\"]',?,? FROM posts WHERE id=? AND workspace_id=? AND version=? AND changes()=1")
       .bind("人工确认合并冲突 "+proposalId,safeClient(clientLabel),post.id,post.workspaceId,post.version+1),
   ]);
-  if(!result[0]?.results?.length||!result[1]?.results?.length)throw new SpaceCollaborationError("冲突或文档版本已经改变",409);
+  if(!result[0]?.results?.length||!result[1]?.meta?.changes||!result[2]?.results?.length)throw new SpaceCollaborationError("冲突或文档版本已经改变",409);
   return {status:"resolved" as const,version:(result[0].results[0] as {version:number}).version,proposalId};
 }
 export async function restoreDocumentRevision(userId:number,identifier:string,revision:number,expectedVersion:number,clientLabel:string){
