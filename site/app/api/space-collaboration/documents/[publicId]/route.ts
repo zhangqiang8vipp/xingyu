@@ -1,7 +1,7 @@
 import { withSpaceRequest } from "@/server/space-collaboration-http";
 import { apiJson,readJson } from "@/server/workspace-http";
 import {
- getCollaborativeDocument,listDocumentRevisions,getDocumentRevision,listDocumentProposals,
+ getCollaborativeDocument,listDocumentRevisions,getDocumentRevision,listDocumentProposals,getDocumentProposal,
  proposeDocumentChange,resolveDocumentProposal,restoreDocumentRevision,SpaceCollaborationError,
 } from "@/db/space-collaboration";
 type Params={params:Promise<{publicId:string}>};
@@ -9,6 +9,7 @@ export async function GET(request:Request,{params}:Params){
   const {publicId}=await params;
   return withSpaceRequest(request,async userId=>{
     const params=new URL(request.url).searchParams;
+    if(params.has("proposal"))return apiJson({proposal:await getDocumentProposal(userId,publicId,params.get("proposal")??"")});
     if(params.has("revision"))return apiJson({revision:await getDocumentRevision(userId,publicId,Number(params.get("revision")))});
     if(params.has("history"))return apiJson({revisions:await listDocumentRevisions(userId,publicId)});
     if(params.has("proposals"))return apiJson({proposals:await listDocumentProposals(userId,publicId)});
