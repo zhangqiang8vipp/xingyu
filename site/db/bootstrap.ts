@@ -6,12 +6,13 @@ import { WORKSPACE_GUARD_TRIGGERS } from "./workspace-guards";
 import { WORKSPACE_INVITATION_DDL, COLLABORATION_GUARDS } from "./workspace-collaboration-schema";
 import { ORGANIZATION_DDL, ORGANIZATION_GUARDS } from "./organization-schema";
 import { TEAM_ORG_DDL, TEAM_ORG_GUARDS } from "./team-space-schema";
+import { SPACE_COLLABORATION_DDL, SPACE_COLLABORATION_GUARDS, SPACE_COLLABORATION_BACKFILL } from "./space-collaboration-schema";
 import { assertStoredInstanceIdentity, requireRuntimeInstanceIdentity } from "./instance-identity";
 
 let ready: Promise<void> | null = null;
 
 /** 当前 worker 期望的 D1 schema 版本，供健康检查与迁移门禁共用。 */
-export const schemaVersion = "25";
+export const schemaVersion = "26";
 
 const requiredUniqueIndexes = {
   attachments_object_key_uidx: { table: "attachments", columns: ["object_key"] },
@@ -40,6 +41,8 @@ const requiredUniqueIndexes = {
   organization_invitations_pending_uidx: { table: "organization_invitations", columns: ["organization_id", "email"] },
   organization_units_sibling_uidx: { table: "organization_units", columns: ["organization_id", "parent_id", "name"] },
   organization_units_root_uidx: { table: "organization_units", columns: ["organization_id", "name"] },
+  space_collaboration_invites_token_uidx: { table: "space_collaboration_invites", columns: ["token_hash"] },
+  space_collaboration_invites_pending_uidx: { table: "space_collaboration_invites", columns: ["space_id", "email"] },
   workspace_invitations_token_uidx: { table: "workspace_invitations", columns: ["token_hash"] },
   workspace_invitations_pending_uidx: { table: "workspace_invitations", columns: ["workspace_id", "email"] },
 } as const;
@@ -49,9 +52,9 @@ const requiredMigrationObjects = {
     "admin_login_attempts", "app_meta", "attachment_cleanup_queue", "attachments", "categories",
     "content_pages", "email_verifications", "identity_login_limits", "mcp_activity", "personal_access_tokens", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
     "oauth_consents", "oauth_rate_limits", "oauth_refresh_tokens", "post_preview_tokens",
-    "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_credentials", "user_identities", "user_sessions", "users", "view_request_limits", "workspaces", "workspace_memberships", "workspace_invitations", "organizations", "organization_memberships", "organization_invitations", "organization_units", "organization_unit_memberships", "teams", "team_memberships", "organization_workspaces", "workspace_team_grants", "space_access_policies", "space_principal_grants",
+    "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_credentials", "user_identities", "user_sessions", "users", "view_request_limits", "workspaces", "workspace_memberships", "workspace_invitations", "organizations", "organization_memberships", "organization_invitations", "organization_units", "organization_unit_memberships", "teams", "team_memberships", "organization_workspaces", "workspace_team_grants", "space_access_policies", "space_principal_grants", "space_collaboration_settings", "space_collaboration_members", "space_collaboration_invites", "document_revisions", "document_merge_proposals",
   ],
-  index: [...Object.keys(requiredUniqueIndexes), "personal_access_tokens_user_idx", "workspace_memberships_user_idx", "workspace_invitations_workspace_idx", "organization_memberships_user_idx", "organization_invitations_org_idx", "organization_units_tree_idx", "organization_unit_memberships_user_idx", "teams_org_idx", "team_memberships_user_idx", "organization_workspaces_org_idx", "workspace_team_grants_team_idx", "space_access_policies_workspace_idx", "space_principal_grants_principal_idx", "email_verifications_user_idx", "posts_workspace_updated_idx", "spaces_workspace_parent_idx", "attachments_workspace_idx", "categories_workspace_idx", "mcp_workspace_activity_idx"],
+  index: [...Object.keys(requiredUniqueIndexes), "personal_access_tokens_user_idx", "workspace_memberships_user_idx", "workspace_invitations_workspace_idx", "organization_memberships_user_idx", "organization_invitations_org_idx", "organization_units_tree_idx", "organization_unit_memberships_user_idx", "teams_org_idx", "team_memberships_user_idx", "organization_workspaces_org_idx", "workspace_team_grants_team_idx", "space_access_policies_workspace_idx", "space_principal_grants_principal_idx", "space_collaboration_members_user_idx", "space_collaboration_invites_space_idx", "document_revisions_space_idx", "document_merge_proposals_post_idx", "email_verifications_user_idx", "posts_workspace_updated_idx", "spaces_workspace_parent_idx", "attachments_workspace_idx", "categories_workspace_idx", "mcp_workspace_activity_idx"],
   view: ["workspace_effective_grants"],
   trigger: [
     "posts_public_id_required_insert", "posts_public_id_required_update",
@@ -61,6 +64,7 @@ const requiredMigrationObjects = {
     "team_member_insert_guard", "team_member_update_guard", "org_team_member_cleanup", "org_team_member_suspend_cleanup",
     "org_workspace_link_insert_guard","org_workspace_link_update_guard","team_grant_insert_guard","team_grant_update_guard",
     "space_policy_insert_guard","space_policy_update_guard","space_policy_delete_cleanup","space_grant_insert_guard","space_grant_update_guard",
+    "space_collaboration_settings_guard","space_collaboration_members_guard","space_collaboration_invites_guard","document_revision_post_insert","document_revision_post_update","document_revision_post_delete","space_collaboration_space_delete",
     "posts_workspace_insert_guard", "posts_workspace_update_guard", "spaces_workspace_insert_guard", "spaces_workspace_update_guard", "attachments_workspace_insert_guard", "attachments_workspace_update_guard",
     "posts_history_slug_guard_insert", "posts_history_slug_guard_update",
     "history_current_slug_guard_insert", "history_current_slug_guard_update",
@@ -165,7 +169,8 @@ async function initialize() {
       const normalized = (definition ?? "").replace(/["`\[\]]/g, "").replace(/\s+/g, " ").trim();
       if (name === "spaces_root_slug_uidx") return !/\bWHERE\s+spaces\.parent_id\s+IS\s+NULL\s*;?$/i.test(normalized);
       if (name === "workspace_invitations_pending_uidx") return !/\bWHERE\s+(?:workspace_invitations\.)?accepted_at\s+IS\s+NULL\s+AND\s+(?:workspace_invitations\.)?revoked_at\s+IS\s+NULL\s*;?$/i.test(normalized);
-      if (name === "organization_invitations_pending_uidx") return !/\bWHERE\s+(?:organization_invitations\.)?accepted_at\s+IS\s+NULL\s+AND\s+(?:organization_invitations\.)?revoked_at\s+IS\s+NULL\s*;?$/i.test(normalized);
+      if (name === "space_collaboration_invites_pending_uidx") return !/\bWHERE\s+(?:space_collaboration_invites\.)?accepted_at\s+IS\s+NULL\s+AND\s+(?:space_collaboration_invites\.)?revoked_at\s+IS\s+NULL\s*;?$/i.test(normalized);
+       if (name === "organization_invitations_pending_uidx") return !/\bWHERE\s+(?:organization_invitations\.)?accepted_at\s+IS\s+NULL\s+AND\s+(?:organization_invitations\.)?revoked_at\s+IS\s+NULL\s*;?$/i.test(normalized);
       if (name === "organization_units_root_uidx") return !/\bWHERE\s+(?:organization_units\.)?parent_id\s+IS\s+NULL\s*;?$/i.test(normalized);
       return /\bWHERE\b/i.test(normalized);
     });
@@ -523,6 +528,7 @@ async function initialize() {
     ...WORKSPACE_INVITATION_DDL.map((statement) => d1.prepare(statement)),
     ...ORGANIZATION_DDL.map((statement) => d1.prepare(statement)),
     ...TEAM_ORG_DDL.map((statement) => d1.prepare(statement)),
+    ...SPACE_COLLABORATION_DDL.map((statement) => d1.prepare(statement)),
     d1.prepare("CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(title, excerpt, content, content='posts', content_rowid='id', tokenize='trigram')"),
     d1.prepare(`CREATE TRIGGER IF NOT EXISTS posts_fts_insert AFTER INSERT ON posts BEGIN
       INSERT INTO posts_fts(rowid, title, excerpt, content) VALUES (new.id, new.title, new.excerpt, new.content);
@@ -657,7 +663,8 @@ async function initialize() {
 
   const ownerEmailIdentity = await d1.prepare("SELECT user_id FROM user_identities WHERE provider = 'email' AND subject = ?").bind("zhangqiang8vip@gmail.com").first<{user_id:number}>();
   if (ownerEmailIdentity?.user_id !== 1) throw new Error("Owner email identity does not belong to the existing site owner");
-  for (const statement of [...WORKSPACE_GUARD_TRIGGERS, ...COLLABORATION_GUARDS, ...ORGANIZATION_GUARDS, ...TEAM_ORG_GUARDS]) await d1.prepare(statement).run();
+  for (const statement of [...WORKSPACE_GUARD_TRIGGERS, ...COLLABORATION_GUARDS, ...ORGANIZATION_GUARDS, ...TEAM_ORG_GUARDS, ...SPACE_COLLABORATION_GUARDS]) await d1.prepare(statement).run();
+  await d1.prepare(SPACE_COLLABORATION_BACKFILL).run();
   const searchVersion = await d1.prepare("SELECT value FROM app_meta WHERE key = 'posts_fts_version'").first<{ value: string }>();
   if (searchVersion?.value !== "2") {
     await d1.prepare("INSERT INTO posts_fts(posts_fts) VALUES ('rebuild')").run();
