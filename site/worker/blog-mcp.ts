@@ -10,6 +10,7 @@ import { registerSpaceTools } from "./mcp/space-tools";
 import { registerPersonalKnowledgeTools } from "./mcp/personal-knowledge-tools";
 import { registerOrganizationTools } from "./mcp/organization-tools";
 import { registerPublicKnowledgeTools } from "./mcp/public-knowledge-tools";
+import { registerSpaceCollaborationTools } from "./mcp/space-collaboration-tools";
 
 const MCP_PATH = "/mcp";
 
@@ -54,6 +55,7 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
       registerPublicKnowledgeTools(context);
     }
   }
+  if (auth.userId) registerSpaceCollaborationTools(context);
   return server;
 }
 
