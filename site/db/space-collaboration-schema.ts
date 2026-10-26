@@ -7,7 +7,7 @@ export const SPACE_COLLABORATION_DDL = [
   "CREATE UNIQUE INDEX space_collaboration_invites_token_uidx ON space_collaboration_invites(token_hash);",
   "CREATE UNIQUE INDEX space_collaboration_invites_pending_uidx ON space_collaboration_invites(space_id,email) WHERE accepted_at IS NULL AND revoked_at IS NULL;",
   "CREATE INDEX space_collaboration_invites_space_idx ON space_collaboration_invites(space_id,created_at);",
-  "CREATE TABLE document_revisions (post_id INTEGER NOT NULL, workspace_id INTEGER NOT NULL, space_id INTEGER, version INTEGER NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, actor_user_id INTEGER, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(post_id,version));",
+  "CREATE TABLE document_revisions (post_id INTEGER NOT NULL, workspace_id INTEGER NOT NULL, space_id INTEGER, version INTEGER NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, actor_user_id INTEGER, client_label TEXT NOT NULL DEFAULT 'legacy', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(post_id,version));",
   "CREATE INDEX document_revisions_space_idx ON document_revisions(workspace_id,space_id,post_id,version);",
   "CREATE TABLE document_merge_proposals (id TEXT PRIMARY KEY NOT NULL, post_id INTEGER NOT NULL, workspace_id INTEGER NOT NULL, space_id INTEGER NOT NULL, base_version INTEGER NOT NULL, head_version INTEGER NOT NULL, proposed_content TEXT NOT NULL, actor_user_id INTEGER NOT NULL, client_label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','resolved','cancelled')), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, resolved_at TEXT);",
   "CREATE INDEX document_merge_proposals_post_idx ON document_merge_proposals(post_id,status,created_at);"
