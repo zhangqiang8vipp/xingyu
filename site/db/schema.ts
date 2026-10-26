@@ -543,6 +543,7 @@ export const documentRevisions=sqliteTable("document_revisions",{
   postId:integer("post_id").notNull(),workspaceId:integer("workspace_id").notNull(),
   spaceId:integer("space_id"),version:integer("version").notNull(),title:text("title").notNull(),
   content:text("content").notNull(),actorUserId:integer("actor_user_id"),
+  clientLabel:text("client_label").notNull().default("legacy"),
   createdAt:text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 },t=>[
   primaryKey({columns:[t.postId,t.version]}),
