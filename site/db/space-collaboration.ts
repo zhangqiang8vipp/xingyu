@@ -114,8 +114,10 @@ export async function listCollaborativeSpaces(userId:number){
     "OR (w.kind='organization' AND w.owner_user_id=? AND EXISTS(",
     "SELECT 1 FROM organization_workspaces ow JOIN organizations o ON o.id=ow.organization_id",
     "AND o.owner_user_id=? AND o.status='active' WHERE ow.workspace_id=w.id))",
+    "OR (w.id=1 AND EXISTS(SELECT 1 FROM site_memberships site",
+    "WHERE site.user_id=? AND site.role='owner'))",
     "ORDER BY s.id DESC LIMIT 200",
-  ].join(" ")).bind(userId,userId,userId,userId,userId)
+  ].join(" ")).bind(userId,userId,userId,userId,userId,userId)
     .all<{id:number;name:string;workspaceId:number;workspaceName:string}>();
   const result=[];
   for(const row of rows.results??[]){
