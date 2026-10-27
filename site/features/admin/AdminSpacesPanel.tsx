@@ -302,6 +302,7 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
       onClose={()=>setShareTarget(null)}/>}
     {previewTarget&&<AdminDocumentPreviewDialog key={previewTarget.publicId}
       publicId={previewTarget.publicId} spaceName={previewTarget.spacePath||overview?.name||"知识空间"}
+      initialExcerpt={previewTarget.excerpt} initialCategoryName={previewTarget.categoryName}
       authorName={authorName} avatarUrl={avatarUrl} onClose={()=>setPreviewTarget(null)}/>}
     {dialog&&<SpaceDialog dialog={dialog} impact={dialogImpact} isInvited={overview?.isInvited} isPersonalAccount={isPersonalAccount} name={name} setName={setName} sortOrder={sortOrder} setSortOrder={setSortOrder} moveTarget={moveTarget} setMoveTarget={setMoveTarget} deleteMode={deleteMode} setDeleteMode={setDeleteMode} confirmName={confirmName} setConfirmName={setConfirmName} message={message} onClose={()=>setDialog(null)} onSubmit={submitDialog}/>}
   </section>;

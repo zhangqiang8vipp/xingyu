@@ -682,6 +682,7 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
 
 /* One shared live article preview, including invited coauthors and revisions. */
 .space-document-frontstage.writing-studio{z-index:270}
+.space-document-frontstage.writing-studio>header{grid-template-columns:minmax(0,1fr) auto}
 .space-document-preview-status{min-height:35vh;display:grid;place-items:center;padding:30px;color:var(--admin-muted);text-align:center}
 .space-coauthor-dialog .space-collab-section-heading>button{margin-left:auto}
 .space-article-list button.space-document-delete,.space-coauthor-dialog button.space-collab-danger{color:#bf303d}

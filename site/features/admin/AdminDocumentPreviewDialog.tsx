@@ -9,6 +9,8 @@ type Props={
   publicId?:string;
   draft?:ArticleDraft;
   spaceName:string;
+  initialExcerpt?:string;
+  initialCategoryName?:string;
   authorName:string;
   avatarUrl:string;
   onClose:()=>void;
@@ -21,7 +23,7 @@ type Props={
  * It renders PostPageView, not a separate collaboration-flavored Markdown UI.
  */
 export default function AdminDocumentPreviewDialog({
-  publicId,draft,spaceName,authorName,avatarUrl,onClose,escapeCloses=true,
+  publicId,draft,spaceName,initialExcerpt,initialCategoryName,authorName,avatarUrl,onClose,escapeCloses=true,
 }:Props){
   const [loaded,setLoaded]=useState<ArticleDraft|null>(null);
   const [error,setError]=useState("");
@@ -39,7 +41,7 @@ export default function AdminDocumentPreviewDialog({
         if(controller.signal.aborted)return;
         setLoaded({
           publicId:data.document.publicId,title:data.document.title,content:data.document.content,
-          excerpt:"",publishedAt:null,status:"draft",spaceId:data.document.spaceId,
+          excerpt:initialExcerpt??"",publishedAt:null,status:"draft",spaceId:data.document.spaceId,
           spacePath:data.document.spaceName,
         });
       }catch(cause){
@@ -47,7 +49,7 @@ export default function AdminDocumentPreviewDialog({
       }finally{if(!controller.signal.aborted)setLoading(false);}
     })();
     return()=>controller.abort();
-  },[draft,publicId]);
+  },[draft,initialExcerpt,publicId]);
 
   useEffect(()=>{
     if(!escapeCloses)return;
@@ -72,7 +74,7 @@ export default function AdminDocumentPreviewDialog({
           <button type="button" onClick={onClose}>完成</button></div>
       </header>
       <main>{active?<ArticleFrontstage key={active.publicId??"knowledge-draft"}
-        draft={active} categoryName={active.spacePath??spaceName} categoryColor="#0A84FF"
+        draft={active} categoryName={initialCategoryName||active.spacePath||spaceName} categoryColor="#0A84FF"
         authorName={authorName} avatarUrl={avatarUrl}/>:
         <div className="space-document-preview-status" role={error?"alert":"status"}>
           {loading?"正在读取知识空间文档…":error||"文档暂时无法预览"}
