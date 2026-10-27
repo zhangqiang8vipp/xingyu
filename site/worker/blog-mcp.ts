@@ -23,6 +23,11 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
       websiteUrl: origin,
       icons: [
         {
+          src: `${origin}/xingyu-mcp-icon-64.png`,
+          mimeType: "image/png",
+          sizes: ["64x64"],
+        },
+        {
           src: `${origin}/xingyu-axis-tahoe-glass-icon.svg`,
           mimeType: "image/svg+xml",
           sizes: ["any"],
