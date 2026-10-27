@@ -1,0 +1,43 @@
+name: Manually prune reviewed legacy branches
+
+# Manual only. This workflow NEVER runs on push, PR, or a schedule.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Preview the reviewed allowlist first, or delete verified heads"
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - delete
+      confirm:
+        description: "For delete mode type exactly DELETE-REVIEWED (preview requires no confirmation)"
+        required: false
+        type: string
+
+permissions:
+  contents: write # Git refs deletion only; no workflow or secret write permissions.
+
+concurrency:
+  group: xingyu-manual-branch-prune
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Validate and ${{ inputs.mode }} reviewed branches
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify branch heads and linked PRs before any mutation
+        working-directory: site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PRUNE_MODE: ${{ inputs.mode }}
+          PRUNE_CONFIRM: ${{ inputs.confirm }}
+        run: node scripts/prune-reviewed-branches.mjs
