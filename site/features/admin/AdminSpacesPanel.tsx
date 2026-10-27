@@ -238,7 +238,7 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     {coauthor&&<AdminSpaceCoauthorDialog key={coauthor.publicId??"new-"+coauthor.spaceId} spaceId={coauthor.spaceId}
       spaceName={coauthor.name} publicId={coauthor.publicId} canWrite={coauthor.canWrite} onClose={()=>setCoauthor(null)}
       onUpdated={()=>window.dispatchEvent(new Event("xingyu:spaces-changed"))}/>}
-    {dialog&&<SpaceDialog dialog={dialog} impact={dialogImpact} isInvited={overview?.isInvited} name={name} setName={setName} sortOrder={sortOrder} setSortOrder={setSortOrder} moveTarget={moveTarget} setMoveTarget={setMoveTarget} deleteMode={deleteMode} setDeleteMode={setDeleteMode} confirmName={confirmName} setConfirmName={setConfirmName} message={message} onClose={()=>setDialog(null)} onSubmit={submitDialog}/>}
+    {dialog&&<SpaceDialog dialog={dialog} impact={dialogImpact} isInvited={overview?.isInvited} isPersonalAccount={isPersonalAccount} name={name} setName={setName} sortOrder={sortOrder} setSortOrder={setSortOrder} moveTarget={moveTarget} setMoveTarget={setMoveTarget} deleteMode={deleteMode} setDeleteMode={setDeleteMode} confirmName={confirmName} setConfirmName={setConfirmName} message={message} onClose={()=>setDialog(null)} onSubmit={submitDialog}/>}
   </section>;
 }
 
