@@ -48,3 +48,23 @@ test("all integration case names are literal and source registration count is de
   const heavy = cases.filter(c=>c.file.endsWith("post-write-contracts.test.mjs"));
   assert.equal(heavy.length, 38, "Split the monolithic 38-case D1 write suite completely");
 });
+
+
+test("required CI verifies every shard and restores only exact-lock dependency caches", () => {
+  const workflow = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
+  assert.match(workflow, /name: CI/);
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /branches: \[main\]/);
+  assert.match(workflow, /name: verify/);
+  assert.match(workflow, /needs: \[lint, types, build, integration\]/);
+  assert.match(workflow, /if: \$\{\{ always\(\) \}\}/);
+  assert.match(workflow, /Worker\/D1 case shard/);
+  assert.match(workflow, /max-parallel: 16/);
+  assert.match(workflow, /actions\/cache\/restore@v4/);
+  assert.match(workflow, /actions\/cache\/save@v4/);
+  assert.match(workflow, /hashFiles\('site\/package-lock\.json'\)/);
+  assert.match(workflow, /steps\.modules\.outputs\.cache-hit != 'true'/);
+  assert.match(workflow, /npm ci --prefer-offline --no-audit --no-fund/);
+  assert.match(workflow, /Run and verify exactly assigned integration test cases/);
+  assert.match(workflow, /Required CI coverage failed, skipped or was cancelled/);
+});
