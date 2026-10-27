@@ -5,7 +5,8 @@ import { readApiJson } from "@/app/api-response";
 
 type PreviewLink={id:number;expiresAt:number;createdAt:string;revokedAt:string|null;lastViewedAt:string|null;viewCount:number;active:boolean};
 
-export default function AdminPreviewShareDialog({post,onClose}:{post:{id:number;title:string};onClose:()=>void}){
+export default function AdminPreviewShareDialog({post,onClose,apiPath}:{post:{id:number;title:string};onClose:()=>void;apiPath?:string}){
+  const endpoint=apiPath??`/api/posts/${post.id}/preview-links`;
   const [links,setLinks]=useState<PreviewLink[]>([]);
   const [lifetime,setLifetime]=useState(7*24*60*60);
   const [generatedUrl,setGeneratedUrl]=useState("");
@@ -16,7 +17,7 @@ export default function AdminPreviewShareDialog({post,onClose}:{post:{id:number;
   useEffect(()=>{
     const controller=new AbortController();
     void (async()=>{
-      const response=await fetch(`/api/posts/${post.id}/preview-links`,{cache:"no-store",signal:controller.signal});
+      const response=await fetch(endpoint,{cache:"no-store",signal:controller.signal});
       const data=await readApiJson<{links:PreviewLink[]}>(response);
       if(controller.signal.aborted)return;
       if(response.ok)setLinks(data.links??[]);else setMessage(data.error??"读取预览链接失败");
@@ -27,7 +28,7 @@ export default function AdminPreviewShareDialog({post,onClose}:{post:{id:number;
       setLoading(false);
     });
     return()=>controller.abort();
-  },[post.id]);
+  },[endpoint]);
   useEffect(()=>{
     const close=(event:KeyboardEvent)=>{if(event.key==="Escape")onClose()};
     window.addEventListener("keydown",close);return()=>window.removeEventListener("keydown",close);
@@ -35,7 +36,7 @@ export default function AdminPreviewShareDialog({post,onClose}:{post:{id:number;
 
   async function create(){
     setWorking(true);setMessage("");setGeneratedUrl("");
-    const response=await fetch(`/api/posts/${post.id}/preview-links`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({lifetimeSeconds:lifetime})});
+    const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({lifetimeSeconds:lifetime})});
     const data=await readApiJson<{url:string;link:PreviewLink}>(response);
     if(response.ok){setGeneratedUrl(data.url);setLinks((current)=>[data.link,...current]);setMessage("新链接已生成。原始令牌只在本次窗口中显示，请立即复制。")}
     else setMessage(data.error??"预览链接生成失败");
@@ -49,7 +50,7 @@ export default function AdminPreviewShareDialog({post,onClose}:{post:{id:number;
   }
 
   async function revoke(previewId:number){
-    const response=await fetch(`/api/posts/${post.id}/preview-links`,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({previewId})});
+    const response=await fetch(endpoint,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({previewId})});
     if(response.ok){setLinks((current)=>current.map((link)=>link.id===previewId?{...link,active:false,revokedAt:new Date().toISOString()}:link));setMessage("链接已撤销，继续访问会立即失效。")}
     else setMessage("链接撤销失败，请稍后再试");
   }

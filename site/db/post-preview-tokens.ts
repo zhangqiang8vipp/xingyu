@@ -60,10 +60,10 @@ export async function resolvePostPreviewToken(token: string, trackView = false) 
   const tokenHash = await sha256Hex(token);
   const now = Math.floor(Date.now() / 1000);
   const grant = await env.DB.prepare(`SELECT t.id, t.post_id AS postId, t.expires_at AS expiresAt,
-      p.public_id AS postPublicId
+      p.public_id AS postPublicId, p.workspace_id AS workspaceId
     FROM post_preview_tokens t JOIN posts p ON p.id = t.post_id
     WHERE t.token_hash = ? AND t.revoked_at IS NULL AND t.expires_at > ? LIMIT 1`)
-    .bind(tokenHash, now).first<{ id: number; postId: number; expiresAt: number; postPublicId: string }>();
+    .bind(tokenHash, now).first<{ id: number; postId: number; expiresAt: number; postPublicId: string; workspaceId:number }>();
   if (!grant) return null;
   if (trackView) {
     await env.DB.prepare(`UPDATE post_preview_tokens SET view_count = view_count + 1,

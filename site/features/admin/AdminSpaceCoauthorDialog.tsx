@@ -2,6 +2,7 @@
 
 import { useCallback,useEffect,useState } from "react";
 import VditorEditor from "./VditorEditor";
+import MarkdownRenderer from "../markdown/MarkdownRenderer";
 
 type Document={publicId:string;title:string;content:string;version:number;canRead?:boolean;canWrite:boolean;canManage:boolean};
 type Revision={version:number;actorUserId:number|null;clientLabel?:string;createdAt:string;contentLength:number};
@@ -19,8 +20,8 @@ async function request<T>(url:string,method="GET",body?:object):Promise<Result<T
   return result;
 }
 
-export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,canWrite,onClose,onUpdated}:{
-  spaceId:number;spaceName:string;publicId?:string;canWrite:boolean;onClose:()=>void;onUpdated:()=>void;
+export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,canWrite,initialPreview=false,onShare,onClose,onUpdated}:{
+  spaceId:number;spaceName:string;publicId?:string;canWrite:boolean;initialPreview?:boolean;onShare?:()=>void;onClose:()=>void;onUpdated:()=>void;
 }){
   const [doc,setDoc]=useState<Document|null>(null);
   const [title,setTitle]=useState("");
@@ -34,6 +35,7 @@ export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,can
   const [conflict,setConflict]=useState<{proposalId:string;current:string;proposed:string;headVersion:number}|null>(null);
   const [resolved,setResolved]=useState("");
   const [preview,setPreview]=useState<{version:number;content:string}|null>(null);
+  const [previewMode,setPreviewMode]=useState(initialPreview);
   const path="/api/space-collaboration/documents/"+encodeURIComponent(publicId??"");
   const load=useCallback(async()=>{
     if(!publicId)return;
@@ -132,6 +134,28 @@ export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,can
     }catch(e){setNotice(e instanceof Error?e.message:"恢复失败");}
     finally{setBusy(false);}
   }
+  async function renameDocument(){
+    if(!doc?.canWrite||busy)return;
+    const next=window.prompt("修改文档标题",doc.title);
+    if(next===null||next.trim()===doc.title)return;
+    setBusy(true);setNotice("");
+    try{
+      await request<Proposed>(path,"PATCH",{action:"rename",baseVersion:doc.version,title:next.trim()});
+      await load();onUpdated();setNotice("文档已重命名，并记录新版本。");
+    }catch(e){setNotice(e instanceof Error?e.message:"重命名失败");}
+    finally{setBusy(false);}
+  }
+  async function deleteDocument(){
+    if(!doc?.canManage||busy||!publicId)return;
+    const typed=window.prompt("删除不可恢复。请输入「"+doc.title+"」确认：");
+    if(typed!==doc.title)return;
+    setBusy(true);setNotice("");
+    try{
+      await request<{deleted:boolean}>(path,"DELETE",{expectedVersion:doc.version,confirmTitle:typed});
+      onUpdated();onClose();
+    }catch(e){setNotice(e instanceof Error?e.message:"文档删除失败");}
+    finally{setBusy(false);}
+  }
   const editable=publicId?Boolean(doc?.canWrite):canWrite;
   return <div className="space-dialog-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}>
     <section className="space-dialog space-coauthor-dialog" role="dialog" aria-modal="true" aria-label={publicId?"协作文档":"新建协作文档"}>
@@ -144,9 +168,12 @@ export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,can
         {!publicId&&editable?<label className="space-coauthor-title">文章标题<input maxLength={200} required
           placeholder="例如：项目交接清单" value={title} onChange={e=>setTitle(e.target.value)} disabled={busy}/></label>:null}
         {(!publicId||doc)&&<section className="space-coauthor-content">
-          <div className="space-collab-section-heading"><h3>Markdown 正文</h3>
-            <span>{editable?"版本保存 · 自动合并非冲突修改":"只读权限"}</span></div>
-          {editable?<VditorEditor key={editorKey} value={content} onChange={setContent} attachments={false}/>:<pre className="space-coauthor-readonly">{content||"（文档暂无正文）"}</pre>}
+          <div className="space-collab-section-heading"><h3>{previewMode?"正文预览":"Markdown 正文"}</h3>
+            <button type="button" className="space-collab-subtle" onClick={()=>setPreviewMode(value=>!value)}>
+              {previewMode?"返回编辑":"预览正文"}</button></div>
+          {previewMode?<div className="space-coauthor-live-preview prose markdown-body">
+            <MarkdownRenderer>{content||"（文档暂无正文）"}</MarkdownRenderer>
+          </div>:editable?<VditorEditor key={editorKey} value={content} onChange={setContent} attachments={false}/>:<pre className="space-coauthor-readonly">{content||"（文档暂无正文）"}</pre>}
         </section>}
         {conflict?<section className="space-coauthor-conflict">
           <div className="space-collab-section-heading"><h3>需要人工审核的并发冲突</h3><span>当前 V{conflict.headVersion}</span></div>
@@ -184,6 +211,9 @@ export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,can
       </div>
       <footer>
         <button type="button" onClick={onClose}>关闭</button>
+        {publicId&&doc?.canWrite?<button type="button" disabled={busy} onClick={()=>void renameDocument()}>重命名</button>:null}
+        {publicId&&doc?.canWrite&&onShare?<button type="button" disabled={busy} onClick={onShare}>分享</button>:null}
+        {publicId&&doc?.canManage?<button type="button" className="space-collab-danger" disabled={busy} onClick={()=>void deleteDocument()}>删除</button>:null}
         {editable?<button className="space-collab-primary" type="button" disabled={busy||loading||(!publicId&&!title.trim())}
           onClick={()=>void save()}>{busy?"正在处理…":publicId?"保存并合并":"创建草稿"}</button>:null}
       </footer>

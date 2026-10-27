@@ -682,3 +682,9 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
   .space-coauthor-revisions summary span{float:none;display:block;margin-top:5px}
   .space-section-heading{flex-wrap:wrap}
 }
+
+/* Knowledge document actions: preview follows the existing reading typography. */
+.space-coauthor-live-preview{min-height:240px;padding:22px 25px;border:1px solid var(--admin-line);border-radius:14px;background:var(--admin-panel);color:var(--admin-ink);overflow-wrap:anywhere}
+.space-coauthor-dialog .space-collab-section-heading>button{margin-left:auto}
+.space-article-list button.space-document-delete,.space-coauthor-dialog button.space-collab-danger{color:#bf303d}
+html[data-theme="dark"] .space-article-list button.space-document-delete,html[data-theme="dark"] .space-coauthor-dialog button.space-collab-danger{color:#ff8790}

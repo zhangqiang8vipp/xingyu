@@ -137,8 +137,10 @@ test("subspaces inherit permissions until an admin restricts them; invitations f
     assert.equal((await api(h,"/api/space-collaboration/"+childId,{cookie:invited.cookie})).status,200);
     const disposable=await api(h,parent,{method:"POST",cookie:invited.cookie,body:{action:"create_child",name:"Temporary empty child"}});
     assert.equal(disposable.status,201);
-    const removed=await api(h,"/api/space-collaboration/"+disposable.body.result.id,{method:"POST",cookie:invited.cookie,body:{action:"delete_empty"}});
-    assert.equal(removed.status,200,"invited editor may safely remove an empty unshared child");
+    const disallowed=await api(h,"/api/space-collaboration/"+disposable.body.result.id,{method:"POST",cookie:invited.cookie,body:{action:"delete_empty"}});
+    assert.equal(disallowed.status,403,"editors must not delete any shared space");
+    const removed=await api(h,"/api/space-collaboration/"+disposable.body.result.id,{method:"POST",cookie:owner.cookie,body:{action:"delete_empty"}});
+    assert.equal(removed.status,200,"only owner/admin may remove an empty child");
     const restricted=await api(h,"/api/space-collaboration/"+childId,{method:"POST",cookie:owner.cookie,
       body:{action:"set_inheritance",enabled:false}});
     assert.equal(restricted.status,200);
@@ -411,5 +413,83 @@ test("site Owner email identity can invite and edit original site knowledge spac
     assert.equal(created.status,201,JSON.stringify(created.body));
     const childId=created.body.result.id;
     assert.equal((await api(h,"/api/spaces/"+childId,{cookie:siteOwner.cookie})).status,200);
+  }finally{await closeTestHarness(h);}
+});
+
+test("invited editors can preview, rename and share a single private document while deletion stays manager-only",async()=>{
+  const h=await openTestHarness();
+  try{
+    const owner=await makeActiveUser(h,"permissions-owner");
+    const editor=await makeActiveUser(h,"permissions-editor");
+    const viewer=await makeActiveUser(h,"permissions-viewer");
+    const outsider=await makeActiveUser(h,"permissions-outsider");
+    const root=await rootOf(h,owner.workspaceId);
+    const sibling=(await h.db.prepare("INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(?,NULL,'Private other',?) RETURNING id")
+      .bind(owner.workspaceId,"other-"+randomBytes(5).toString("hex")).first()).id;
+    const editorToken=await invite(h,root,owner.workspaceId,editor.email,owner.id);
+    const viewerToken=await invite(h,root,owner.workspaceId,viewer.email,owner.id,"viewer");
+    assert.equal((await api(h,"/api/space-invitations",{cookie:editor.cookie,method:"POST",body:{token:editorToken}})).status,200);
+    assert.equal((await api(h,"/api/space-invitations",{cookie:viewer.cookie,method:"POST",body:{token:viewerToken}})).status,200);
+    const secret=await api(h,"/api/space-collaboration/"+sibling,{cookie:owner.cookie,method:"POST",body:{
+      action:"create_document",title:"Not invited",content:"UNRELATED-SECRET-CONTENT",
+    }});
+    assert.equal(secret.status,201);
+    const created=await api(h,"/api/space-collaboration/"+root,{cookie:owner.cookie,method:"POST",body:{
+      action:"create_document",title:"Team knowledge",content:"# SAFE-COLLAB-READER\\nOnly shared content",
+    }});
+    assert.equal(created.status,201,JSON.stringify(created.body));
+    const id=created.body.result.publicId;
+    const docPath="/api/space-collaboration/documents/"+encodeURIComponent(id);
+    const sharePath=docPath+"/preview-links";
+
+    const read=await api(h,docPath,{cookie:viewer.cookie});
+    assert.equal(read.status,200,"viewers retain read access");
+    assert.equal(read.body.document.canWrite,false);
+    assert.equal((await api(h,sharePath,{cookie:viewer.cookie,method:"POST",body:{lifetimeSeconds:86400}})).status,403);
+    assert.equal((await api(h,sharePath,{cookie:outsider.cookie})).status,404);
+    assert.equal((await api(h,sharePath,{cookie:outsider.cookie,method:"POST",body:{lifetimeSeconds:86400}})).status,404);
+    assert.equal((await api(h,docPath,{cookie:viewer.cookie,method:"PATCH",body:{
+      action:"rename",title:"Unauthorized",baseVersion:1,
+    }})).status,403);
+
+    const renamed=await api(h,docPath,{cookie:editor.cookie,method:"PATCH",body:{
+      action:"rename",title:"Team knowledge updated",baseVersion:1,
+    }});
+    assert.equal(renamed.status,200,JSON.stringify(renamed.body));
+    assert.equal(renamed.body.result.version,2);
+    assert.equal((await api(h,docPath,{cookie:owner.cookie})).body.document.title,"Team knowledge updated");
+    const createdLink=await api(h,sharePath,{cookie:editor.cookie,method:"POST",body:{lifetimeSeconds:86400}});
+    assert.equal(createdLink.status,201,JSON.stringify(createdLink.body));
+    const url=new URL(createdLink.body.url);
+    assert.equal(url.pathname.startsWith("/preview/pv_"),true);
+    const preview=await jsonRequest(h,url.pathname);
+    assert.equal(preview.status,200,"private preview token must render a single scoped document");
+    const html=await preview.text();
+    assert.match(html,/SAFE-COLLAB-READER/);
+    assert.doesNotMatch(html,/UNRELATED-SECRET-CONTENT/);
+    const linkList=await api(h,sharePath,{cookie:editor.cookie});
+    assert.equal(linkList.status,200);
+    assert.ok(linkList.body.links.some(link=>link.id===createdLink.body.link.id&&link.active));
+    const revoked=await api(h,sharePath,{cookie:editor.cookie,method:"DELETE",body:{previewId:createdLink.body.link.id}});
+    assert.equal(revoked.status,200);
+    assert.equal((await jsonRequest(h,url.pathname)).status,404,"revoked links must stop working");
+    const forDelete=await api(h,sharePath,{cookie:owner.cookie,method:"POST",body:{lifetimeSeconds:86400}});
+    assert.equal(forDelete.status,201);
+
+    const badDelete={expectedVersion:2,confirmTitle:"Team knowledge updated"};
+    assert.equal((await api(h,docPath,{cookie:viewer.cookie,method:"DELETE",body:badDelete})).status,403);
+    assert.equal((await api(h,docPath,{cookie:editor.cookie,method:"DELETE",body:badDelete})).status,403);
+    assert.equal((await api(h,docPath,{cookie:owner.cookie,method:"DELETE",body:{
+      expectedVersion:1,confirmTitle:"Team knowledge updated",
+    }})).status,409,"stale versions must not delete");
+    assert.equal((await api(h,docPath,{cookie:owner.cookie,method:"DELETE",body:{
+      expectedVersion:2,confirmTitle:"wrong title",
+    }})).status,409,"title confirmation is required");
+    assert.equal((await api(h,docPath,{cookie:owner.cookie,method:"DELETE",body:badDelete})).status,200);
+    assert.equal((await api(h,docPath,{cookie:owner.cookie})).status,404);
+    assert.equal((await jsonRequest(h,new URL(forDelete.body.url).pathname)).status,404,"deletion invalidates preview links");
+    const row=await h.db.prepare("SELECT COUNT(*) AS n FROM document_revisions WHERE post_id=?")
+      .bind(created.body.result.id).first();
+    assert.equal(row.n,0,"deletion trigger must clean document history");
   }finally{await closeTestHarness(h);}
 });

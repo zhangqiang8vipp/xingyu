@@ -7,11 +7,12 @@ import AdminSpacePicker, { type SpaceChoice } from "./AdminSpacePicker";
 import AdminKnowledgeImport from "./AdminKnowledgeImport";
 import AdminSpaceCollaborationDialog from "./AdminSpaceCollaborationDialog";
 import AdminSpaceCoauthorDialog from "./AdminSpaceCoauthorDialog";
+import AdminPreviewShareDialog from "./AdminPreviewShareDialog";
 
 type SpaceNode={id:number;parentId:number|null;name:string;slug:string;sortOrder:number;childCount:number;articleCount:number;totalArticleCount?:number;latestActivityAt?:string;childPreview?:string|null;updatedAt:string;path?:PathNode[];isInvited?:boolean;ancestorOnly?:boolean;canRead?:boolean;canWrite?:boolean;canManage?:boolean;role?:string|null};
 type PathNode={id:number;parentId:number|null;name:string;slug:string};
 type Overview=SpaceNode&{path:PathNode[];children:SpaceNode[];descendantCount:number;articleCount:number};
-type SpacePost={id:number;publicId:string;title:string;slug:string;excerpt:string;status:"draft"|"published";categoryName:string;updatedAt:string;spaceId:number;spacePath:string;sortOrder:number};
+type SpacePost={id:number;publicId:string;title:string;slug:string;excerpt:string;status:"draft"|"published";categoryName:string;updatedAt:string;spaceId:number;spacePath:string;sortOrder:number;canWrite?:boolean;canManage?:boolean};
 type DialogState={kind:"create"|"rename"|"sort"|"move"|"delete";target?:SpaceNode};
 type DialogImpact={descendantCount:number;articleCount:number}|null;
 
@@ -40,7 +41,8 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
   const [expandedGroupId,setExpandedGroupId]=useState<number|null>(null);
   const [dialogImpact,setDialogImpact]=useState<DialogImpact>(null);
   const [collabTarget,setCollabTarget]=useState<SpaceNode|null>(null);
-  const [coauthor,setCoauthor]=useState<{publicId?:string;spaceId:number;name:string;canWrite:boolean}|null>(null);
+  const [coauthor,setCoauthor]=useState<{publicId?:string;spaceId:number;name:string;canWrite:boolean;initialPreview?:boolean}|null>(null);
+  const [shareTarget,setShareTarget]=useState<{id:number;publicId:string;title:string}|null>(null);
   const loadRequest=useRef(0);
 
   const selectSpace=(spaceId:number|null)=>{
@@ -155,7 +157,7 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     setTreeVersion((version)=>version+1);
   };
   const deleteInvitedEmptySpace=async(target:SpaceNode)=>{
-    if(!target.isInvited||target.canWrite===false||target.ancestorOnly||target.parentId===null)return;
+    if(!target.isInvited||target.canManage!==true||target.ancestorOnly||target.parentId===null)return;
     if(!window.confirm("仅能删除完全空白的子空间「"+target.name+"」，确定继续？"))return;
     setMessage("");
     try{
@@ -184,14 +186,48 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     else postGroups.push({spaceId:post.spaceId,path:post.spacePath,rows:[post]});
   }
   const openGroupId=expandedGroupId===-1?-1:postGroups.some((group)=>group.spaceId===expandedGroupId)?expandedGroupId:postGroups[0]?.spaceId;
-  const renderPost=(post:SpacePost)=><article key={post.id}><div><small>{post.categoryName} · {post.status==="published"?"内容完成":"草稿"} · {new Date(post.updatedAt).toLocaleDateString("zh-CN",{month:"2-digit",day:"2-digit"})}</small><b>{post.title}</b><p>{post.excerpt||"暂无摘要"}</p></div><div>
-    {overview?.isInvited?<button onClick={()=>setCoauthor({publicId:post.publicId,spaceId:post.spaceId,name:overview.name,canWrite})}>{canWrite?"共创编辑":"阅读"}</button>:<>
-      <button onClick={()=>onBrowseArticle(post.id,readerContext)}>浏览</button>
-      {!isPersonalAccount&&<button onClick={()=>onShareArticle(post)}>分享</button>}
-      <button onClick={()=>onEditArticle(post.id)}>编辑 ↗</button>
-      <button onClick={()=>setCoauthor({publicId:post.publicId,spaceId:post.spaceId,name:overview?.name??"知识空间",canWrite:true})}>版本共创</button>
-    </>}
-  </div></article>;
+  const deletePost=async(post:SpacePost)=>{
+    const typed=window.prompt("删除后不可恢复。请输入文档标题「"+post.title+"」确认删除：");
+    if(typed===null)return;
+    if(typed!==post.title){setMessage("文档名称不匹配，已取消删除");return;}
+    try{
+      const path="/api/space-collaboration/documents/"+encodeURIComponent(post.publicId);
+      const current=await fetch(path,{cache:"no-store"});
+      const loaded=await readApiJson<{document?:{title:string;version:number};error?:string}>(current);
+      if(!current.ok||!loaded.document){setMessage(loaded.error??"无法读取最新文档版本");return;}
+      if(loaded.document.title!==typed){setMessage("标题已经发生变化，请刷新页面后确认");return;}
+      const response=await fetch(path,{method:"DELETE",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({expectedVersion:loaded.document.version,confirmTitle:typed})});
+      const data=await readApiJson<{error?:string}>(response);
+      if(!response.ok){setMessage(data.error??"删除失败");return;}
+      setCoauthor(null);setShareTarget(null);
+      setMessage("文档已删除，相关预览链接已失效");
+      await Promise.all([loadRoots(),loadCurrent()]);
+      setTreeVersion(v=>v+1);
+    }catch(e){setMessage(e instanceof Error?e.message:"删除失败");}
+  };
+  const renderPost=(post:SpacePost)=>{
+    const mayWrite=post.canWrite??canWrite;
+    const mayDelete=post.canManage??canManage;
+    const openDocument=(initialPreview=false)=>setCoauthor({
+      publicId:post.publicId,spaceId:post.spaceId,name:overview?.name??"知识空间",
+      canWrite:mayWrite,initialPreview,
+    });
+    return <article key={post.id}><div><small>{post.categoryName} · {post.status==="published"?"内容完成":"草稿"} · {new Date(post.updatedAt).toLocaleDateString("zh-CN",{month:"2-digit",day:"2-digit"})}</small><b>{post.title}</b><p>{post.excerpt||"暂无摘要"}</p></div><div>
+      {overview?.isInvited?<><button onClick={()=>openDocument(true)}>预览</button>
+        {mayWrite?<button onClick={()=>setShareTarget(post)}>分享</button>:null}
+        <button onClick={()=>openDocument()}>{mayWrite?"共创编辑":"阅读"}</button>
+      </>:<>
+        <button onClick={()=>onBrowseArticle(post.id,readerContext)}>浏览</button>
+        <button onClick={()=>openDocument(true)}>预览</button>
+        {mayWrite?(!isPersonalAccount?<button onClick={()=>onShareArticle(post)}>分享</button>
+          :<button onClick={()=>setShareTarget(post)}>分享</button>):null}
+        {mayWrite?<button onClick={()=>onEditArticle(post.id)}>编辑 ↗</button>:null}
+        <button onClick={()=>openDocument()}>版本共创</button>
+      </>}
+      {mayDelete?<button className="space-document-delete" onClick={()=>void deletePost(post)}>删除</button>:null}
+    </div></article>;
+  };
 
   if(!currentId)return <section className="admin-main spaces-root">
     <header className="admin-header"><div><p>KNOWLEDGE SPACES</p><h1>知识空间</h1><span>顶级空间彼此独立；个人空间与受邀共创空间集中管理，权限互不混淆。</span></div><button className="new-button" onClick={()=>beginDialog("create")}>＋ 新建顶级空间</button></header>
@@ -254,8 +290,13 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     {collabTarget&&<AdminSpaceCollaborationDialog spaceId={collabTarget.id} spaceName={collabTarget.name} onClose={()=>setCollabTarget(null)}
       onUpdated={()=>window.dispatchEvent(new Event("xingyu:spaces-changed"))}/>}
     {coauthor&&<AdminSpaceCoauthorDialog key={coauthor.publicId??"new-"+coauthor.spaceId} spaceId={coauthor.spaceId}
-      spaceName={coauthor.name} publicId={coauthor.publicId} canWrite={coauthor.canWrite} onClose={()=>setCoauthor(null)}
-      onUpdated={()=>window.dispatchEvent(new Event("xingyu:spaces-changed"))}/>}
+      spaceName={coauthor.name} publicId={coauthor.publicId} canWrite={coauthor.canWrite} initialPreview={coauthor.initialPreview}
+      onShare={coauthor.publicId?()=>{const target=posts.find(row=>row.publicId===coauthor.publicId);
+        if(target){setCoauthor(null);setShareTarget(target);}}:undefined}
+      onClose={()=>setCoauthor(null)} onUpdated={()=>window.dispatchEvent(new Event("xingyu:spaces-changed"))}/>}
+    {shareTarget&&<AdminPreviewShareDialog post={shareTarget}
+      apiPath={"/api/space-collaboration/documents/"+encodeURIComponent(shareTarget.publicId)+"/preview-links"}
+      onClose={()=>setShareTarget(null)}/>}
     {dialog&&<SpaceDialog dialog={dialog} impact={dialogImpact} isInvited={overview?.isInvited} isPersonalAccount={isPersonalAccount} name={name} setName={setName} sortOrder={sortOrder} setSortOrder={setSortOrder} moveTarget={moveTarget} setMoveTarget={setMoveTarget} deleteMode={deleteMode} setDeleteMode={setDeleteMode} confirmName={confirmName} setConfirmName={setConfirmName} message={message} onClose={()=>setDialog(null)} onSubmit={submitDialog}/>}
   </section>;
 }
@@ -301,7 +342,7 @@ function SpaceActions({space,onAction,onCollaborate,onDeleteEmpty}:{
   const isOwnerSpace=!space.isInvited;
   const mayManage=space.canManage!==false&&!space.ancestorOnly;
   const mayEditLegacy=isOwnerSpace&&!space.ancestorOnly;
-  const mayDeleteEmpty=Boolean(space.isInvited&&space.canWrite!==false&&space.parentId!==null&&!space.ancestorOnly);
+  const mayDeleteEmpty=Boolean(space.isInvited&&space.canManage===true&&space.parentId!==null&&!space.ancestorOnly);
   useEffect(()=>{
     if(!open)return;
     const close=(event:PointerEvent)=>{if(!rootRef.current?.contains(event.target as Node))setOpen(false)};
