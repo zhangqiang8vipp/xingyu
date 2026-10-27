@@ -53,9 +53,11 @@ export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,can
   useEffect(()=>{
     if(!publicId)return;
     let active=true;
-    void load().catch(e=>{if(active)setNotice(e instanceof Error?e.message:"文档读取失败");})
-      .finally(()=>{if(active)setLoading(false);});
-    return()=>{active=false;};
+    const timer=window.setTimeout(()=>{
+      void load().catch(e=>{if(active)setNotice(e instanceof Error?e.message:"文档读取失败");})
+        .finally(()=>{if(active)setLoading(false);});
+    },0);
+    return()=>{active=false;window.clearTimeout(timer);};
   },[load,publicId]);
   useEffect(()=>{
     const dismiss=(event:KeyboardEvent)=>{if(event.key==="Escape")onClose();};
