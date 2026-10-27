@@ -68,3 +68,23 @@ test("required CI verifies every shard and restores only exact-lock dependency c
   assert.match(workflow, /Run and verify exactly assigned integration test cases/);
   assert.match(workflow, /Required CI coverage failed, skipped or was cancelled/);
 });
+
+
+test("measured case durations improve scheduling only, never test selection or security coverage", () => {
+  const profile = JSON.parse(readFileSync(new URL("../scripts/ci-case-durations.json", import.meta.url), "utf8"));
+  assert.deepEqual(profile.sourceRuns, [40445101257, 40445251093]);
+  const cases = discoverIntegrationCases(manifest);
+  assert.equal(new Set(cases.map(c => c.name)).size, cases.length);
+  for (const item of cases) {
+    const measured = profile.msByName[item.name];
+    if (measured !== undefined) {
+      assert.ok(Number.isFinite(measured) && measured > 0, "Invalid measured case duration");
+      assert.equal(item.weight, measured);
+    } else {
+      assert.ok(item.weight > 0, "New test case must get a safe fallback weight");
+    }
+  }
+  assert.ok(cases.some(c => c.name.includes("repeat logins do not trigger throttling") && c.weight > 10000));
+  assert.ok(cases.some(c => c.name.includes("two AI clients merge independent Markdown edits")));
+  assert.equal(assertCompleteCoverage(cases, planCaseShards(cases, 16)), cases.length);
+});

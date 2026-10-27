@@ -11,6 +11,8 @@ import ts from "typescript";
 import { listedIntegrationTests } from "./ci-integration-shard.mjs";
 
 const SITE_ROOT = fileURLToPath(new URL("../", import.meta.url));
+const DURATION_PROFILE = JSON.parse(readFileSync(new URL("./ci-case-durations.json", import.meta.url), "utf8"));
+const CASE_DURATION_MS = DURATION_PROFILE.msByName;
 // Baseline average runtime by file from green run 40440895386.
 // Weights affect scheduling only, never coverage.
 const AVERAGE_MS_BY_FILE = {
@@ -59,7 +61,12 @@ export function discoverIntegrationCases(manifest, root = SITE_ROOT) {
     visit(tree);
     if (!names.length) throw new Error("No statically registered tests in " + file);
     const base = path.basename(file, ".test.mjs");
-    for (const name of names) cases.push({file, name, weight: AVERAGE_MS_BY_FILE[base] ?? 4000});
+    for (const name of names) {
+      const measured = CASE_DURATION_MS[name];
+      const weight = Number.isFinite(measured) && measured > 0
+        ? measured : (AVERAGE_MS_BY_FILE[base] ?? 4000);
+      cases.push({file, name, weight});
+    }
   }
   return cases;
 }
