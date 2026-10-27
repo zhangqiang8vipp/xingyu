@@ -5,8 +5,10 @@ import { readApiJson } from "@/app/api-response";
 import type { AdminReaderContext } from "@/domain/reader/admin-reader-context";
 import AdminSpacePicker, { type SpaceChoice } from "./AdminSpacePicker";
 import AdminKnowledgeImport from "./AdminKnowledgeImport";
+import AdminSpaceCollaborationDialog from "./AdminSpaceCollaborationDialog";
+import AdminSpaceCoauthorDialog from "./AdminSpaceCoauthorDialog";
 
-type SpaceNode={id:number;parentId:number|null;name:string;slug:string;sortOrder:number;childCount:number;articleCount:number;totalArticleCount?:number;latestActivityAt?:string;childPreview?:string|null;updatedAt:string;path?:PathNode[]};
+type SpaceNode={id:number;parentId:number|null;name:string;slug:string;sortOrder:number;childCount:number;articleCount:number;totalArticleCount?:number;latestActivityAt?:string;childPreview?:string|null;updatedAt:string;path?:PathNode[];isInvited?:boolean;ancestorOnly?:boolean;canRead?:boolean;canWrite?:boolean;canManage?:boolean;role?:string|null};
 type PathNode={id:number;parentId:number|null;name:string;slug:string};
 type Overview=SpaceNode&{path:PathNode[];children:SpaceNode[];descendantCount:number;articleCount:number};
 type SpacePost={id:number;publicId:string;title:string;slug:string;excerpt:string;status:"draft"|"published";categoryName:string;updatedAt:string;spaceId:number;spacePath:string;sortOrder:number};
@@ -37,6 +39,8 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
   const [treeVersion,setTreeVersion]=useState(0);
   const [expandedGroupId,setExpandedGroupId]=useState<number|null>(null);
   const [dialogImpact,setDialogImpact]=useState<DialogImpact>(null);
+  const [collabTarget,setCollabTarget]=useState<SpaceNode|null>(null);
+  const [coauthor,setCoauthor]=useState<{publicId?:string;spaceId:number;name:string;canWrite:boolean}|null>(null);
   const loadRequest=useRef(0);
 
   const selectSpace=(spaceId:number|null)=>{
@@ -130,7 +134,9 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     const target=dialog.target;
     let response:Response;
     if(dialog.kind==="create"){
-      response=await fetch("/api/spaces",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,parentId:currentId,sortOrder:Number(sortOrder)})});
+      response=currentId&&overview?.isInvited
+        ?await fetch("/api/space-collaboration/"+currentId,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"create_child",name})})
+        :await fetch("/api/spaces",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,parentId:currentId,sortOrder:Number(sortOrder)})});
     }else if(dialog.kind==="rename"&&target){
       response=await fetch(`/api/spaces/${target.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});
     }else if(dialog.kind==="sort"&&target){
@@ -147,7 +153,13 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     await Promise.all([loadRoots(),loadCurrent()]);
     setTreeVersion((version)=>version+1);
   };
-  const currentActions=overview?{id:overview.id,parentId:overview.parentId,name:overview.name,slug:overview.slug,sortOrder:overview.sortOrder,childCount:overview.children.length,articleCount:overview.articleCount,updatedAt:overview.updatedAt}:undefined;
+  const currentActions=overview?{id:overview.id,parentId:overview.parentId,name:overview.name,slug:overview.slug,sortOrder:overview.sortOrder,
+    childCount:overview.children.length,articleCount:overview.articleCount,updatedAt:overview.updatedAt,
+    isInvited:overview.isInvited,ancestorOnly:overview.ancestorOnly,canManage:overview.canManage,canWrite:overview.canWrite,role:overview.role}:undefined;
+  const canRead=Boolean(overview&&!overview.ancestorOnly&&overview.canRead!==false);
+  const canWrite=Boolean(canRead&&overview?.canWrite!==false);
+  const canManage=Boolean(canRead&&overview?.canManage!==false);
+  const sharedRole=overview?.role==="viewer"?"只读":overview?.role==="editor"?"可编辑":overview?.role==="admin"?"管理员":"所有者";
   const postGroups:{spaceId:number;path:string;rows:SpacePost[]}[]=[];
   for(const post of posts){
     const last=postGroups.at(-1);
@@ -155,16 +167,24 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     else postGroups.push({spaceId:post.spaceId,path:post.spacePath,rows:[post]});
   }
   const openGroupId=expandedGroupId===-1?-1:postGroups.some((group)=>group.spaceId===expandedGroupId)?expandedGroupId:postGroups[0]?.spaceId;
-  const renderPost=(post:SpacePost)=><article key={post.id}><div><small>{post.categoryName} · {post.status==="published"?"内容完成":"草稿"} · {new Date(post.updatedAt).toLocaleDateString("zh-CN",{month:"2-digit",day:"2-digit"})}</small><b>{post.title}</b><p>{post.excerpt||"暂无摘要"}</p></div><div><button onClick={()=>onBrowseArticle(post.id,readerContext)}>浏览</button>{!isPersonalAccount&&<button onClick={()=>onShareArticle(post)}>分享</button>}<button onClick={()=>onEditArticle(post.id)}>编辑 ↗</button></div></article>;
+  const renderPost=(post:SpacePost)=><article key={post.id}><div><small>{post.categoryName} · {post.status==="published"?"内容完成":"草稿"} · {new Date(post.updatedAt).toLocaleDateString("zh-CN",{month:"2-digit",day:"2-digit"})}</small><b>{post.title}</b><p>{post.excerpt||"暂无摘要"}</p></div><div>
+    {overview?.isInvited?<button onClick={()=>setCoauthor({publicId:post.publicId,spaceId:post.spaceId,name:overview.name,canWrite})}>{canWrite?"共创编辑":"阅读"}</button>:<>
+      <button onClick={()=>onBrowseArticle(post.id,readerContext)}>浏览</button>
+      {!isPersonalAccount&&<button onClick={()=>onShareArticle(post)}>分享</button>}
+      <button onClick={()=>onEditArticle(post.id)}>编辑 ↗</button>
+      <button onClick={()=>setCoauthor({publicId:post.publicId,spaceId:post.spaceId,name:overview?.name??"知识空间",canWrite:true})}>版本共创</button>
+    </>}
+  </div></article>;
 
   if(!currentId)return <section className="admin-main spaces-root">
-    <header className="admin-header"><div><p>PRIVATE KNOWLEDGE</p><h1>知识空间</h1><span>顶级空间彼此独立，只承载私有知识入口。</span></div><button className="new-button" onClick={()=>beginDialog("create")}>＋ 新建顶级空间</button></header>
-    <div className="spaces-root-summary"><span>{rootMeta.rootCount} 个顶级空间 · {rootMeta.articleCount} 篇私有文章</span><i/><span>{rootMeta.spaceCount} 个空间节点</span><i/>空间文章不会进入首页或公开归档</div>
+    <header className="admin-header"><div><p>KNOWLEDGE SPACES</p><h1>知识空间</h1><span>个人空间与受邀共创空间集中管理，权限互不混淆。</span></div><button className="new-button" onClick={()=>beginDialog("create")}>＋ 新建顶级空间</button></header>
+    <div className="spaces-root-summary"><span>{rootMeta.rootCount} 个顶级入口 · {rootMeta.articleCount} 篇可访问文章</span><i/><span>{rootMeta.spaceCount} 个可见空间节点</span><i/>只展示已授权空间及必要的上级路径</div>
     <div className="space-domain-grid">{roots.map((space)=><article className="space-domain-card" key={space.id} onClick={()=>selectSpace(space.id)}>
-      <div><i/><span>{space.childCount} 个子空间</span><SpaceActions space={space} onAction={beginDialog}/></div>
-      <h2>{space.name}</h2><p>{space.childPreview||"尚未创建子空间"} · {space.totalArticleCount??space.articleCount} 篇知识文章</p><footer><span>最近更新 {new Date(space.latestActivityAt??space.updatedAt).toLocaleDateString("zh-CN")}</span><b>进入空间 ↗</b></footer>
+      <div><i/><span>{space.ancestorOnly?"上级路径 · 仅导航":space.isInvited?"受邀空间":space.childCount+" 个子空间"}</span><SpaceActions space={space} onAction={beginDialog} onCollaborate={setCollabTarget}/></div>
+      <h2>{space.name}</h2><p>{space.ancestorOnly?"仅可查看上级目录名称":(space.childPreview||"尚未创建子空间")+" · "+(space.totalArticleCount??space.articleCount)+" 篇知识文章"}</p><footer><span>{space.ancestorOnly?"路径导航":space.isInvited?"按授权范围访问":"最近更新 "+new Date(space.latestActivityAt??space.updatedAt).toLocaleDateString("zh-CN")}</span><b>进入空间 ↗</b></footer>
     </article>)}</div>
     {!roots.length&&!loading&&<div className="space-empty"><i>◇</i><h2>建立第一个知识空间</h2><p>空间只在后台与 MCP 中可见，不会改变公开博客。</p><button onClick={()=>beginDialog("create")}>新建顶级空间</button></div>}
+    {collabTarget&&<AdminSpaceCollaborationDialog spaceId={collabTarget.id} spaceName={collabTarget.name} onClose={()=>setCollabTarget(null)} onUpdated={()=>window.dispatchEvent(new Event("xingyu:spaces-changed"))}/>}
     {dialog&&<SpaceDialog dialog={dialog} impact={dialogImpact} isPersonalAccount={isPersonalAccount} name={name} setName={setName} sortOrder={sortOrder} setSortOrder={setSortOrder} moveTarget={moveTarget} setMoveTarget={setMoveTarget} deleteMode={deleteMode} setDeleteMode={setDeleteMode} confirmName={confirmName} setConfirmName={setConfirmName} message={message} onClose={()=>setDialog(null)} onSubmit={submitDialog}/>}
   </section>;
 
