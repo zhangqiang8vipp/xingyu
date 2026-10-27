@@ -204,3 +204,25 @@ test("OAuth MCP actually advertises invitation-scoped collaboration tools and co
     assert.equal(denied.structuredContent?.ok,false);
   }finally {await closeTestHarness(h);}
 });
+
+
+test("legacy owner OAuth MCP manifests must include newly added collaboration tools", async () => {
+  const h=await openTestHarness();
+  try{
+    const existing=await h.db.prepare("SELECT id FROM spaces WHERE workspace_id=1 ORDER BY id LIMIT 1").first();
+    const spaceId=existing?.id??(await h.db.prepare(
+      "INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(1,NULL,'Owner MCP collaboration','owner-mcp-collaboration') RETURNING id"
+    ).first()).id;
+    const token=await tokenFor(h,1,"chatgpt-owner");
+    const advertised=await callMcpRaw(h,{jsonrpc:"2.0",id:7,method:"tools/list",params:{}},{token});
+    assert.equal(advertised.status,200,advertised.text);
+    const names=new Set((advertised.payload?.result?.tools??[]).map(t=>t.name));
+    for(const required of ["list_spaces","create_draft","list_collaboration_spaces","get_collaboration_document","propose_document_change"]){
+      assert.ok(names.has(required),"Owner MCP must advertise "+required);
+    }
+    const result=await callMcpTool(h,{name:"list_collaboration_spaces",token,arguments:{}});
+    assert.equal(result.structuredContent?.ok,true,JSON.stringify(result.structuredContent));
+    assert.ok(result.structuredContent.result.some(s=>s.id===spaceId),
+      "A root space created by the existing owner must be discoverable by collaboration MCP");
+  }finally{await closeTestHarness(h);}
+});
