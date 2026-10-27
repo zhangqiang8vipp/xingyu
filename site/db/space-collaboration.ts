@@ -58,9 +58,10 @@ function gateSql(action:"write"|"manage"){
   const roles=action==="manage"?"'admin'":"'admin','editor'";
   const original=action==="manage"?"'owner','admin'":"'owner','admin'";
   return "(EXISTS(SELECT 1 FROM workspace_effective_grants g WHERE g.workspace_id=? AND g.user_id=? AND g.role IN ("+original+")) OR "+
+    "EXISTS(SELECT 1 FROM site_memberships site WHERE site.user_id=? AND site.role='owner' AND ?=1) OR "+
     LINEAGE_EXISTS_SQL.replace("%ROLES%",roles)+")";
 }
-function gateParams(workspaceId:number,userId:number,spaceId:number){return [workspaceId,userId,spaceId,userId];}
+function gateParams(workspaceId:number,userId:number,spaceId:number){return [workspaceId,userId,userId,workspaceId,spaceId,userId];}
 async function readSpace(spaceId:number):Promise<Space>{
   await ensureDatabase();ensureId(spaceId);
   const row=await env.DB.prepare("SELECT s.id,s.workspace_id AS workspaceId,s.parent_id AS parentId,s.name FROM spaces s JOIN workspaces w ON w.id=s.workspace_id AND w.status='active' WHERE s.id=?").bind(spaceId).first<Space>();
@@ -81,6 +82,11 @@ async function effectiveRole(userId:number,space:Space):Promise<SpaceCollaborati
     const ownedOrg=await env.DB.prepare("SELECT 1 FROM organization_workspaces ow JOIN organizations o ON o.id=ow.organization_id AND o.status='active' JOIN workspaces w ON w.id=ow.workspace_id AND w.kind='organization' AND w.status='active' WHERE ow.workspace_id=? AND o.owner_user_id=? AND w.owner_user_id=? LIMIT 1")
       .bind(space.workspaceId,userId,userId).first();
     if(ownedOrg)base="owner";
+  }
+  if(!base&&space.workspaceId===1){
+    const siteOwner=await env.DB.prepare("SELECT 1 FROM site_memberships WHERE user_id=? AND role='owner' LIMIT 1")
+      .bind(userId).first();
+    if(siteOwner)base="owner";
   }
   const result=await env.DB.prepare(LINEAGE_SQL).bind(space.id,userId).all<{role:string}>();
   for(const row of result.results??[]){
@@ -141,6 +147,11 @@ export async function listInvitedSpaceNavigation(userId:number){
     "AND w.kind IN ('personal','shared') AND w.status='active'",
     "WHERE w.owner_user_id=?",
     "UNION",
+    // Site Owner role also grants ownership of the original site knowledge
+    // workspace, even when the identity is not user #1.
+    "SELECT s.id,s.workspace_id FROM spaces s JOIN site_memberships owner",
+    "ON owner.user_id=? AND owner.role='owner' WHERE s.workspace_id=1",
+    "UNION",
     // An organization owner sees the entire organization knowledge tree even
     // when no self-invitation exists. Other members still require invitations.
     "SELECT s.id,s.workspace_id FROM spaces s JOIN workspaces w ON w.id=s.workspace_id",
@@ -167,7 +178,7 @@ export async function listInvitedSpaceNavigation(userId:number){
     "LEFT JOIN invited i ON i.id=s.id AND i.workspace_id=s.workspace_id",
     "ORDER BY s.workspace_id,s.sort_order,s.id LIMIT 2001",
   ].join(" ");
-  const result=await env.DB.prepare(query).bind(userId,userId,userId,userId).all<{
+  const result=await env.DB.prepare(query).bind(userId,userId,userId,userId,userId).all<{
     id:number;parentId:number|null;workspaceId:number;name:string;slug:string;
     sortOrder:number;updatedAt:string;ancestorOnly:number;
   }>();
