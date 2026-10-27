@@ -247,6 +247,10 @@ test("knowledge space UI shows invited ancestor path but never sibling content, 
       "INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(?,?,'卫健委',?) RETURNING id"
     ).bind(owner.workspaceId,target,"health-"+randomBytes(4).toString("hex")).first()).id;
 
+    const ownerNavigation=await api(h,"/api/space-collaboration/navigation",{cookie:owner.cookie});
+    assert.equal(ownerNavigation.status,200);
+    assert.ok(ownerNavigation.body.nodes.some(n=>n.id===root&&n.canRead),
+      "owner can discover their own personal space without inviting themselves");
     const denied=await api(h,"/api/spaces/"+target,{cookie:outsider.cookie});
     assert.equal(denied.status,404,"non-invitee must not discover the target");
     const editorToken=await invite(h,target,owner.workspaceId,editor.email,owner.id);
