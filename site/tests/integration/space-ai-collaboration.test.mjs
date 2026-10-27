@@ -326,7 +326,9 @@ test("legacy password owner can manage invitations from the native space menu",a
   const h=await openTestHarness();
   try{
     const adminCookie=await loginAdmin(h);
-    const root=await rootOf(h,1);
+    const existing=await h.db.prepare("SELECT id FROM spaces WHERE workspace_id=1 AND parent_id IS NULL LIMIT 1").first();
+    const root=existing?.id??(await h.db.prepare("INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(1,NULL,?,?) RETURNING id")
+      .bind("网站管理空间","admin-test-"+randomBytes(6).toString("hex")).first()).id;
     const managed=await api(h,"/api/space-collaboration/"+root,{cookie:adminCookie});
     assert.equal(managed.status,200,JSON.stringify(managed.body));
     assert.equal(managed.body.access.canManage,true);
