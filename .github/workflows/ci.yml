@@ -1,7 +1,10 @@
 name: CI
 
+# PRs get one complete CI run per update. Pushing main still verifies the
+# merged code. Do not run an identical CI again for each feature-branch push.
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -9,28 +12,84 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  verify:
+  checks:
+    name: lint, types, build, source and provisioning
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
       run:
         working-directory: site
-
     steps:
       - uses: actions/checkout@v7
-
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 22.18.0
           cache: npm
           cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Production Worker build
+        run: npm run build
+      - name: Generated Cloudflare worker typings
+        run: npm run types:worker:check
+      - name: Provisioning tests
+        run: npm run test:provisioning
+      - name: Complete source test suite
+        run: npm run test:source
 
-      - name: Install dependencies
-        run: npm ci
+  integration:
+    name: D1/Worker integration shard ${{ matrix.shard + 1 }}/3
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.18.0
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - name: Build production Worker for isolated tests
+        run: npm run build
+      - name: Run all assigned D1/Worker integration files
+        run: node scripts/ci-integration-shard.mjs ${{ matrix.shard }} 3
 
-      - name: Verify
-        run: npm run ci
+  # Keep the original "CI / verify" required check name. It is deliberately
+  # NOT skipped when one of the parallel jobs fails or is cancelled.
+  verify:
+    name: verify
+    needs: [checks, integration]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require all security and build checks, including every integration shard
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+        shell: bash
+        run: |
+          echo "Source and build: $CHECKS_RESULT"
+          echo "Every D1/Worker integration shard: $INTEGRATION_RESULT"
+          if [[ "$CHECKS_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
+            echo "::error::Full CI coverage did not pass; branch must not be merged."
+            exit 1
+          fi
