@@ -171,6 +171,7 @@ test("OAuth MCP actually advertises invitation-scoped collaboration tools and co
     const outsiderToken=await tokenFor(h,outsider.id,"grok-not-invited");
     const required=[
       "list_collaboration_spaces",
+      "list_collaboration_navigation",
       "list_collaboration_documents",
       "get_collaboration_document",
       "create_collaboration_document",
