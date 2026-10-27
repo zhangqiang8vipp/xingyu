@@ -2,7 +2,7 @@ import { z } from "zod";
 import { requireScope } from "@/worker/mcp-auth";
 import { MCP_ERROR_OUTPUT_FIELDS,toolResult,toolFailure,type McpToolContext } from "./shared";
 import {
- listCollaborativeSpaces,spaceAccess,listCollaborativeChildren,listCollaborativeDocuments,
+ listCollaborativeSpaces,listInvitedSpaceNavigation,spaceAccess,listCollaborativeChildren,listCollaborativeDocuments,
  listSpaceMembers,listSpaceInvitations,sendSpaceInvitation,revokeSpaceInvitation,
  setSpaceMemberRole,removeSpaceMember,setSpaceInheritance,createCollaborativeChildSpace,
  removeCollaborativeEmptySpace,createCollaborativeDocument,getCollaborativeDocument,
@@ -30,6 +30,11 @@ export function registerSpaceCollaborationTools({server,auth,origin,clientLabel}
     description:"仅列出当前账号获得直接空间邀请的知识空间，不继承任何整个组织或其他工作区的访问权限。",
     inputSchema:{},outputSchema:output,annotations:readable,
   },async()=>execute("xingyu.read",userId=>listCollaborativeSpaces(userId)));
+  server.registerTool("list_collaboration_navigation",{
+    title:"查看受邀知识空间及上级路径",
+    description:"返回当前账号明确受邀的空间、可继承的子空间和仅供面包屑导航的祖先名称。祖先节点 ancestorOnly=true 不能读取正文或管理权限，永不列出未邀请的兄弟空间。",
+    inputSchema:{},outputSchema:output,annotations:readable,
+  },async()=>execute("xingyu.read",userId=>listInvitedSpaceNavigation(userId)));
   server.registerTool("get_collaboration_space",{
     title:"查询空间协作权限",
     description:"确认某空间的实际权限；不向未获授权的用户泄露空间名称。",
