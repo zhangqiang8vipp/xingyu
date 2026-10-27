@@ -135,6 +135,14 @@ export async function listInvitedSpaceNavigation(userId:number){
     "JOIN workspaces w ON w.id=s.workspace_id AND w.status='active'",
     "WHERE m.user_id=?",
     "UNION",
+    // An organization owner sees the entire organization knowledge tree even
+    // when no self-invitation exists. Other members still require invitations.
+    "SELECT s.id,s.workspace_id FROM spaces s JOIN workspaces w ON w.id=s.workspace_id",
+    "AND w.kind='organization' AND w.status='active'",
+    "JOIN organization_workspaces ow ON ow.workspace_id=w.id",
+    "JOIN organizations o ON o.id=ow.organization_id AND o.status='active'",
+    "WHERE w.owner_user_id=? AND o.owner_user_id=?",
+    "UNION",
     "SELECT child.id,child.workspace_id FROM spaces child JOIN invited i",
     "ON child.parent_id=i.id AND child.workspace_id=i.workspace_id",
     "WHERE COALESCE((SELECT inherit_permissions FROM space_collaboration_settings",
@@ -153,7 +161,7 @@ export async function listInvitedSpaceNavigation(userId:number){
     "LEFT JOIN invited i ON i.id=s.id AND i.workspace_id=s.workspace_id",
     "ORDER BY s.workspace_id,s.sort_order,s.id LIMIT 2001",
   ].join(" ");
-  const result=await env.DB.prepare(query).bind(userId).all<{
+  const result=await env.DB.prepare(query).bind(userId,userId,userId).all<{
     id:number;parentId:number|null;workspaceId:number;name:string;slug:string;
     sortOrder:number;updatedAt:string;ancestorOnly:number;
   }>();
