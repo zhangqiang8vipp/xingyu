@@ -166,7 +166,6 @@ export default function AdminSidebar({
           onSelect={select}
         />)}
       </div>)}
-      <Link data-icon="◇" title="空间共创" className="admin-desktop-utility" href="/collaboration">空间共创</Link>
       <Link data-icon="✧" title="问问知识库" className="admin-desktop-utility" href="/ask?scope=mine">问问知识库</Link>
       <Link data-icon="↗" title="查看前台" className="admin-desktop-utility" href="/" target="_blank">查看前台</Link>
       <button data-icon="⏻" title="安全退出" className="admin-desktop-utility" type="button" onClick={onSignOut}>安全退出</button>
