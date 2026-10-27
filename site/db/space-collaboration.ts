@@ -6,6 +6,7 @@ import { sessionDigest } from "@/server/auth/identity-session";
 import { normalizeEmail } from "@/server/auth/identity";
 import { createPostPublicId } from "@/db/public-id";
 import { mergeMarkdown } from "@/domain/posts/three-way-merge.mjs";
+import { listPostPreviewTokens } from "@/db/post-preview-tokens";
 
 export type SpaceCollaborationRole="owner"|"admin"|"editor"|"viewer";
 export class SpaceCollaborationError extends Error {
@@ -364,9 +365,9 @@ export async function listCollaborativeChildren(userId:number,parentSpaceId:numb
   return result;
 }
 export async function removeCollaborativeEmptySpace(userId:number,spaceId:number){
-  const access=await spaceAccess(userId,spaceId,"write");
+  const access=await spaceAccess(userId,spaceId,"manage");
   if(access.parentId===null)throw new SpaceCollaborationError("根空间不可从协作入口删除",403);
-  const result=await env.DB.prepare("DELETE FROM spaces WHERE id=? AND workspace_id=? AND NOT EXISTS(SELECT 1 FROM spaces s WHERE s.parent_id=?) AND NOT EXISTS(SELECT 1 FROM posts p WHERE p.space_id=?) AND NOT EXISTS(SELECT 1 FROM space_access_policies p WHERE p.space_id=spaces.id) AND NOT EXISTS(SELECT 1 FROM space_collaboration_members m WHERE m.space_id=spaces.id) AND NOT EXISTS(SELECT 1 FROM space_collaboration_invites i WHERE i.space_id=spaces.id AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>unixepoch()) AND "+gateSql("write")+" RETURNING id")
+  const result=await env.DB.prepare("DELETE FROM spaces WHERE id=? AND workspace_id=? AND NOT EXISTS(SELECT 1 FROM spaces s WHERE s.parent_id=?) AND NOT EXISTS(SELECT 1 FROM posts p WHERE p.space_id=?) AND NOT EXISTS(SELECT 1 FROM space_access_policies p WHERE p.space_id=spaces.id) AND NOT EXISTS(SELECT 1 FROM space_collaboration_members m WHERE m.space_id=spaces.id) AND NOT EXISTS(SELECT 1 FROM space_collaboration_invites i WHERE i.space_id=spaces.id AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>unixepoch()) AND "+gateSql("manage")+" RETURNING id")
     .bind(spaceId,access.workspaceId,spaceId,spaceId,...gateParams(access.workspaceId,userId,spaceId)).first();
   if(!result)throw new SpaceCollaborationError("只能删除没有子空间或文章的空间",409);
   return {deleted:true};
@@ -504,4 +505,75 @@ export async function restoreDocumentRevision(userId:number,identifier:string,re
   ]);
   if(!result[0]?.results?.length)throw new SpaceCollaborationError("文档写入冲突",409);
   return {status:"restored" as const,version:(result[0].results[0] as {version:number}).version};
+}
+
+/** A document can be removed only by a manager, with title and version confirmation. */
+export async function deleteCollaborativeDocument(userId:number,identifier:string,expectedVersion:number,confirmTitle:string){
+  const post=await rawDocument(identifier);
+  const access=await spaceAccess(userId,post.spaceId!,"manage");
+  ensureId(expectedVersion);
+  if(confirmTitle!==post.title)throw new SpaceCollaborationError("文档标题已变化，请重新确认后删除",409);
+  if(post.version!==expectedVersion)throw new SpaceCollaborationError("文档已被其他协作者更新，请刷新后再删除",409);
+  const current="EXISTS(SELECT 1 FROM posts doc WHERE doc.id=? AND doc.workspace_id=? AND doc.space_id=? AND doc.version=? AND "+gateSql("manage")+")";
+  const args=[post.id,post.workspaceId,post.spaceId!,expectedVersion,...gateParams(access.workspaceId,userId,post.spaceId!)];
+  const dependent=(table:string)=>env.DB.prepare("DELETE FROM "+table+" WHERE post_id=? AND "+current).bind(post.id,...args);
+  const results=await env.DB.batch([
+    dependent("post_slug_history"),
+    dependent("post_views"),
+    dependent("post_preview_tokens"),
+    env.DB.prepare("UPDATE attachments SET post_id=NULL,unbound_at=CURRENT_TIMESTAMP WHERE post_id=? AND "+current).bind(post.id,...args),
+    env.DB.prepare("DELETE FROM posts WHERE id=? AND workspace_id=? AND space_id=? AND version=? AND "+gateSql("manage")+" RETURNING id")
+      .bind(post.id,post.workspaceId,post.spaceId!,expectedVersion,...gateParams(access.workspaceId,userId,post.spaceId!)),
+  ]);
+  if(!results[4]?.results?.length)throw new SpaceCollaborationError("删除权限或文档版本已发生变化",409);
+  return {deleted:true,publicId:post.publicId};
+}
+
+/** Write collaborators may create and revoke one-document, expiring preview links. */
+export async function listCollaborativePreviewLinks(userId:number,identifier:string){
+  const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!,"write");
+  return listPostPreviewTokens(post.id);
+}
+export async function createCollaborativePreviewLink(userId:number,identifier:string,lifetimeSeconds:number){
+  const post=await rawDocument(identifier);
+  const access=await spaceAccess(userId,post.spaceId!,"write");
+  if(![86400,604800,2592000].includes(lifetimeSeconds))throw new SpaceCollaborationError("预览期限不受支持");
+  const bytes=crypto.getRandomValues(new Uint8Array(32));
+  const token="pv_"+btoa(String.fromCharCode(...bytes)).replaceAll("+","-").replaceAll("/","_").replace(/=+$/,"");
+  const digest=await sessionDigest(token);
+  const expiresAt=now()+lifetimeSeconds;
+  const result=await env.DB.prepare("INSERT INTO post_preview_tokens(post_id,token_hash,expires_at) SELECT id,?,? FROM posts WHERE id=? AND workspace_id=? AND space_id=? AND "+gateSql("write")+" RETURNING id")
+    .bind(digest,expiresAt,post.id,post.workspaceId,post.spaceId!,...gateParams(access.workspaceId,userId,post.spaceId!)).first<{id:number}>();
+  if(!result)throw new SpaceCollaborationError("文档分享权限已发生变化",403);
+  return {token,link:{id:result.id,expiresAt,createdAt:new Date().toISOString(),revokedAt:null,lastViewedAt:null,viewCount:0,active:true}};
+}
+export async function revokeCollaborativePreviewLink(userId:number,identifier:string,previewId:number){
+  const post=await rawDocument(identifier);
+  const access=await spaceAccess(userId,post.spaceId!,"write");
+  ensureId(previewId);
+  const result=await env.DB.prepare("UPDATE post_preview_tokens SET revoked_at=CURRENT_TIMESTAMP WHERE id=? AND post_id=? AND revoked_at IS NULL AND "+gateSql("write")+" RETURNING id")
+    .bind(previewId,post.id,...gateParams(access.workspaceId,userId,post.spaceId!)).first();
+  if(!result)throw new SpaceCollaborationError("预览链接已失效或无权撤销",404);
+  return {revoked:true};
+}
+
+/** Editors can rename a document without overwriting concurrent changes. */
+export async function renameCollaborativeDocument(userId:number,identifier:string,expectedVersion:number,newTitle:string,clientLabel:string){
+  const post=await rawDocument(identifier);
+  const access=await spaceAccess(userId,post.spaceId!,"write");
+  ensureId(expectedVersion);
+  const title=titleLimit(newTitle);
+  if(post.version!==expectedVersion)throw new SpaceCollaborationError("文档版本已变化，请刷新后重命名",409);
+  if(post.title===title)return {status:"unchanged" as const,version:post.version};
+  const results=await env.DB.batch([
+    env.DB.prepare("UPDATE posts SET title=?,version=version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND workspace_id=? AND space_id=? AND version=? AND "+gateSql("write")+" RETURNING version")
+      .bind(title,userId,post.id,post.workspaceId,post.spaceId!,expectedVersion,...gateParams(access.workspaceId,userId,post.spaceId!)),
+    env.DB.prepare("UPDATE document_revisions SET client_label=? WHERE post_id=? AND version=? AND changes()=1")
+      .bind(safeClient(clientLabel),post.id,expectedVersion+1),
+    env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,changed_fields,summary,client_label) SELECT workspace_id,'update_post',id,public_id,title,json_array('title'),'重命名协作文档',? FROM posts WHERE id=? AND workspace_id=? AND version=? AND changes()=1")
+      .bind(safeClient(clientLabel),post.id,post.workspaceId,expectedVersion+1),
+  ]);
+  const version=(results[0]?.results?.[0] as {version?:number}|undefined)?.version;
+  if(!version)throw new SpaceCollaborationError("文档写入权限或版本已变化",409);
+  return {status:"renamed" as const,version,title};
 }

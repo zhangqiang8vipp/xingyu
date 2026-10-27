@@ -5,7 +5,7 @@ import {
  listCollaborativeSpaces,listInvitedSpaceNavigation,spaceAccess,listCollaborativeChildren,listCollaborativeDocuments,
  listSpaceMembers,listSpaceInvitations,sendSpaceInvitation,revokeSpaceInvitation,
  setSpaceMemberRole,removeSpaceMember,setSpaceInheritance,createCollaborativeChildSpace,
- removeCollaborativeEmptySpace,createCollaborativeDocument,getCollaborativeDocument,
+ removeCollaborativeEmptySpace,createCollaborativeDocument,getCollaborativeDocument,deleteCollaborativeDocument,renameCollaborativeDocument,
  listDocumentRevisions,getDocumentRevision,listDocumentProposals,getDocumentProposal,proposeDocumentChange,
  resolveDocumentProposal,restoreDocumentRevision,
 } from "@/db/space-collaboration";
@@ -53,7 +53,7 @@ export function registerSpaceCollaborationTools({server,auth,origin,clientLabel}
     inputSchema:{parent_space_id:id,name:z.string().trim().min(1).max(100)},outputSchema:output,annotations:write,
   },async({parent_space_id,name})=>execute("xingyu.draft",userId=>createCollaborativeChildSpace(userId,parent_space_id,name)));
   server.registerTool("delete_collaboration_empty_space",{
-    title:"删除空协作子空间",description:"必须经明确确认；有编辑权限者只能删除无子空间、无文章、无独立协作者或待接受邀请的空子空间，不能递归删除文章。",
+    title:"删除空协作子空间",description:"仅空间所有者或管理员可执行；必须明确确认，且空间没有子空间、文章、独立协作者或待接受邀请。",
     inputSchema:{space_id:id},outputSchema:output,annotations:sensitive,
   },async({space_id})=>execute("xingyu.draft",userId=>removeCollaborativeEmptySpace(userId,space_id)));
   server.registerTool("list_space_collaborators",{
@@ -90,6 +90,18 @@ export function registerSpaceCollaborationTools({server,auth,origin,clientLabel}
     outputSchema:output,annotations:write,
   },async({space_id,title,content_markdown})=>execute("xingyu.draft",userId=>
     createCollaborativeDocument(userId,space_id,title,content_markdown,clientLabel)));
+  server.registerTool("rename_collaboration_document",{
+    title:"重命名协作文档",description:"需要编辑权限及准确的当前版本；生成历史版本记录。",
+    inputSchema:{public_id:docId,expected_version:id,title:z.string().trim().min(1).max(200)},
+    outputSchema:output,annotations:write,
+  },async({public_id,expected_version,title})=>execute("xingyu.draft",userId=>
+    renameCollaborativeDocument(userId,public_id,expected_version,title,clientLabel)));
+  server.registerTool("delete_collaboration_document",{
+    title:"删除知识空间文档",description:"仅空间所有者或管理员可以删除文档。需要准确的当前版本和完整标题确认，删除不可恢复。",
+    inputSchema:{public_id:docId,expected_version:id,confirm_title:z.string().min(1).max(200)},
+    outputSchema:output,annotations:sensitive,
+  },async({public_id,expected_version,confirm_title})=>execute("xingyu.draft",userId=>
+    deleteCollaborativeDocument(userId,public_id,expected_version,confirm_title)));
   server.registerTool("get_collaboration_document",{
     title:"读取协作文档与版本",description:"修改前必须先读取完整正文和当前 version，后续提交使用 base_version。",
     inputSchema:{public_id:docId},outputSchema:output,annotations:readable,

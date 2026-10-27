@@ -126,6 +126,8 @@ export async function invitedSpacePosts(userId:number,spaceId:number,search:URLS
   return {
     rows:list.slice(0,limit).map(row=>({
       ...row,
+      canWrite:tree.nodes.get(row.spaceId)?.canWrite??false,
+      canManage:tree.nodes.get(row.spaceId)?.canManage??false,
       spacePath:tree.path(row.spaceId).map(n=>n.name).join(" / "),
     })),
     nextCursor:list.length>limit?String(offset+limit):null,
