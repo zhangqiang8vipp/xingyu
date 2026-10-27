@@ -31,7 +31,14 @@ jobs:
           node-version: 22.18.0
           cache: npm
           cache-dependency-path: site/package-lock.json
-      - name: Install exactly locked dependencies from cache
+      - name: Restore immutable exact-lock Node dependencies
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: site/node_modules
+          key: ci-nodemodules-v1-${{ runner.os }}-${{ runner.arch }}-node2218-${{ hashFiles('site/package-lock.json') }}
+      - name: Install exactly locked dependencies when cache is cold
+        if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit --no-fund
       - name: Full ESLint
         run: npm run lint
@@ -52,7 +59,14 @@ jobs:
           node-version: 22.18.0
           cache: npm
           cache-dependency-path: site/package-lock.json
-      - name: Install exactly locked dependencies from cache
+      - name: Restore immutable exact-lock Node dependencies
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: site/node_modules
+          key: ci-nodemodules-v1-${{ runner.os }}-${{ runner.arch }}-node2218-${{ hashFiles('site/package-lock.json') }}
+      - name: Install exactly locked dependencies when cache is cold
+        if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit --no-fund
       - name: Full TypeScript
         run: npm run typecheck
@@ -73,7 +87,14 @@ jobs:
           node-version: 22.18.0
           cache: npm
           cache-dependency-path: site/package-lock.json
-      - name: Install exactly locked dependencies from cache
+      - name: Restore immutable exact-lock Node dependencies
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: site/node_modules
+          key: ci-nodemodules-v1-${{ runner.os }}-${{ runner.arch }}-node2218-${{ hashFiles('site/package-lock.json') }}
+      - name: Install exactly locked dependencies when cache is cold
+        if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit --no-fund
       - name: Production Worker build
         run: npm run build
@@ -83,16 +104,22 @@ jobs:
         run: npm run test:provisioning
       - name: Complete source tests, including CI coverage invariants
         run: npm run test:source
+      - name: Save trusted exact-lock dependency cache after tests
+        if: success() && steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: site/node_modules
+          key: ci-nodemodules-v1-${{ runner.os }}-${{ runner.arch }}-node2218-${{ hashFiles('site/package-lock.json') }}
 
   integration:
-    name: Worker/D1 case shard ${{ matrix.shard }} of 8
+    name: Worker/D1 case shard ${{ matrix.shard }} of 16
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 16
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     defaults:
       run:
         working-directory: site
@@ -105,12 +132,19 @@ jobs:
           node-version: 22.18.0
           cache: npm
           cache-dependency-path: site/package-lock.json
-      - name: Install exactly locked dependencies from cache
+      - name: Restore immutable exact-lock Node dependencies
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: site/node_modules
+          key: ci-nodemodules-v1-${{ runner.os }}-${{ runner.arch }}-node2218-${{ hashFiles('site/package-lock.json') }}
+      - name: Install exactly locked dependencies when cache is cold
+        if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit --no-fund
       - name: Build full production Worker for isolated D1 tests
         run: npm run build
       - name: Run and verify exactly assigned integration test cases
-        run: node scripts/ci-case-shard.mjs ${{ matrix.shard }} 8
+        run: node scripts/ci-case-shard.mjs ${{ matrix.shard }} 16
 
   # Preserve original required "CI / verify" check.
   # Every shard and all static checks must pass before merging.
