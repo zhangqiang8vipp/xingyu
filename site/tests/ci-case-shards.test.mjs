@@ -56,7 +56,7 @@ test("required CI verifies every shard and restores only exact-lock dependency c
   assert.match(workflow, /pull_request:/);
   assert.match(workflow, /branches: \[main\]/);
   assert.match(workflow, /name: verify/);
-  assert.match(workflow, /needs: \[lint, types, build, integration\]/);
+  assert.match(workflow, /needs: \[lint, types, build, source, integration\]/);
   assert.match(workflow, /if: \$\{\{ always\(\) \}\}/);
   assert.match(workflow, /Worker\/D1 case shard/);
   assert.match(workflow, /max-parallel: 16/);
@@ -66,5 +66,12 @@ test("required CI verifies every shard and restores only exact-lock dependency c
   assert.match(workflow, /steps\.modules\.outputs\.cache-hit != 'true'/);
   assert.match(workflow, /npm ci --prefer-offline --no-audit --no-fund/);
   assert.match(workflow, /Run and verify exactly assigned integration test cases/);
+  assert.match(workflow, /actions\/upload-artifact@v4/);
+  assert.match(workflow, /actions\/download-artifact@v4/);
+  assert.match(workflow, /include-hidden-files: true/);
+  assert.match(workflow, /needs: \[build\]/);
+  assert.match(workflow, /test -s dist\/server\/index\.js/);
+  assert.match(workflow, /test -s dist\/client\/\.vite\/manifest\.json/);
+  assert.match(workflow, /SOURCE_RESULT/);
   assert.match(workflow, /Required CI coverage failed, skipped or was cancelled/);
 });
