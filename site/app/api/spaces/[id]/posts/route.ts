@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { ensureDatabase } from "@/db/bootstrap";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
+import { invitedSpacePosts } from "@/db/invited-space-view";
 import { identityFromRequest } from "@/server/auth/identity-session";
 import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 import { apiJson } from "@/server/workspace-http";
@@ -31,7 +32,10 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
     if(!Number.isSafeInteger(spaceId)||spaceId<1)return apiJson({error:"空间不存在"},404);
     const workspaceId=await ensurePersonalWorkspace(user.userId);
     const space=await env.DB.prepare("SELECT id FROM spaces WHERE id=? AND workspace_id=?").bind(spaceId,workspaceId).first();
-    if(!space)return apiJson({error:"空间不存在"},404);
+    if(!space){
+      const shared=await invitedSpacePosts(user.userId,spaceId,new URL(request.url).searchParams);
+      return shared?apiJson(shared):apiJson({error:"空间不存在"},404);
+    }
     const url=new URL(request.url);
     const scope=url.searchParams.get("scope")==="all"?"all":url.searchParams.get("scope")==="current"?"current":"descendants";
     const query=(url.searchParams.get("q")??"").trim().slice(0,120);
