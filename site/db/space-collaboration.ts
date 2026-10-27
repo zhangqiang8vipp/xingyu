@@ -168,7 +168,9 @@ export async function listInvitedSpaceNavigation(userId:number){
     if(!row.ancestorOnly&&!access)continue;
     nodes.push({
       id:row.id,parentId:row.parentId,workspaceId:row.workspaceId,name:row.name,
-      sortOrder:row.sortOrder,updatedAt:row.updatedAt,
+      // Path-only ancestors reveal their name/position, never activity dates,
+      // non-visible siblings, slugs, posts, or management metadata.
+      sortOrder:access?row.sortOrder:0,updatedAt:access?row.updatedAt:"",
       // Never disclose parent contents, underlying slug, or sibling counts.
       ancestorOnly:!access,
       role:access?.role??null,canRead:!!access,canWrite:access?.canWrite??false,
