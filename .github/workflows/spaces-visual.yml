@@ -1,0 +1,63 @@
+name: Knowledge-space browser acceptance
+
+on:
+  pull_request:
+    paths:
+      - "site/features/admin/AdminSpacesPanel.tsx"
+      - "site/features/admin/AdminSpaceCoauthorDialog.tsx"
+      - "site/features/admin/AdminDocumentPreviewDialog.tsx"
+      - "site/features/admin/AdminPreviewShareDialog.tsx"
+      - "site/features/admin/ArticleWritingStudio.tsx"
+      - "site/features/reader/**"
+      - "site/features/markdown/**"
+      - "site/app/admin/**"
+      - "site/app/preview/**"
+      - "site/app/api/space-collaboration/**"
+      - "site/app/api/spaces/**"
+      - "site/app/api/space-invitations/**"
+      - "site/db/space-collaboration.ts"
+      - "site/db/invited-space-view.ts"
+      - "site/scripts/visual-spaces-acceptance.mjs"
+      - ".github/workflows/spaces-visual.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xingyu-space-visual-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    name: Coauthor preview and permission browser regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.18.0
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install exact-lock dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Build production Worker in local isolated mode
+        run: npm run build
+      - name: Install CJK browser fonts
+        run: sudo apt-get update -qq && sudo apt-get install -y fonts-noto-cjk
+      - name: Test editor, viewer, owner, live frontstage and expiring share in Chromium
+        run: node scripts/visual-spaces-acceptance.mjs
+      - name: Upload safe browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: knowledge-space-visual-acceptance
+          path: site/visual-spaces/*.png
+          if-no-files-found: warn
+          retention-days: 14
