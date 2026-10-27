@@ -135,15 +135,21 @@ test("the configured rate limiter returns 429 and prevents a fresh post from cou
     await seedPublicPost(harness.db, "views-rate-fill", "Rate fill");
     await seedPublicPost(harness.db, "views-rate-target", "Rate target");
     const address = "203.0.113.77";
+    // The native limiter is an approximate 240/min window. Drive a short,
+    // bounded burst, not 320 serial D1 requests: under heavily loaded CI the
+    // latter spans 10+ seconds, allowing Miniflare's local bucket to reset.
+    // This still exercises the REAL configured binding and requires HTTP 429.
     let limited = null;
-    for (let attempt = 0; attempt < 320; attempt += 1) {
-      const response = await viewRequest(harness, "views-rate-fill", { address });
-      if (response.status === 429) {
-        limited = response;
-        break;
+    const burstSize = 12;
+    for (let attempt = 0; attempt < 480 && !limited; attempt += burstSize) {
+      const responses = await Promise.all(Array.from({ length: burstSize },
+        () => viewRequest(harness, "views-rate-fill", { address })));
+      for (const response of responses) {
+        if (response.status === 429) limited = response;
+        else assert.equal(response.status, 200, "the rate-limit burst must not fail for an unrelated reason");
       }
     }
-    assert.ok(limited, "the local Cloudflare rate-limit binding should eventually reject the burst");
+    assert.ok(limited, "the real Cloudflare local rate limiter must reject a bounded burst with 429");
     assert.equal(limited.status, 429);
     assert.equal(limited.headers.get("retry-after"), "60");
 
