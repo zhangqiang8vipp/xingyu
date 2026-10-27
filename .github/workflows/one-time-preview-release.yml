@@ -1,0 +1,80 @@
+name: One-time release dispatch for unified collaboration preview
+
+# Requested explicitly by the owner. Dispatches the existing manual production
+# workflow ONCE, after the exact main-branch full CI succeeds.
+# Delete this temporary file after the release completes.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-time-preview-release.yml
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: xingyu-one-time-preview-release
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Verify main CI then launch existing manual production workflow
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.run_attempt == 1 &&
+      github.event.head_commit.message == 'chore(release): start reviewed preview-unification deployment (once)'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.18.0'
+      - name: Verify all 20 required main CI jobs on this exact SHA
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node site/scripts/verify-production-ci.mjs
+      - name: Dispatch the existing manually confirmed Cloudflare release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          const repo=process.env.GITHUB_REPOSITORY;
+          const sha=process.env.GITHUB_SHA;
+          const token=process.env.GITHUB_TOKEN;
+          if(repo!=="zhangqiang8vipp/xingyu"||!/^[a-f0-9]{40}$/.test(sha??"")||!token)
+            throw new Error("Unsafe release context");
+          const api=(process.env.GITHUB_API_URL||"https://api.github.com").replace(/\/$/,"")+"/repos/"+repo+"/";
+          async function call(path,{method="GET",body}={}){
+            const r=await fetch(api+path,{
+              method,
+              headers:{"Accept":"application/vnd.github+json",
+                "Authorization":"Bearer "+token,
+                "X-GitHub-Api-Version":"2022-11-28",
+                ...(body?{"Content-Type":"application/json"}:{})},
+              ...(body?{body:JSON.stringify(body)}:{}),
+              signal:AbortSignal.timeout(20000)
+            });
+            if(method==="POST"){
+              if(r.status!==204)throw new Error("Workflow dispatch failed: HTTP "+r.status);
+              return null;
+            }
+            if(!r.ok)throw new Error("GitHub read failed: HTTP "+r.status+" on "+path);
+            return r.json();
+          }
+          const branch=await call("git/ref/heads/main");
+          if(branch?.object?.sha!==sha)throw new Error("main moved before release dispatch; cancel");
+          const runs=await call("actions/workflows/deploy-production.yml/runs?per_page=100");
+          if(!Array.isArray(runs.workflow_runs))throw new Error("Cannot check duplicate releases");
+          if(runs.workflow_runs.some(r=>r.head_sha===sha&&r.event==="workflow_dispatch"))
+            throw new Error("A production dispatch for this commit already exists; refusing duplicate");
+          await call("actions/workflows/deploy-production.yml/dispatches",{
+            method:"POST",body:{ref:"main",inputs:{confirm:"DEPLOY"}}
+          });
+          console.log("One-time production workflow_dispatch accepted for verified commit "+sha);
+          console.log("Required CLOUDFLARE GitHub Environment approval and original production safeguards remain active.");
+          NODE
