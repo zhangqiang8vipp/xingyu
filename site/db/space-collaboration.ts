@@ -135,6 +135,12 @@ export async function listInvitedSpaceNavigation(userId:number){
     "JOIN workspaces w ON w.id=s.workspace_id AND w.status='active'",
     "WHERE m.user_id=?",
     "UNION",
+    // A personal/shared workspace owner should also navigate their own root
+    // via MCP; the existing /api/spaces UI filters these duplicate own nodes.
+    "SELECT s.id,s.workspace_id FROM spaces s JOIN workspaces w ON w.id=s.workspace_id",
+    "AND w.kind IN ('personal','shared') AND w.status='active'",
+    "WHERE w.owner_user_id=?",
+    "UNION",
     // An organization owner sees the entire organization knowledge tree even
     // when no self-invitation exists. Other members still require invitations.
     "SELECT s.id,s.workspace_id FROM spaces s JOIN workspaces w ON w.id=s.workspace_id",
@@ -161,7 +167,7 @@ export async function listInvitedSpaceNavigation(userId:number){
     "LEFT JOIN invited i ON i.id=s.id AND i.workspace_id=s.workspace_id",
     "ORDER BY s.workspace_id,s.sort_order,s.id LIMIT 2001",
   ].join(" ");
-  const result=await env.DB.prepare(query).bind(userId,userId,userId).all<{
+  const result=await env.DB.prepare(query).bind(userId,userId,userId,userId).all<{
     id:number;parentId:number|null;workspaceId:number;name:string;slug:string;
     sortOrder:number;updatedAt:string;ancestorOnly:number;
   }>();
