@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { ensureDatabase } from "@/db/bootstrap";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
+import { invitedSpaceOverview } from "@/db/invited-space-view";
 import { editScopedSpace, removeEmptyScopedSpace, WorkspaceContentError } from "@/db/workspace-content";
 import { identityFromRequest } from "@/server/auth/identity-session";
 import { apiJson, readJson } from "@/server/workspace-http";
@@ -59,7 +60,7 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
   if(await isAdminRequest(request)){
     const {id}=await params;
     const space=await getSpaceOverview(Number(id));
-    return space?Response.json({space}):Response.json({error:"空间不存在"},{status:404});
+    return space?Response.json({space:{...space,isInvited:false,canRead:true,canWrite:true,canManage:true}}):Response.json({error:"空间不存在"},{status:404});
   }
   const user=await identityFromRequest(request);
   if(!user||user.userId===1)return unauthorized();
@@ -69,7 +70,9 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
     if(!Number.isSafeInteger(spaceId)||spaceId<1)return apiJson({error:"空间不存在"},404);
     const workspaceId=await ensurePersonalWorkspace(user.userId);
     const space=await personalOverview(workspaceId,user.userId,spaceId);
-    return space?apiJson({space}):apiJson({error:"空间不存在"},404);
+    if(space)return apiJson({space:{...space,isInvited:false,canRead:true,canWrite:true,canManage:true}});
+    const shared=await invitedSpaceOverview(user.userId,spaceId);
+    return shared?apiJson({space:shared}):apiJson({error:"空间不存在"},404);
   }catch(error){
     if(error instanceof WorkspaceContentError)return apiJson({error:error.message},error.status);
     console.error("personal.space.read.failed",error instanceof Error?error.name:"unknown");
