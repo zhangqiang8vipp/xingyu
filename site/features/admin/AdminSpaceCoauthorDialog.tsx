@@ -2,7 +2,7 @@
 
 import { useCallback,useEffect,useState } from "react";
 import VditorEditor from "./VditorEditor";
-import MarkdownRenderer from "../markdown/MarkdownRenderer";
+import AdminDocumentPreviewDialog from "./AdminDocumentPreviewDialog";
 
 type Document={publicId:string;title:string;content:string;version:number;canRead?:boolean;canWrite:boolean;canManage:boolean};
 type Revision={version:number;actorUserId:number|null;clientLabel?:string;createdAt:string;contentLength:number};
@@ -20,8 +20,8 @@ async function request<T>(url:string,method="GET",body?:object):Promise<Result<T
   return result;
 }
 
-export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,canWrite,initialPreview=false,onShare,onClose,onUpdated}:{
-  spaceId:number;spaceName:string;publicId?:string;canWrite:boolean;initialPreview?:boolean;onShare?:()=>void;onClose:()=>void;onUpdated:()=>void;
+export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,canWrite,authorName,avatarUrl,onShare,onClose,onUpdated}:{
+  spaceId:number;spaceName:string;publicId?:string;canWrite:boolean;authorName:string;avatarUrl:string;onShare?:()=>void;onClose:()=>void;onUpdated:()=>void;
 }){
   const [doc,setDoc]=useState<Document|null>(null);
   const [title,setTitle]=useState("");
@@ -35,7 +35,7 @@ export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,can
   const [conflict,setConflict]=useState<{proposalId:string;current:string;proposed:string;headVersion:number}|null>(null);
   const [resolved,setResolved]=useState("");
   const [preview,setPreview]=useState<{version:number;content:string}|null>(null);
-  const [previewMode,setPreviewMode]=useState(initialPreview);
+  const [previewMode,setPreviewMode]=useState(false);
   const path="/api/space-collaboration/documents/"+encodeURIComponent(publicId??"");
   const load=useCallback(async()=>{
     if(!publicId)return;
@@ -62,10 +62,14 @@ export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,can
     return()=>{active=false;window.clearTimeout(timer);};
   },[load,publicId]);
   useEffect(()=>{
-    const dismiss=(event:KeyboardEvent)=>{if(event.key==="Escape")onClose();};
+    const dismiss=(event:KeyboardEvent)=>{
+      if(event.key!=="Escape")return;
+      if(previewMode||preview){setPreviewMode(false);setPreview(null);}
+      else onClose();
+    };
     window.addEventListener("keydown",dismiss);
     return()=>window.removeEventListener("keydown",dismiss);
-  },[onClose]);
+  },[onClose,previewMode,preview]);
 
   async function save(){
     if(busy)return;
@@ -168,12 +172,10 @@ export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,can
         {!publicId&&editable?<label className="space-coauthor-title">文章标题<input maxLength={200} required
           placeholder="例如：项目交接清单" value={title} onChange={e=>setTitle(e.target.value)} disabled={busy}/></label>:null}
         {(!publicId||doc)&&<section className="space-coauthor-content">
-          <div className="space-collab-section-heading"><h3>{previewMode?"正文预览":"Markdown 正文"}</h3>
-            <button type="button" className="space-collab-subtle" onClick={()=>setPreviewMode(value=>!value)}>
-              {previewMode?"返回编辑":"预览正文"}</button></div>
-          {previewMode?<div className="space-coauthor-live-preview prose markdown-body">
-            <MarkdownRenderer>{content||"（文档暂无正文）"}</MarkdownRenderer>
-          </div>:editable?<VditorEditor key={editorKey} value={content} onChange={setContent} attachments={false}/>:<pre className="space-coauthor-readonly">{content||"（文档暂无正文）"}</pre>}
+          <div className="space-collab-section-heading"><h3>Markdown 正文</h3>
+            <button type="button" className="space-collab-subtle" onClick={()=>{setPreview(null);setPreviewMode(true);}}>
+              真实前台预览</button></div>
+          {editable?<VditorEditor key={editorKey} value={content} onChange={setContent} attachments={false}/>:<pre className="space-coauthor-readonly">{content||"（文档暂无正文）"}</pre>}
         </section>}
         {conflict?<section className="space-coauthor-conflict">
           <div className="space-collab-section-heading"><h3>需要人工审核的并发冲突</h3><span>当前 V{conflict.headVersion}</span></div>
@@ -200,8 +202,7 @@ export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,can
             {doc.canManage&&item.version!==doc.version?<button type="button" className="space-collab-subtle" disabled={busy}
               onClick={()=>void restore(item.version)}>恢复</button>:null}
           </div>)}
-          {preview?<div className="space-coauthor-preview"><b>历史版本 V{preview.version}</b>
-            <pre>{preview.content}</pre><button type="button" onClick={()=>setPreview(null)}>收起预览</button></div>:null}
+
           {doc.canManage&&proposals.map(item=><div className="space-collab-member" key={item.id}>
             <div className="space-collab-member-name"><b>待审核冲突 · 基于 V{item.baseVersion}</b>
               <small>{item.clientLabel} · {item.createdAt}</small></div>
@@ -218,5 +219,11 @@ export default function AdminSpaceCoauthorDialog({spaceId,spaceName,publicId,can
           onClick={()=>void save()}>{busy?"正在处理…":publicId?"保存并合并":"创建草稿"}</button>:null}
       </footer>
     </section>
+    {(previewMode||preview)&&<AdminDocumentPreviewDialog
+      draft={{publicId:preview?publicId+"-revision-"+preview.version:publicId,spaceId,
+        title:preview?title+" · V"+preview.version:title,content:preview?.content??content,
+        excerpt:"",status:"draft",publishedAt:null,spacePath:spaceName}}
+      spaceName={spaceName} authorName={authorName} avatarUrl={avatarUrl}
+      escapeCloses={false} onClose={()=>{setPreviewMode(false);setPreview(null);}}/>}
   </div>;
 }
