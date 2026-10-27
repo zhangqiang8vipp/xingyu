@@ -148,14 +148,14 @@ jobs:
           key: ci-nodemodules-v1-${{ runner.os }}-${{ runner.arch }}-node2218-${{ hashFiles('site/package-lock.json') }}
 
   integration:
-    name: Worker/D1 case shard ${{ matrix.shard }} of 16
+    name: Worker/D1 case shard ${{ matrix.shard }} of 24
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
-      max-parallel: 16
+      max-parallel: 24
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
     defaults:
       run:
         working-directory: site
@@ -192,7 +192,7 @@ jobs:
       - name: Build full production Worker for isolated D1 tests
         run: npm run build
       - name: Run and verify exactly assigned integration test cases
-        run: node scripts/ci-case-shard.mjs ${{ matrix.shard }} 16
+        run: node scripts/ci-case-shard.mjs ${{ matrix.shard }} 24
 
   # Preserve original required "CI / verify" check.
   # Every shard and all static checks must pass before merging.
