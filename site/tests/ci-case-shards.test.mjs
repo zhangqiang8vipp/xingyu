@@ -5,13 +5,13 @@ import { discoverIntegrationCases, planCaseShards, casePattern, assertCompleteCo
 
 const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
-test("every original integration test case runs exactly once at 1, 3, 8, 12 and 16 shards", () => {
+test("every original integration test case runs exactly once at 1, 3, 8, 12, 16 and 24 shards", () => {
   const cases = discoverIntegrationCases(manifest);
   assert.ok(cases.length >= 136, "Do not drop existing security and D1 test cases");
   assert.ok(cases.some(c => c.name.includes("two AI clients merge independent Markdown edits")));
   assert.ok(cases.some(c => c.name.includes("newer database schema is never downgraded")));
   assert.ok(cases.some(c => c.name.includes("two simultaneous edits from the same version")));
-  for (const count of [1, 3, 8, 12, 16]) {
+  for (const count of [1, 3, 8, 12, 16, 24]) {
     const shards = planCaseShards(cases, count);
     assert.equal(shards.length, count);
     assert.equal(assertCompleteCoverage(cases, shards), cases.length);
@@ -59,12 +59,13 @@ test("required CI verifies every shard and restores only exact-lock dependency c
   assert.match(workflow, /needs: \[lint, types, build, integration\]/);
   assert.match(workflow, /if: \$\{\{ always\(\) \}\}/);
   assert.match(workflow, /Worker\/D1 case shard/);
-  assert.match(workflow, /max-parallel: 16/);
+  assert.match(workflow, /max-parallel: 24/);
   assert.match(workflow, /actions\/cache\/restore@v4/);
   assert.match(workflow, /actions\/cache\/save@v4/);
   assert.match(workflow, /hashFiles\('site\/package-lock\.json'\)/);
   assert.match(workflow, /steps\.modules\.outputs\.cache-hit != 'true'/);
   assert.match(workflow, /npm ci --prefer-offline --no-audit --no-fund/);
   assert.match(workflow, /Run and verify exactly assigned integration test cases/);
+  assert.match(workflow, /node scripts\/ci-case-shard\.mjs \$\{\{ matrix\.shard \}\} 24/);
   assert.match(workflow, /Required CI coverage failed, skipped or was cancelled/);
 });
