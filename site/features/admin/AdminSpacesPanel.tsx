@@ -178,7 +178,7 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
   </div></article>;
 
   if(!currentId)return <section className="admin-main spaces-root">
-    <header className="admin-header"><div><p>KNOWLEDGE SPACES</p><h1>知识空间</h1><span>个人空间与受邀共创空间集中管理，权限互不混淆。</span></div><button className="new-button" onClick={()=>beginDialog("create")}>＋ 新建顶级空间</button></header>
+    <header className="admin-header"><div><p>KNOWLEDGE SPACES</p><h1>知识空间</h1><span>顶级空间彼此独立；个人空间与受邀共创空间集中管理，权限互不混淆。</span></div><button className="new-button" onClick={()=>beginDialog("create")}>＋ 新建顶级空间</button></header>
     <div className="spaces-root-summary"><span>{rootMeta.rootCount} 个顶级入口 · {rootMeta.articleCount} 篇可访问文章</span><i/><span>{rootMeta.spaceCount} 个可见空间节点</span><i/>只展示已授权空间及必要的上级路径</div>
     <div className="space-domain-grid">{roots.map((space)=><article className="space-domain-card" key={space.id} onClick={()=>selectSpace(space.id)}>
       <div><i/><span>{space.ancestorOnly?"上级路径 · 仅导航":space.isInvited?"受邀空间":space.childCount+" 个子空间"}</span><SpaceActions space={space} onAction={beginDialog} onCollaborate={setCollabTarget}/></div>
