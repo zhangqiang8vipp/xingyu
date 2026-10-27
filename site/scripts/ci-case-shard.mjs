@@ -115,7 +115,7 @@ function runShard(index, total) {
   console.log("Case-level Worker/D1 shard " + index + "/" + total + ": " +
     selected.length + " tests in " + files.length + " files. Full coverage: " + complete);
   const result = spawnSync(process.execPath, [
-    "--test", "--test-concurrency=8", "--test-name-pattern=" + casePattern(selected),
+    "--test", "--test-concurrency=6", "--test-name-pattern=" + casePattern(selected),
     ...files,
   ], {cwd: SITE_ROOT, env: process.env, encoding: "utf8", maxBuffer: 64 * 1024 * 1024});
   if (result.stdout) process.stdout.write(result.stdout);
