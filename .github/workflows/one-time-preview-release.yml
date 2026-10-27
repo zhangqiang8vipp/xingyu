@@ -1,8 +1,6 @@
-name: One-time release dispatch for unified collaboration preview
+name: One-time cleanup after verified preview production release
 
-# Requested explicitly by the owner. Dispatches the existing manual production
-# workflow ONCE, after the exact main-branch full CI succeeds.
-# Delete this temporary file after the release completes.
+# Housekeeping only; no deployment, secrets or code changes.
 on:
   push:
     branches:
@@ -11,70 +9,82 @@ on:
       - .github/workflows/one-time-preview-release.yml
 
 permissions:
-  contents: read
-  actions: write
-
-concurrency:
-  group: xingyu-one-time-preview-release
-  cancel-in-progress: false
+  contents: write
+  pull-requests: read
+  actions: read
 
 jobs:
-  dispatch:
-    name: Verify main CI then launch existing manual production workflow
+  cleanup:
+    name: Prune merged preview branch and remove temporary workflow
     if: >-
       github.ref == 'refs/heads/main' &&
       github.run_attempt == 1 &&
-      github.event.head_commit.message == 'chore(release): start reviewed preview-unification deployment (once)'
+      github.event.head_commit.message == 'chore(ops): finalize deployed preview-unification and remove helper (once)'
     runs-on: ubuntu-24.04
-    timeout-minutes: 16
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: '22.18.0'
-      - name: Verify all 20 required main CI jobs on this exact SHA
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node site/scripts/verify-production-ci.mjs
-      - name: Dispatch the existing manually confirmed Cloudflare release
+      - name: Verify completed Cloudflare release and clean reviewed refs
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           node --input-type=module <<'NODE'
-          const repo=process.env.GITHUB_REPOSITORY;
-          const sha=process.env.GITHUB_SHA;
+          const repo="zhangqiang8vipp/xingyu";
+          const base="4d8888ffca2d12968913275cbe4713518ca856bc";
+          const branchName="fix/unify-space-document-preview-20261027";
+          const branchSha="d541b50484acaf4f937e6c169359ef2845d713b0";
           const token=process.env.GITHUB_TOKEN;
-          if(repo!=="zhangqiang8vipp/xingyu"||!/^[a-f0-9]{40}$/.test(sha??"")||!token)
-            throw new Error("Unsafe release context");
+          const headSha=process.env.GITHUB_SHA;
+          if(process.env.GITHUB_REPOSITORY!==repo||!token||!/^[a-f0-9]{40}$/.test(headSha??""))
+            throw new Error("Invalid cleanup context");
           const api=(process.env.GITHUB_API_URL||"https://api.github.com").replace(/\/$/,"")+"/repos/"+repo+"/";
-          async function call(path,{method="GET",body}={}){
-            const r=await fetch(api+path,{
-              method,
-              headers:{"Accept":"application/vnd.github+json",
-                "Authorization":"Bearer "+token,
-                "X-GitHub-Api-Version":"2022-11-28",
-                ...(body?{"Content-Type":"application/json"}:{})},
-              ...(body?{body:JSON.stringify(body)}:{}),
-              signal:AbortSignal.timeout(20000)
-            });
-            if(method==="POST"){
-              if(r.status!==204)throw new Error("Workflow dispatch failed: HTTP "+r.status);
-              return null;
-            }
-            if(!r.ok)throw new Error("GitHub read failed: HTTP "+r.status+" on "+path);
-            return r.json();
+          async function get(path){
+            const res=await fetch(api+path,{headers:{Authorization:"Bearer "+token,
+              Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},signal:AbortSignal.timeout(20000)});
+            if(res.status===404)return null;
+            if(!res.ok)throw new Error("GitHub GET "+path+" HTTP "+res.status);
+            return res.json();
           }
-          const branch=await call("git/ref/heads/main");
-          if(branch?.object?.sha!==sha)throw new Error("main moved before release dispatch; cancel");
-          const runs=await call("actions/workflows/deploy-production.yml/runs?per_page=100");
-          if(!Array.isArray(runs.workflow_runs))throw new Error("Cannot check duplicate releases");
-          if(runs.workflow_runs.some(r=>r.head_sha===sha&&r.event==="workflow_dispatch"))
-            throw new Error("A production dispatch for this commit already exists; refusing duplicate");
-          await call("actions/workflows/deploy-production.yml/dispatches",{
-            method:"POST",body:{ref:"main",inputs:{confirm:"DEPLOY"}}
+          async function mutate(method,path,body){
+            const res=await fetch(api+path,{method,headers:{Authorization:"Bearer "+token,
+              Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","Content-Type":"application/json"},
+              ...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});
+            if(!res.ok)throw new Error("GitHub "+method+" "+path+" HTTP "+res.status);
+            return res.status===204?true:res.json();
+          }
+          const head=await get("git/ref/heads/main");
+          if(head?.object?.sha!==headSha)throw new Error("main changed; refuse cleanup");
+          const release=await get("actions/runs/40475690815");
+          if(release?.status!=="completed"||release?.conclusion!=="success"||release?.head_sha!==base)
+            throw new Error("Expected Cloudflare release not verified");
+          const pr=await get("pulls/70");
+          if(pr?.state!=="closed"||!pr?.merged_at||pr?.head?.sha!==branchSha||pr?.head?.ref!==branchName||
+             pr?.head?.repo?.full_name!==repo)throw new Error("PR #70 changed");
+          const open=await get("pulls?state=open&per_page=100");
+          if(!Array.isArray(open)||open.length===100||open.some(x=>x.head?.ref===branchName&&x.head?.repo?.full_name===repo))
+            throw new Error("Cannot prove branch is unused");
+          const branch=await get("branches/"+encodeURIComponent(branchName));
+          if(branch){
+            if(branch.name!==branchName||branch.protected||branch.commit?.sha!==branchSha)
+              throw new Error("Branch SHA changed or protected, refuse delete");
+            await mutate("DELETE","git/refs/heads/"+branchName.split("/").map(encodeURIComponent).join("/"));
+            console.log("Removed merged branch "+branchName);
+          }else console.log("Branch already removed");
+          const remaining=await get("branches?per_page=100");
+          if(!Array.isArray(remaining)||remaining.length!==1||remaining[0].name!=="main")
+            throw new Error("Branch cleanup did not leave only main");
+          const filePath=".github/workflows/one-time-preview-release.yml";
+          const f=await get("contents/"+filePath+"?ref=main");
+          if(!f||f.type!=="file"||!/^[a-f0-9]{40}$/.test(f.sha??""))
+            throw new Error("Cannot verify temporary workflow to remove");
+          const unchanged=await get("git/ref/heads/main");
+          if(unchanged?.object?.sha!==headSha)throw new Error("main moved before workflow removal");
+          await mutate("DELETE","contents/"+filePath,{
+            message:"chore(ops): remove completed one-time preview release workflow",
+            sha:f.sha,branch:"main"
           });
-          console.log("One-time production workflow_dispatch accepted for verified commit "+sha);
-          console.log("Required CLOUDFLARE GitHub Environment approval and original production safeguards remain active.");
+          console.log("Removed one-time workflow, leaving production code unchanged.");
+          console.log("Verified success: only main branch remains.");
           NODE
