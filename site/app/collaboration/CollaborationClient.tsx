@@ -180,7 +180,7 @@ export default function CollaborationClient({initialSpaceId}:{initialSpaceId:num
         <code style={{...field,width:"auto",flex:"1 1 280px",overflowWrap:"anywhere"}}>https://zhangwansen.click/mcp</code>
         <button type="button" style={button} onClick={()=>void navigator.clipboard.writeText("https://zhangwansen.click/mcp").then(()=>setNotice("MCP 服务地址已复制")).catch(()=>setNotice("复制失败，请手动选择地址"))}>复制 MCP 地址</button>
       </div>
-      <p style={{margin:0}}>如果已连接的 XINGYU 只有旧工具 create_draft、get_post、update_post，而没有 list_collaboration_spaces 和 propose_document_change，请在客户端刷新 MCP 工具列表，或重新连接相同的服务后开启新对话。旧工具不能实现跨账号的 Git 式协作。</p>
+      <p style={{margin:0}}>如果 ChatGPT XINGYU 只显示旧工具 create_draft、get_post、update_post，说明它仍在使用已发布时保存的工具快照。请让工作区管理员打开 Apps / Plugins → XINGYU → 操作控制，执行 Refresh，检查并启用新增操作，再按提示审核/发布变更，最后在新对话里选择 XINGYU。仅重新部署 Worker 或重新登录通常不会更新已发布工具目录。</p>
       <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
         <a href="/ai-connections">管理 AI 授权与 Token</a>
         <a href="/connect">查看 MCP 接入方法</a>
