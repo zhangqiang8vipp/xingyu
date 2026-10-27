@@ -158,6 +158,7 @@ export default function CollaborationClient({initialSpaceId}:{initialSpaceId:num
       if(doc?.publicId)await openDocument(doc.publicId);
     },"协作文档已创建");
   }
+  const aiPrompt=access?"用 XINGYU MCP 的 list_collaboration_spaces 找到我的受邀/自有空间，进入空间 #"+access.id+"（"+access.name+"）。使用 list_collaboration_documents 列文档、get_collaboration_document 读取正文和 version；编辑时基于 base_version 用 propose_document_change 安全提交。非重叠修改自动合并，重叠冲突交给管理员，不要使用旧版 update_post 直接覆盖协作文档。":"";
   return <div style={{display:"grid",gap:18,marginTop:22}}>
     {notice?<div role="status" style={{padding:12,border:"1px solid #b0b8c550",borderRadius:10}}>{notice}</div>:null}
     <section style={panel}>
@@ -172,6 +173,24 @@ export default function CollaborationClient({initialSpaceId}:{initialSpaceId:num
       </select>
       {!spaces.length?<p>没有可协作的空间。可以先在写作后台创建知识空间，再回到这里邀请。</p>:null}
     </section>
+    {access?<section style={panel}>
+      <h2 style={{margin:0}}>连接 AI 共同编辑此空间</h2>
+      <p style={{margin:0}}>每个 Agent 使用有权限的账号授权 OAuth 或专属个人 Token 连接同一个 MCP 服务，并拥有 xingyu.read 与 xingyu.draft 两项 Scope；邮箱邀请须由受邀账号先接受。</p>
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <code style={{...field,width:"auto",flex:"1 1 280px",overflowWrap:"anywhere"}}>https://zhangwansen.click/mcp</code>
+        <button type="button" style={button} onClick={()=>void navigator.clipboard.writeText("https://zhangwansen.click/mcp").then(()=>setNotice("MCP 服务地址已复制")).catch(()=>setNotice("复制失败，请手动选择地址"))}>复制 MCP 地址</button>
+      </div>
+      <p style={{margin:0}}>如果已连接的 XINGYU 只有旧工具 create_draft、get_post、update_post，而没有 list_collaboration_spaces 和 propose_document_change，请在客户端刷新 MCP 工具列表，或重新连接相同的服务后开启新对话。旧工具不能实现跨账号的 Git 式协作。</p>
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <a href="/ai-connections">管理 AI 授权与 Token</a>
+        <a href="/connect">查看 MCP 接入方法</a>
+      </div>
+      <div>
+        <p style={{margin:"0 0 8px"}}>复制下面的指令发给 AI：</p>
+        <pre style={{...field,whiteSpace:"pre-wrap",fontFamily:"ui-monospace,monospace",overflowWrap:"anywhere"}}>{aiPrompt}</pre>
+        <button type="button" style={button} onClick={()=>void navigator.clipboard.writeText(aiPrompt).then(()=>setNotice("AI 共创指令已复制")).catch(()=>setNotice("复制失败，请手动选择指令"))}>复制 AI 共创指令</button>
+      </div>
+    </section>:null}
     {access?<div style={columns}>
       <section style={panel}>
         <h2 style={{margin:0}}>📁 {access.name}</h2>
