@@ -77,10 +77,11 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
       ]);
       if(requestId!==loadRequest.current)return;
       if(spaceResponse.ok)setOverview((await readApiJson<{space:Overview}>(spaceResponse)).space);
+      else setOverview(null);
       if(postsResponse?.ok){
         const data=await readApiJson<{rows:SpacePost[];nextCursor:string|null}>(postsResponse);
         setPosts(data.rows??[]);setNextCursor(data.nextCursor??null);
-      }else if(articleSearchDisabled){setPosts([]);setNextCursor(null)}
+      }else {setPosts([]);setNextCursor(null)}
       if(matchesResponse?.ok)setSpaceMatches((await readApiJson<{spaces:SpaceNode[]}>(matchesResponse)).spaces??[]);
       else setSpaceMatches([]);
     }finally{if(requestId===loadRequest.current)setLoading(false)}
@@ -189,15 +190,38 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
   </section>;
 
   return <section className="admin-main spaces-page">
-    <header className="admin-header space-page-header"><div><button className="space-back" onClick={()=>selectSpace(overview?.parentId??null)}>←</button><p>PRIVATE KNOWLEDGE</p><h1>{overview?.name??"知识空间"}</h1><SpaceBreadcrumb path={overview?.path??[]} onSelect={selectSpace}/></div><div className="space-header-actions"><button className="space-mobile-tree-toggle" onClick={()=>setTreeOpen(true)}>☰ 空间路径</button><button onClick={()=>beginDialog("create")}>＋ 子空间</button>{overview&&!isPersonalAccount&&<AdminKnowledgeImport spaceId={overview.id} spaceName={overview.name}/>}<button className="new-button" onClick={()=>overview&&onCreateArticle(overview.id,pathLabel)}>＋ 新建文章</button>{currentActions&&<SpaceActions space={currentActions} onAction={beginDialog}/>}</div></header>
+    <header className="admin-header space-page-header"><div><button className="space-back" onClick={()=>selectSpace(overview?.parentId??null)}>←</button>
+      <p>{overview?.ancestorOnly?"NAVIGATION ONLY":overview?.isInvited?"SHARED KNOWLEDGE":"PRIVATE KNOWLEDGE"}</p>
+      <h1>{overview?.name??"知识空间"}</h1>
+      <SpaceBreadcrumb path={overview?.path??[]} onSelect={selectSpace}/>
+      {overview?.isInvited?<span className="space-shared-access">{overview.ancestorOnly?"上级路径 · 仅可查看名称":"受邀协作 · "+sharedRole}</span>:null}
+    </div><div className="space-header-actions">
+      <button className="space-mobile-tree-toggle" onClick={()=>setTreeOpen(true)}>☰ 空间路径</button>
+      {canWrite?<button onClick={()=>beginDialog("create")}>＋ 子空间</button>:null}
+      {overview&&!isPersonalAccount&&canManage?<AdminKnowledgeImport spaceId={overview.id} spaceName={overview.name}/>:null}
+      {canWrite?<button className="new-button" onClick={()=>{
+        if(!overview)return;
+        if(overview.isInvited)setCoauthor({spaceId:overview.id,name:overview.name,canWrite:true});
+        else onCreateArticle(overview.id,pathLabel);
+      }}>＋ 新建文章</button>:null}
+      {currentActions?<SpaceActions space={currentActions} onAction={beginDialog} onCollaborate={setCollabTarget}/>:null}
+    </div></header>
     <div className="space-workbench">
       {treeOpen&&<button className="space-tree-mobile-backdrop" aria-label="关闭空间树" onClick={()=>setTreeOpen(false)}/>}
       <aside className={`space-tree-panel ${treeOpen?"mobile-open":""}`}><div><b>知识空间</b><button onClick={()=>{selectSpace(null);setTreeOpen(false)}}>全部</button></div><label><span>⌕</span><input value={query} onChange={(event)=>{setQuery(event.target.value);setExpandedGroupId(null)}} placeholder="搜索空间或文章"/></label><div className="space-search-kind"><button className={searchKind==="all"?"active":""} onClick={()=>setSearchKind("all")}>全部</button><button className={searchKind==="spaces"?"active":""} onClick={()=>setSearchKind("spaces")}>空间</button><button className={searchKind==="articles"?"active":""} onClick={()=>setSearchKind("articles")}>正文</button></div><nav>{query&&spaceMatches.length>0&&<div className="space-tree-search-results"><small>空间</small>{spaceMatches.map((space)=><button key={space.id} onClick={()=>{selectSpace(space.id);setQuery("");setTreeOpen(false)}}><b>{space.name}</b><span>{space.path?.map((item)=>item.name).join(" / ")}</span></button>)}<small>空间树</small></div>}{roots.map((space)=><SpaceTreeNode key={`${space.id}-${treeVersion}`} node={space} currentId={currentId} activePathIds={overview?.path.map((item)=>item.id)??[]} onSelect={(id)=>{selectSpace(id);setTreeOpen(false)}}/>)}</nav></aside>
       <div className="space-content">
-        <div className="space-content-intro"><div><span>{overview?.children.length??0} 个直属子空间 · {overview?.articleCount??0} 篇文章（含下级）</span><p>{pathLabel}</p></div><div className="space-scope"><button className={scope==="descendants"?"active":""} onClick={()=>{setScope("descendants");setExpandedGroupId(null)}}>包含子空间</button><button className={scope==="current"?"active":""} onClick={()=>{setScope("current");setExpandedGroupId(null)}}>仅当前空间</button><button className={scope==="all"?"active":""} onClick={()=>{setScope("all");setExpandedGroupId(null)}}>全部空间</button></div></div>
-        {!!overview?.children.length&&<><div className="space-section-heading"><b>子空间</b><span>按浏览顺序排列</span></div><div className="space-child-grid">{overview.children.map((space)=><article key={space.id} onClick={()=>selectSpace(space.id)}><div><i/><SpaceActions space={space} onAction={beginDialog}/></div><h3>{space.name}</h3><p>{pathLabel} / {space.name}</p><footer>{space.childCount} 个子空间 · {space.totalArticleCount??space.articleCount} 篇文章 <b>↗</b></footer></article>)}</div></>}
-        <div className="space-section-heading"><b>{scope==="current"?"直属文章":scope==="descendants"?"空间内文章":"全部私有文章"}</b><span>{query?`搜索“${query}” · `:""}按空间分组，点击展开文章</span></div>
-        <div className={scope==="current"?"space-article-list":"space-article-groups"}>{loading?<p className="space-loading">正在读取空间内容…</p>:scope==="current"?posts.map(renderPost):postGroups.map((group,index)=>{
+        <div className="space-content-intro"><div><span>{overview?.children.length??0} 个直属子空间 · {overview?.ancestorOnly?0:overview?.articleCount??0} 篇可访问文章（含下级）</span><p>{pathLabel}</p></div>
+      {!overview?.ancestorOnly?<div className="space-scope">
+        <button className={scope==="descendants"?"active":""} onClick={()=>{setScope("descendants");setExpandedGroupId(null)}}>包含子空间</button>
+        <button className={scope==="current"?"active":""} onClick={()=>{setScope("current");setExpandedGroupId(null)}}>仅当前空间</button>
+        {!overview?.isInvited?<button className={scope==="all"?"active":""} onClick={()=>{setScope("all");setExpandedGroupId(null)}}>全部空间</button>:null}
+      </div>:null}</div>
+        {!!overview?.children.length&&<><div className="space-section-heading"><b>子空间</b><span>按浏览顺序排列</span></div><div className="space-child-grid">{overview.children.map((space)=><article key={space.id} onClick={()=>selectSpace(space.id)}><div><i/><SpaceActions space={space} onAction={beginDialog} onCollaborate={setCollabTarget}/></div><h3>{space.name}</h3><p>{pathLabel} / {space.name}</p><footer>{space.ancestorOnly?"上级路径 · 仅显示目录名称":space.childCount+" 个子空间 · "+(space.totalArticleCount??space.articleCount)+" 篇文章"} <b>↗</b></footer></article>)}</div></>}
+        {overview?.ancestorOnly?<div className="space-shared-ancestor-note">你可以通过目录导航进入获邀空间。上级目录仅提供位置关系，不允许查看其文章、成员或其他子空间。</div>:null}
+        {!overview?.ancestorOnly?<div className="space-section-heading"><b>{scope==="current"?"直属文章":scope==="descendants"?"空间内文章":"全部私有文章"}</b><span>{query?`搜索“${query}” · `:""}按空间分组，点击展开文章</span>
+        {canWrite?<button className="space-collab-inline-action" onClick={()=>overview&&setCoauthor({spaceId:overview.id,name:overview.name,canWrite:true})}>＋ 共创文档</button>:null}
+        </div>:null}
+        {!overview?.ancestorOnly?<div className={scope==="current"?"space-article-list":"space-article-groups"}>{loading?<p className="space-loading">正在读取空间内容…</p>:scope==="current"?posts.map(renderPost):postGroups.map((group,index)=>{
           const expanded=openGroupId===group.spaceId;
           const pathParts=group.path.split(" / ");
           return <section className="space-article-group-card" key={group.spaceId}>
@@ -206,10 +230,15 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
             </button>
             <div className="space-article-list" id={`space-articles-${group.spaceId}`} hidden={!expanded}>{group.rows.map(renderPost)}</div>
           </section>;
-        })}{!loading&&!posts.length&&<div className="space-empty compact"><h3>{query&&searchKind==="spaces"?"正在按空间名称搜索":"这个空间还很安静"}</h3><p>{query?(searchKind==="spaces"?"匹配空间显示在左侧，正文列表保持隐藏。":"没有找到匹配文章"):"可以创建子空间，或从这里开始写第一篇知识文章。"}</p></div>}{!loading&&nextCursor&&<button className="space-load-more" onClick={()=>void loadMore()} disabled={loadingMore}>{loadingMore?"正在加载…":"继续加载"}</button>}</div>
+        })}{!loading&&!posts.length&&<div className="space-empty compact"><h3>{query&&searchKind==="spaces"?"正在按空间名称搜索":"这个空间还很安静"}</h3><p>{query?(searchKind==="spaces"?"匹配空间显示在左侧，正文列表保持隐藏。":"没有找到匹配文章"):"可以创建子空间，或从这里开始写第一篇知识文章。"}</p></div>}{!loading&&nextCursor&&<button className="space-load-more" onClick={()=>void loadMore()} disabled={loadingMore}>{loadingMore?"正在加载…":"继续加载"}</button>}</div>:null}
       </div>
     </div>
-    {dialog&&<SpaceDialog dialog={dialog} impact={dialogImpact} name={name} setName={setName} sortOrder={sortOrder} setSortOrder={setSortOrder} moveTarget={moveTarget} setMoveTarget={setMoveTarget} deleteMode={deleteMode} setDeleteMode={setDeleteMode} confirmName={confirmName} setConfirmName={setConfirmName} message={message} onClose={()=>setDialog(null)} onSubmit={submitDialog}/>}
+    {collabTarget&&<AdminSpaceCollaborationDialog spaceId={collabTarget.id} spaceName={collabTarget.name} onClose={()=>setCollabTarget(null)}
+      onUpdated={()=>window.dispatchEvent(new Event("xingyu:spaces-changed"))}/>}
+    {coauthor&&<AdminSpaceCoauthorDialog key={coauthor.publicId??"new-"+coauthor.spaceId} spaceId={coauthor.spaceId}
+      spaceName={coauthor.name} publicId={coauthor.publicId} canWrite={coauthor.canWrite} onClose={()=>setCoauthor(null)}
+      onUpdated={()=>window.dispatchEvent(new Event("xingyu:spaces-changed"))}/>}
+    {dialog&&<SpaceDialog dialog={dialog} impact={dialogImpact} isInvited={overview?.isInvited} name={name} setName={setName} sortOrder={sortOrder} setSortOrder={setSortOrder} moveTarget={moveTarget} setMoveTarget={setMoveTarget} deleteMode={deleteMode} setDeleteMode={setDeleteMode} confirmName={confirmName} setConfirmName={setConfirmName} message={message} onClose={()=>setDialog(null)} onSubmit={submitDialog}/>}
   </section>;
 }
 
@@ -241,19 +270,36 @@ function SpaceTreeNode({node,currentId,activePathIds,onSelect}:{node:SpaceNode;c
     if(!open)await loadChildren();
     setOpen((value)=>!value);
   };
-  return <div className="space-tree-node"><button className={currentId===node.id?"current":""} onClick={()=>onSelect(node.id)} title={node.name}><i onClick={toggle}>{node.childCount?(open?"⌄":"›"):"·"}</i><span>{node.name}</span><small>{node.totalArticleCount??node.articleCount}</small></button>{open&&<div>{children.map((child)=><SpaceTreeNode key={child.id} node={child} currentId={currentId} activePathIds={activePathIds} onSelect={onSelect}/>)}</div>}</div>;
+  return <div className="space-tree-node"><button className={currentId===node.id?"current":""} onClick={()=>onSelect(node.id)} title={node.name}><i onClick={toggle}>{node.childCount?(open?"⌄":"›"):"·"}</i><span>{node.name}</span><small>{node.ancestorOnly?"路径":node.totalArticleCount??node.articleCount}</small></button>{open&&<div>{children.map((child)=><SpaceTreeNode key={child.id} node={child} currentId={currentId} activePathIds={activePathIds} onSelect={onSelect}/>)}</div>}</div>;
 }
 
-function SpaceActions({space,onAction}:{space:SpaceNode;onAction:(kind:DialogState["kind"],target?:SpaceNode)=>void}){
+function SpaceActions({space,onAction,onCollaborate}:{
+  space:SpaceNode;onAction:(kind:DialogState["kind"],target?:SpaceNode)=>void;
+  onCollaborate:(target:SpaceNode)=>void;
+}){
   const [open,setOpen]=useState(false);
   const rootRef=useRef<HTMLDivElement>(null);
+  const isOwnerSpace=!space.isInvited;
+  const mayManage=space.canManage!==false&&!space.ancestorOnly;
+  const mayEditLegacy=isOwnerSpace&&!space.ancestorOnly;
   useEffect(()=>{
     if(!open)return;
     const close=(event:PointerEvent)=>{if(!rootRef.current?.contains(event.target as Node))setOpen(false)};
     document.addEventListener("pointerdown",close);
     return()=>document.removeEventListener("pointerdown",close);
   },[open]);
-  return <div className="space-card-actions" ref={rootRef} onClick={(event)=>event.stopPropagation()}><button type="button" aria-label={`${space.name}操作`} aria-expanded={open} onClick={()=>setOpen((value)=>!value)}>···</button>{open&&<div role="menu"><button role="menuitem" onClick={()=>{setOpen(false);onAction("rename",space)}}>重命名</button><button role="menuitem" onClick={()=>{setOpen(false);onAction("sort",space)}}>设置浏览顺序</button><button role="menuitem" onClick={()=>{setOpen(false);onAction("move",space)}}>移动空间</button><button role="menuitem" className="danger" onClick={()=>{setOpen(false);onAction("delete",space)}}>删除空间</button></div>}</div>;
+  if(!mayManage&&!mayEditLegacy)return null;
+  return <div className="space-card-actions" ref={rootRef} onClick={event=>event.stopPropagation()}>
+    <button type="button" aria-label={space.name+"操作"} aria-expanded={open} onClick={()=>setOpen(value=>!value)}>···</button>
+    {open?<div role="menu">
+      {mayManage?<button role="menuitem" onClick={()=>{setOpen(false);onCollaborate(space)}}>邀请与协作成员</button>:null}
+      {mayEditLegacy?<><button role="menuitem" onClick={()=>{setOpen(false);onAction("rename",space)}}>重命名</button>
+        <button role="menuitem" onClick={()=>{setOpen(false);onAction("sort",space)}}>设置浏览顺序</button>
+        <button role="menuitem" onClick={()=>{setOpen(false);onAction("move",space)}}>移动空间</button>
+        <button role="menuitem" className="danger" onClick={()=>{setOpen(false);onAction("delete",space)}}>删除空间</button>
+      </>:null}
+    </div>:null}
+  </div>;
 }
 
 function SpaceDialog({dialog,impact,isPersonalAccount=false,name,setName,sortOrder,setSortOrder,moveTarget,setMoveTarget,deleteMode,setDeleteMode,confirmName,setConfirmName,message,onClose,onSubmit}:{dialog:DialogState;impact:DialogImpact;isPersonalAccount?:boolean;name:string;setName:(value:string)=>void;sortOrder:string;setSortOrder:(value:string)=>void;moveTarget:SpaceChoice|null;setMoveTarget:(value:SpaceChoice|null)=>void;deleteMode:"empty"|"move"|"recursive";setDeleteMode:(value:"empty"|"move"|"recursive")=>void;confirmName:string;setConfirmName:(value:string)=>void;message:string;onClose:()=>void;onSubmit:()=>void}){
