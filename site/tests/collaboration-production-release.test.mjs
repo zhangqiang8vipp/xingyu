@@ -70,3 +70,23 @@ test("post-deploy gate rejects missing revision triggers and wrong schema marker
   assert.notEqual(fixture("postdeploy", "25", migrations, fullShape).result.status, 0);
   assert.notEqual(fixture("postdeploy", "26", migrations, fullShape.filter(x => x.name !== "document_revision_post_update")).result.status, 0);
 });
+
+
+test("production dispatch evaluates GitHub expressions instead of passing them as literal strings", () => {
+  const workflow = readFileSync(path.join(site, "..", ".github", "workflows", "release-collaboration-2026-10-26.yml"), "utf8");
+  const contexts = [
+    "inputs.confirm",
+    "inputs.migrate",
+    "vars.PRODUCTION_DEPLOY_ENABLED",
+    "secrets.CLOUDFLARE_API_TOKEN",
+    "secrets.CLOUDFLARE_ACCOUNT_ID",
+  ];
+  for (const context of contexts) {
+    const resolvedExpression = "$" + "{{ " + context + " }}";
+    assert.ok(workflow.includes(resolvedExpression), "Missing evaluated Actions context: " + context);
+  }
+  assert.doesNotMatch(workflow, /\$\{\s*(?:inputs|vars|secrets)\./,
+    "Unresolved single-brace GitHub expression would make dispatch fail closed");
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /^\s+push:/m, "Production workflow must remain manual");
+});
