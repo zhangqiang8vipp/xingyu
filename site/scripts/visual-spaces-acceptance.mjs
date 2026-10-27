@@ -172,8 +172,9 @@ async function checkEditor(browser,origin,user,root){
     // Wait until the editor grant and submit action have fully hydrated.
     await page.waitForFunction(()=>Array.from(document.querySelectorAll(".space-coauthor-dialog footer button"))
       .some(button=>button.textContent.includes("保存并合并")),{timeout:30000});
-    const actions=await page.$eval(".space-coauthor-dialog footer button",
-      nodes=>nodes.map(n=>n.textContent.trim()));
+    const actions=await page.evaluate(()=>Array.from(
+      document.querySelectorAll(".space-coauthor-dialog footer button"))
+      .map(node=>node.textContent.trim()));
     assert.ok(!actions.includes("删除"),"editor dialog cannot delete");
     assert.ok(actions.some(text=>text.includes("保存并合并")),"editor may write");
     await page.evaluate(()=>{
