@@ -381,3 +381,30 @@ test("organization owners navigate their own knowledge trees; external invitees 
     assert.equal((await api(h,"/api/spaces/"+other,{cookie:member.cookie})).status,404);
   }finally{await closeTestHarness(h);}
 });
+
+
+test("site Owner email identity can invite and edit original site knowledge spaces",async()=>{
+  const h=await openTestHarness();
+  try{
+    const siteOwner=await makeActiveUser(h,"site-email-owner");
+    await h.db.prepare("INSERT INTO site_memberships(user_id,role) VALUES(?,'owner')")
+      .bind(siteOwner.id).run();
+    const existing=await h.db.prepare("SELECT id FROM spaces WHERE workspace_id=1 AND parent_id IS NULL LIMIT 1").first();
+    const root=existing?.id??(await h.db.prepare(
+      "INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(1,NULL,?,?) RETURNING id"
+    ).bind("站点知识空间","site-email-"+randomBytes(5).toString("hex")).first()).id;
+    const overview=await api(h,"/api/space-collaboration/"+root,{cookie:siteOwner.cookie});
+    assert.equal(overview.status,200,JSON.stringify(overview.body));
+    assert.equal(overview.body.access.role,"owner");
+    assert.equal(overview.body.access.canManage,true);
+    const tree=await api(h,"/api/space-collaboration/navigation",{cookie:siteOwner.cookie});
+    assert.equal(tree.status,200);
+    assert.ok(tree.body.nodes.some(n=>n.id===root&&n.canRead===true));
+    const created=await api(h,"/api/space-collaboration/"+root,{
+      cookie:siteOwner.cookie,method:"POST",body:{action:"create_child",name:"站点 Owner 新子空间"},
+    });
+    assert.equal(created.status,201,JSON.stringify(created.body));
+    const childId=created.body.result.id;
+    assert.equal((await api(h,"/api/spaces/"+childId,{cookie:siteOwner.cookie})).status,200);
+  }finally{await closeTestHarness(h);}
+});
