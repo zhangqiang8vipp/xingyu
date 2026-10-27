@@ -1,0 +1,280 @@
+{
+  "version": 1,
+  "repository": "zhangqiang8vipp/xingyu",
+  "reviewedAt": "2026-10-27",
+  "targets": [
+    {
+      "name": "ci/manual-cloudflare-production-deploy-20261019",
+      "sha": "254be0b82201feb41026df8e1291fd71dcc84c97",
+      "reason": "merged",
+      "pr": 25
+    },
+    {
+      "name": "cleanup/remove-one-time-gemini-deploy-20261020",
+      "sha": "87b02b8125929050d1a3e05f5aa9cd7430b19b0e",
+      "reason": "merged",
+      "pr": 31
+    },
+    {
+      "name": "feat/admin-configurable-free-qa-model-20261022",
+      "sha": "057d87a331205d74fd901180ce4a54058a46de79",
+      "reason": "merged",
+      "pr": 54
+    },
+    {
+      "name": "feat/global-ai-assistant-and-qa-recall-20261021",
+      "sha": "82cf6c83c992ffcbcec786a150982f23e4092a80",
+      "reason": "merged",
+      "pr": 44
+    },
+    {
+      "name": "feat/integrated-knowledge-space-collaboration-20261027",
+      "sha": "5b5dbd9db182362c53d30a90ce02107849c31849",
+      "reason": "merged",
+      "pr": 60
+    },
+    {
+      "name": "feat/knowledge-file-library-20261020",
+      "sha": "2eed037b38cde90f7f06e7ecc8cd319a7d2b52a5",
+      "reason": "merged",
+      "pr": 33
+    },
+    {
+      "name": "feat/knowledge-qa-openrouter-v1-20261021",
+      "sha": "ed1c4e667967e97439d9b29397c9f6609f66e522",
+      "reason": "merged",
+      "pr": 40
+    },
+    {
+      "name": "feat/personal-admin-portal-organization-mcp-20261020",
+      "sha": "5512a3490050e8ae0d90cd555f6fc6d180215575",
+      "reason": "merged",
+      "pr": 32
+    },
+    {
+      "name": "feat/space-invites-ai-merge-20261026",
+      "sha": "2687b35e4942a5772cf8cfe8bd32a4da9a398f81",
+      "reason": "merged",
+      "pr": 56
+    },
+    {
+      "name": "feat/unified-personal-admin-ui",
+      "sha": "ad9077b12fe4c06f528c58aed1119a03a19035e1",
+      "reason": "abandoned",
+      "pr": 37
+    },
+    {
+      "name": "feature/gemini-mcp-connect-20261019",
+      "sha": "6a22f430ffba8c1657598a006ecb4738ce5d1d15",
+      "reason": "merged",
+      "pr": 24
+    },
+    {
+      "name": "fix/assistant-scroll-nav-and-quotas-20261021",
+      "sha": "5f0fa734b3ce99abcddd6513833be246d05fbfa5",
+      "reason": "merged",
+      "pr": 47
+    },
+    {
+      "name": "fix/collaboration-release-dispatch-inputs-20261027",
+      "sha": "899ef10f048fce15a2aa49ed1ddc15effb85c97b",
+      "reason": "merged",
+      "pr": 58
+    },
+    {
+      "name": "fix/deploy-environment-cloudflare-20261020",
+      "sha": "9ae90330b84d749de78fc7e9b18a6a9fe3b901a3",
+      "reason": "merged",
+      "pr": 27
+    },
+    {
+      "name": "fix/deploy-workflow-checkout-directory-20261020",
+      "sha": "3d16b9bee9f6f3b41893cb1fed6dddad536be6e1",
+      "reason": "merged",
+      "pr": 26
+    },
+    {
+      "name": "fix/gemini-dcr-default-publish-scope-20261020",
+      "sha": "9b9f0282c7b2e7a7f77332836d07275a4fd3cb85",
+      "reason": "merged",
+      "pr": 28
+    },
+    {
+      "name": "fix/manual-openrouter-release-gates-20261021",
+      "sha": "b83e47089efccd0a0973a0833928bbcc54d2e6f5",
+      "reason": "merged",
+      "pr": 42
+    },
+    {
+      "name": "fix/mcp-collaboration-discovery-20261027",
+      "sha": "39aa404ff96e33745cf1823214223788403c8302",
+      "reason": "merged",
+      "pr": 59
+    },
+    {
+      "name": "fix/one-time-deploy-trigger-guard-20261020",
+      "sha": "116ba87113eae9eb64cd694bad6e043fd56909a9",
+      "reason": "merged",
+      "pr": 30
+    },
+    {
+      "name": "fix/openrouter-empty-completion-budget-20261021",
+      "sha": "0b28cd829c740baa08efac31c577ffd88577f680",
+      "reason": "merged",
+      "pr": 51
+    },
+    {
+      "name": "fix/openrouter-live-diagnostics-on-current-main-20261021",
+      "sha": "135bb25f93826109a22a9b36500a36c97da69d4d",
+      "reason": "merged",
+      "pr": 49
+    },
+    {
+      "name": "fix/pat-management-login-latency",
+      "sha": "3169cce10385d8e69dfac2ea75ea3728844bae48",
+      "reason": "merged",
+      "pr": 38
+    },
+    {
+      "name": "fix/personal-content-ownership-isolation-20261020",
+      "sha": "95a842bfc3d42d56553f2a26e91b21be450c22a6",
+      "reason": "merged",
+      "pr": 35
+    },
+    {
+      "name": "fix/qa-openrouter-safe-failure-diagnostics-20261021",
+      "sha": "1670839dad6a2711e8f1ce23626d52f7b8b6c8ae",
+      "reason": "abandoned",
+      "pr": 46
+    },
+    {
+      "name": "fix/qa-specific-topics-not-site-overview-20261022",
+      "sha": "1403787f0c3e2305a4647fcf80c44c36e122f898",
+      "reason": "merged",
+      "pr": 55
+    },
+    {
+      "name": "fix/security-knowledge-pagination-login-telemetry",
+      "sha": "cfad171f24ca73749ade00465e219d77182fed1c",
+      "reason": "merged",
+      "pr": 39
+    },
+    {
+      "name": "fix/space-document-permissions-20261027",
+      "sha": "1789b23363e1b4d0ae88b99053a56169022bc871",
+      "reason": "merged",
+      "pr": 67
+    },
+    {
+      "name": "fix/unified-admin-ui-personal-data-scope-20261020",
+      "sha": "0fb85e9bc5166d13ec154211c72fcb21e68c1f0e",
+      "reason": "merged",
+      "pr": 36
+    },
+    {
+      "name": "ops/one-time-gemini-scope-production-deploy-20261020",
+      "sha": "a8f182e2104a611c44a5d2bf62eb5222efa27436",
+      "reason": "merged",
+      "pr": 29
+    },
+    {
+      "name": "ops/one-time-production-deploy-personal-portal-20261020",
+      "sha": "a0c2f9fa87f3c808ef994614da1f1c44367a3ffa",
+      "reason": "merged",
+      "pr": 34
+    },
+    {
+      "name": "perf/ci-60s-benchmark-24-shards-20261027",
+      "sha": "b87ed988e31bd34cdea0fae2589c01893b7156d6",
+      "reason": "abandoned",
+      "pr": 63
+    },
+    {
+      "name": "perf/ci-case-duration-balance-20261027",
+      "sha": "b85bcadbac23048df79882c2147089be03a37cee",
+      "reason": "merged",
+      "pr": 65
+    },
+    {
+      "name": "perf/ci-one-minute-target-20261027",
+      "sha": "f6a262f01df270a59e4d0d68ee8f7ccd626d7834",
+      "reason": "merged",
+      "pr": 62
+    },
+    {
+      "name": "perf/ci-shards-dedupe-20261027",
+      "sha": "1869088e6105a161da31c561cb25cad44f94723a",
+      "reason": "merged",
+      "pr": 61
+    },
+    {
+      "name": "perf/ci-single-worker-bundle-20261027",
+      "sha": "42d12e8aa7cc9fdab4c617f5d0f376429353a64a",
+      "reason": "abandoned",
+      "pr": 64
+    },
+    {
+      "name": "perf/production-deploy-ci-reuse-20261027",
+      "sha": "8aa044bd9c5767cd61ddbee7463a2348b0af5a79",
+      "reason": "merged",
+      "pr": 68
+    },
+    {
+      "name": "release/collaboration-production-20261026",
+      "sha": "99a3cff911abcda29fbc5b26e967e67e29cad6f6",
+      "reason": "merged",
+      "pr": 57
+    },
+    {
+      "name": "release/once-ask-ux-quota-20261021",
+      "sha": "74700a0b00f928db9ee449610c5657e2a1feaa9b",
+      "reason": "merged",
+      "pr": 48
+    },
+    {
+      "name": "release/once-global-ai-panel-v2-20261021",
+      "sha": "f90b054abac8f7a742e6d0282750bb858e35dd1f",
+      "reason": "merged",
+      "pr": 45
+    },
+    {
+      "name": "release/once-openrouter-ask-20261021",
+      "sha": "0bdc1853af125e0dc8719c1a1388ff8c9fa9eeae",
+      "reason": "merged",
+      "pr": 41
+    },
+    {
+      "name": "release/once-openrouter-diagnostics-20261021",
+      "sha": "748b6fcad26563b0af822668c9d6459fb1351cfb",
+      "reason": "merged",
+      "pr": 50
+    },
+    {
+      "name": "release/once-openrouter-output-budget-20261021",
+      "sha": "e9810c074d0409bf2a9c64d07482defd3a62b7c9",
+      "reason": "merged",
+      "pr": 52
+    },
+    {
+      "name": "release/once-openrouter-qa-ready-20261021",
+      "sha": "bfdfc3b7ba53914b53f7477aeb93f24637c21e36",
+      "reason": "merged",
+      "pr": 43
+    },
+    {
+      "name": "sync/return-to-upstream-20261010",
+      "sha": "de2ab93119536a8e0201f00a0371e91269c78156",
+      "reason": "no-diff"
+    },
+    {
+      "name": "test/openrouter-live-parameters-20261021",
+      "sha": "e807ae1bb8b431fd87b82e6354b99210fd39f3ee",
+      "reason": "no-diff"
+    },
+    {
+      "name": "test/openrouter-real-public-context-20261022",
+      "sha": "b8e05d53e55ede71e1bab4caf17d0ab0aae7948b",
+      "reason": "no-diff"
+    }
+  ]
+}
