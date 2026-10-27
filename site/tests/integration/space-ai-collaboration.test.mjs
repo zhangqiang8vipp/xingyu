@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {randomBytes,createHash} from "node:crypto";
-import {openTestHarness,closeTestHarness,jsonRequest,callMcpTool,callMcpRaw} from "./harness.mjs";
+import {openTestHarness,closeTestHarness,jsonRequest,callMcpTool,callMcpRaw,loginAdmin} from "./harness.mjs";
 import {makeActiveUser} from "./identity-fixtures.mjs";
 
 const digest=value=>createHash("sha256").update(value).digest("hex");
@@ -224,5 +224,113 @@ test("legacy owner OAuth MCP manifests must include newly added collaboration to
     assert.equal(result.structuredContent?.ok,true,JSON.stringify(result.structuredContent));
     assert.ok(result.structuredContent.result.some(s=>s.id===spaceId),
       "A root space created by the existing owner must be discoverable by collaboration MCP");
+  }finally{await closeTestHarness(h);}
+});
+
+
+test("knowledge space UI shows invited ancestor path but never sibling content, with role-specific actions",async()=>{
+  const h=await openTestHarness();
+  try{
+    const owner=await makeActiveUser(h,"space-ui-owner");
+    const editor=await makeActiveUser(h,"space-ui-editor");
+    const viewer=await makeActiveUser(h,"space-ui-viewer");
+    const outsider=await makeActiveUser(h,"space-ui-outsider");
+    const root=await rootOf(h,owner.workspaceId);
+    const target=(await h.db.prepare(
+      "INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(?,?,'交接文档',?) RETURNING id"
+    ).bind(owner.workspaceId,root,"handoff-"+randomBytes(4).toString("hex")).first()).id;
+    const privateSibling=(await h.db.prepare(
+      "INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(?,?,'Confidential sibling',?) RETURNING id"
+    ).bind(owner.workspaceId,root,"private-"+randomBytes(4).toString("hex")).first()).id;
+    const child=(await h.db.prepare(
+      "INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(?,?,'卫健委',?) RETURNING id"
+    ).bind(owner.workspaceId,target,"health-"+randomBytes(4).toString("hex")).first()).id;
+
+    const denied=await api(h,"/api/spaces/"+target,{cookie:outsider.cookie});
+    assert.equal(denied.status,404,"non-invitee must not discover the target");
+    const editorToken=await invite(h,target,owner.workspaceId,editor.email,owner.id);
+    const viewerToken=await invite(h,target,owner.workspaceId,viewer.email,owner.id,"viewer");
+    assert.equal((await api(h,"/api/space-invitations",{cookie:editor.cookie,method:"POST",body:{token:editorToken}})).status,200);
+    assert.equal((await api(h,"/api/space-invitations",{cookie:viewer.cookie,method:"POST",body:{token:viewerToken}})).status,200);
+    const privateDoc=await api(h,"/api/space-collaboration/"+privateSibling,{cookie:owner.cookie,method:"POST",body:{
+      action:"create_document",title:"Secret sibling content",content:"NOT-FOR-INVITEES",
+    }});
+    assert.equal(privateDoc.status,201,JSON.stringify(privateDoc.body));
+    const publicDoc=await api(h,"/api/space-collaboration/"+target,{cookie:editor.cookie,method:"POST",body:{
+      action:"create_document",title:"交接清单",content:"# 交接清单\n## 卫健委",
+    }});
+    assert.equal(publicDoc.status,201,JSON.stringify(publicDoc.body));
+
+    for(const user of [editor,viewer]){
+      const list=await api(h,"/api/space-collaboration/navigation",{cookie:user.cookie});
+      assert.equal(list.status,200,JSON.stringify(list.body));
+      const nodes=list.body.nodes;
+      assert.ok(nodes.some(n=>n.id===root&&n.ancestorOnly&&n.canRead===false),"parent name is visible only as breadcrumb");
+      assert.ok(nodes.some(n=>n.id===target&&n.canRead&&n.parentId===root));
+      assert.ok(nodes.some(n=>n.id===child&&n.canRead&&n.parentId===target));
+      assert.equal(nodes.some(n=>n.id===privateSibling),false,"sibling must not be discoverable");
+
+      const roots=await api(h,"/api/spaces?parent=root",{cookie:user.cookie});
+      assert.equal(roots.status,200);
+      const ownedParent=roots.body.spaces.find(n=>n.id===root);
+      assert.equal(ownedParent?.ancestorOnly,true);
+      assert.equal(ownedParent?.articleCount,0);
+
+      const breadcrumbs=await api(h,"/api/spaces/"+root,{cookie:user.cookie});
+      assert.equal(breadcrumbs.status,200,JSON.stringify(breadcrumbs.body));
+      assert.equal(breadcrumbs.body.space.canRead,false);
+      assert.deepEqual(breadcrumbs.body.space.children.map(n=>n.id),[target]);
+      assert.equal(breadcrumbs.body.space.articleCount,0);
+      assert.equal((await api(h,"/api/spaces/"+root+"/posts?scope=all",{cookie:user.cookie})).body.rows.length,0);
+
+      const subtree=await api(h,"/api/spaces?parent="+root,{cookie:user.cookie});
+      assert.deepEqual(subtree.body.spaces.map(n=>n.id),[target]);
+      const own=await api(h,"/api/spaces/"+target,{cookie:user.cookie});
+      assert.equal(own.status,200);
+      assert.deepEqual(own.body.space.path.map(n=>n.id),[root,target]);
+      assert.equal(own.body.space.isInvited,true);
+      assert.equal(own.body.space.canWrite,user===editor);
+      assert.equal(own.body.space.canManage,false);
+      assert.deepEqual(own.body.space.children.map(n=>n.id),[child]);
+
+      const posts=await api(h,"/api/spaces/"+target+"/posts?scope=all",{cookie:user.cookie});
+      assert.equal(posts.status,200,JSON.stringify(posts.body));
+      assert.deepEqual(posts.body.rows.map(n=>n.title),["交接清单"]);
+      assert.ok(posts.body.rows[0].spacePath.endsWith("交接文档"));
+      assert.ok(!JSON.stringify(posts.body).includes("NOT-FOR-INVITEES"));
+      assert.equal((await api(h,"/api/spaces/"+privateSibling,{cookie:user.cookie})).status,404);
+      assert.equal((await api(h,"/api/spaces/"+privateSibling+"/posts",{cookie:user.cookie})).status,404);
+    }
+    assert.equal((await api(h,"/api/space-collaboration/"+target,{cookie:viewer.cookie,method:"POST",body:{
+      action:"create_child",name:"Should not exist",
+    }})).status,403);
+
+    const blocked=await api(h,"/api/space-collaboration/"+child,{cookie:owner.cookie,method:"POST",body:{
+      action:"set_inheritance",enabled:false,
+    }});
+    assert.equal(blocked.status,200);
+    assert.equal((await api(h,"/api/spaces/"+child,{cookie:editor.cookie})).status,404);
+    const filtered=await api(h,"/api/spaces?parent="+target,{cookie:editor.cookie});
+    assert.deepEqual(filtered.body.spaces.map(n=>n.id),[]);
+    const removed=await api(h,"/api/space-collaboration/"+target,{cookie:owner.cookie,method:"POST",body:{
+      action:"remove_member",userId:editor.id,
+    }});
+    assert.equal(removed.status,200);
+    assert.equal((await api(h,"/api/spaces/"+target,{cookie:editor.cookie})).status,404);
+    assert.equal((await api(h,"/api/space-collaboration/navigation",{cookie:editor.cookie})).body.nodes.some(n=>n.id===root),false);
+  }finally{await closeTestHarness(h);}
+});
+
+test("legacy password owner can manage invitations from the native space menu",async()=>{
+  const h=await openTestHarness();
+  try{
+    const adminCookie=await loginAdmin(h);
+    const root=await rootOf(h,1);
+    const managed=await api(h,"/api/space-collaboration/"+root,{cookie:adminCookie});
+    assert.equal(managed.status,200,JSON.stringify(managed.body));
+    assert.equal(managed.body.access.canManage,true);
+    assert.ok(Array.isArray(managed.body.members));
+    const anonymous=await api(h,"/api/space-collaboration/"+root);
+    assert.equal(anonymous.status,401);
   }finally{await closeTestHarness(h);}
 });
