@@ -16,7 +16,19 @@ const MCP_PATH = "/mcp";
 
 function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth) {
   const server = new McpServer(
-    { name: "xingyu-blog-writer", version: "2.0.0" },
+    {
+      name: "xingyu-blog-writer",
+      title: "星屿 MCP",
+      version: "2.0.0",
+      websiteUrl: origin,
+      icons: [
+        {
+          src: `${origin}/xingyu-axis-tahoe-glass-icon.svg`,
+          mimeType: "image/svg+xml",
+          sizes: ["any"],
+        },
+      ],
+    },
     {
       instructions: [
         ...(auth.userId && auth.userId !== 1 ? [
