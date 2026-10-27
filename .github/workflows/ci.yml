@@ -85,14 +85,14 @@ jobs:
         run: npm run test:source
 
   integration:
-    name: Worker/D1 case shard ${{ matrix.shard }} of 16
+    name: Worker/D1 case shard ${{ matrix.shard }} of 8
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
-      max-parallel: 16
+      max-parallel: 8
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     defaults:
       run:
         working-directory: site
@@ -110,7 +110,7 @@ jobs:
       - name: Build full production Worker for isolated D1 tests
         run: npm run build
       - name: Run and verify exactly assigned integration test cases
-        run: node scripts/ci-case-shard.mjs ${{ matrix.shard }} 16
+        run: node scripts/ci-case-shard.mjs ${{ matrix.shard }} 8
 
   # Preserve original required "CI / verify" check.
   # Every shard and all static checks must pass before merging.
