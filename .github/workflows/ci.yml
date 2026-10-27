@@ -56,8 +56,6 @@ jobs:
         run: npm ci --prefer-offline --no-audit --no-fund
       - name: Full TypeScript
         run: npm run typecheck
-      - name: Cloudflare Worker generated type safety
-        run: npm run types:worker:check
 
   build:
     name: Production build and full source test suite
@@ -79,6 +77,8 @@ jobs:
         run: npm ci --prefer-offline --no-audit --no-fund
       - name: Production Worker build
         run: npm run build
+      - name: Cloudflare Worker generated type safety (after build)
+        run: npm run types:worker:check
       - name: Complete provisioning tests
         run: npm run test:provisioning
       - name: Complete source tests, including CI coverage invariants
