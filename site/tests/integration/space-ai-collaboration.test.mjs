@@ -397,6 +397,11 @@ test("site Owner email identity can invite and edit original site knowledge spac
     assert.equal(overview.status,200,JSON.stringify(overview.body));
     assert.equal(overview.body.access.role,"owner");
     assert.equal(overview.body.access.canManage,true);
+    const token=await tokenFor(h,siteOwner.id,"site-owner-chatgpt");
+    const discover=await callMcpTool(h,{name:"list_collaboration_spaces",token,arguments:{}});
+    assert.equal(discover.structuredContent?.ok,true,JSON.stringify(discover.structuredContent));
+    assert.ok(discover.structuredContent.result.some(space=>space.id===root),
+      "site owner email identity must discover original site knowledge spaces in MCP");
     const tree=await api(h,"/api/space-collaboration/navigation",{cookie:siteOwner.cookie});
     assert.equal(tree.status,200);
     assert.ok(tree.body.nodes.some(n=>n.id===root&&n.canRead===true));
