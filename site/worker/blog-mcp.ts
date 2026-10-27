@@ -34,7 +34,7 @@ function createBlogMcpServer(origin: string, clientLabel: string, auth: McpAuth)
           "独立页面先用 get_page 读取；update_page 会立即改变公开页面，必须先展示变更字段和摘要并获得用户确认。",
         ]),
         ...(auth.userId ? [
-          "空间共创 MCP 已启用：先用 list_collaboration_spaces 找到本人拥有或已接受邀请的空间（返回 space_id）；再用 list_collaboration_children / list_collaboration_documents 浏览相应的子空间和文档。不能用 list_my_posts 或旧版 search_posts 代替协作文档列表。",
+          "空间共创 MCP 已启用：先用 list_collaboration_spaces 找到本人拥有或已接受邀请的空间（返回 space_id）；受邀者还可用 list_collaboration_navigation 查看获邀空间以及祖先名称，ancestorOnly=true 的上级路径不授予读取文章的权限。之后用 list_collaboration_children / list_collaboration_documents 浏览有权限的子空间和文档。不能用 list_my_posts 或旧版 search_posts 代替协作文档列表。",
           "多人/多 AI 共同编辑文档时：get_collaboration_document 读取 public_id、content 和 version，每个 Agent 基于这个 version 编辑，再用 propose_document_change 提交 base_version、完整 content_markdown 和 change_summary。服务端自动合并不冲突修改，重叠修改生成待人工审核的冲突提案，绝不能调用覆盖型旧工具绕开此流程。",
           "管理协作者时先用 get_collaboration_space 确认空间和权限，必要时调用 list_space_collaborators；invite_space_member 仅在用户明确同意邮箱、space_id 与角色后发送邀请。每个 AI 客户端都必须使用被邀请的本人账号授权的 OAuth / PAT，并具有 xingyu.read、xingyu.draft 权限；组织成员身份本身不等于知识空间授权。",
           "若调用端只显示旧工具 create_draft / get_post / update_post，而没有 list_collaboration_spaces 和 propose_document_change，说明 ChatGPT 自定义 MCP 应用仍使用已发布时冻结的旧工具快照：请让工作区应用管理员到 Apps / Plugins 的操作控制中 Refresh 工具并启用、发布新增操作，然后在新会话中重新发现；仅重连账号或重复部署 Worker 不一定更新已经发布的工具列表。",

@@ -58,9 +58,10 @@ function gateSql(action:"write"|"manage"){
   const roles=action==="manage"?"'admin'":"'admin','editor'";
   const original=action==="manage"?"'owner','admin'":"'owner','admin'";
   return "(EXISTS(SELECT 1 FROM workspace_effective_grants g WHERE g.workspace_id=? AND g.user_id=? AND g.role IN ("+original+")) OR "+
+    "EXISTS(SELECT 1 FROM site_memberships site WHERE site.user_id=? AND site.role='owner' AND ?=1) OR "+
     LINEAGE_EXISTS_SQL.replace("%ROLES%",roles)+")";
 }
-function gateParams(workspaceId:number,userId:number,spaceId:number){return [workspaceId,userId,spaceId,userId];}
+function gateParams(workspaceId:number,userId:number,spaceId:number){return [workspaceId,userId,userId,workspaceId,spaceId,userId];}
 async function readSpace(spaceId:number):Promise<Space>{
   await ensureDatabase();ensureId(spaceId);
   const row=await env.DB.prepare("SELECT s.id,s.workspace_id AS workspaceId,s.parent_id AS parentId,s.name FROM spaces s JOIN workspaces w ON w.id=s.workspace_id AND w.status='active' WHERE s.id=?").bind(spaceId).first<Space>();
@@ -81,6 +82,11 @@ async function effectiveRole(userId:number,space:Space):Promise<SpaceCollaborati
     const ownedOrg=await env.DB.prepare("SELECT 1 FROM organization_workspaces ow JOIN organizations o ON o.id=ow.organization_id AND o.status='active' JOIN workspaces w ON w.id=ow.workspace_id AND w.kind='organization' AND w.status='active' WHERE ow.workspace_id=? AND o.owner_user_id=? AND w.owner_user_id=? LIMIT 1")
       .bind(space.workspaceId,userId,userId).first();
     if(ownedOrg)base="owner";
+  }
+  if(!base&&space.workspaceId===1){
+    const siteOwner=await env.DB.prepare("SELECT 1 FROM site_memberships WHERE user_id=? AND role='owner' LIMIT 1")
+      .bind(userId).first();
+    if(siteOwner)base="owner";
   }
   const result=await env.DB.prepare(LINEAGE_SQL).bind(space.id,userId).all<{role:string}>();
   for(const row of result.results??[]){
@@ -108,8 +114,10 @@ export async function listCollaborativeSpaces(userId:number){
     "OR (w.kind='organization' AND w.owner_user_id=? AND EXISTS(",
     "SELECT 1 FROM organization_workspaces ow JOIN organizations o ON o.id=ow.organization_id",
     "AND o.owner_user_id=? AND o.status='active' WHERE ow.workspace_id=w.id))",
+    "OR (w.id=1 AND EXISTS(SELECT 1 FROM site_memberships site",
+    "WHERE site.user_id=? AND site.role='owner'))",
     "ORDER BY s.id DESC LIMIT 200",
-  ].join(" ")).bind(userId,userId,userId,userId,userId)
+  ].join(" ")).bind(userId,userId,userId,userId,userId,userId)
     .all<{id:number;name:string;workspaceId:number;workspaceName:string}>();
   const result=[];
   for(const row of rows.results??[]){
@@ -118,6 +126,100 @@ export async function listCollaborativeSpaces(userId:number){
   }
   return result;
 }
+/**
+ * Project invited space trees into the existing Knowledge Space UI.
+ * Ancestors are navigation breadcrumbs ONLY: no reading content, siblings,
+ * hidden child totals, or write permission are granted by showing a name.
+ * This never upgrades an invitation into access to its parent workspace.
+ */
+export async function listInvitedSpaceNavigation(userId:number){
+  ensureId(userId);
+  await ensureDatabase();
+  const query=[
+    "WITH RECURSIVE invited(id,workspace_id) AS (",
+    "SELECT m.space_id,m.workspace_id FROM space_collaboration_members m",
+    "JOIN users u ON u.id=m.user_id AND u.status='active'",
+    "JOIN spaces s ON s.id=m.space_id AND s.workspace_id=m.workspace_id",
+    "JOIN workspaces w ON w.id=s.workspace_id AND w.status='active'",
+    "WHERE m.user_id=?",
+    "UNION",
+    // A personal/shared workspace owner should also navigate their own root
+    // via MCP; the existing /api/spaces UI filters these duplicate own nodes.
+    "SELECT s.id,s.workspace_id FROM spaces s JOIN workspaces w ON w.id=s.workspace_id",
+    "AND w.kind IN ('personal','shared') AND w.status='active'",
+    "WHERE w.owner_user_id=?",
+    "UNION",
+    // Site Owner role also grants ownership of the original site knowledge
+    // workspace, even when the identity is not user #1.
+    "SELECT s.id,s.workspace_id FROM spaces s JOIN site_memberships owner",
+    "ON owner.user_id=? AND owner.role='owner' WHERE s.workspace_id=1",
+    "UNION",
+    // An organization owner sees the entire organization knowledge tree even
+    // when no self-invitation exists. Other members still require invitations.
+    "SELECT s.id,s.workspace_id FROM spaces s JOIN workspaces w ON w.id=s.workspace_id",
+    "AND w.kind='organization' AND w.status='active'",
+    "JOIN organization_workspaces ow ON ow.workspace_id=w.id",
+    "JOIN organizations o ON o.id=ow.organization_id AND o.status='active'",
+    "WHERE w.owner_user_id=? AND o.owner_user_id=?",
+    "UNION",
+    "SELECT child.id,child.workspace_id FROM spaces child JOIN invited i",
+    "ON child.parent_id=i.id AND child.workspace_id=i.workspace_id",
+    "WHERE COALESCE((SELECT inherit_permissions FROM space_collaboration_settings",
+    "settings WHERE settings.space_id=child.id),1)=1",
+    "), visible(id,workspace_id) AS (",
+    "SELECT id,workspace_id FROM invited",
+    "UNION",
+    "SELECT parent.id,parent.workspace_id FROM spaces parent JOIN visible v",
+    "ON parent.id=(SELECT parent_id FROM spaces WHERE id=v.id)",
+    "AND parent.workspace_id=v.workspace_id",
+    ") SELECT DISTINCT s.id,s.parent_id AS parentId,s.workspace_id AS workspaceId,",
+    "s.name,s.slug,s.sort_order AS sortOrder,s.updated_at AS updatedAt,",
+    "CASE WHEN i.id IS NULL THEN 1 ELSE 0 END AS ancestorOnly",
+    "FROM visible v JOIN spaces s ON s.id=v.id AND s.workspace_id=v.workspace_id",
+    "JOIN workspaces w ON w.id=s.workspace_id AND w.status='active'",
+    "LEFT JOIN invited i ON i.id=s.id AND i.workspace_id=s.workspace_id",
+    "ORDER BY s.workspace_id,s.sort_order,s.id LIMIT 2001",
+  ].join(" ");
+  const result=await env.DB.prepare(query).bind(userId,userId,userId,userId,userId).all<{
+    id:number;parentId:number|null;workspaceId:number;name:string;slug:string;
+    sortOrder:number;updatedAt:string;ancestorOnly:number;
+  }>();
+  const rows=result.results??[];
+  if(rows.length>2000)throw new SpaceCollaborationError("受邀空间节点超出读取上限",403);
+  const nodes=[];
+  for(const row of rows){
+    const access=row.ancestorOnly?null:await spaceAccess(userId,row.id).catch(e=>{
+      if(e instanceof SpaceCollaborationError&&e.status===404)return null;
+      throw e;
+    });
+    if(!row.ancestorOnly&&!access)continue;
+    nodes.push({
+      id:row.id,parentId:row.parentId,workspaceId:row.workspaceId,name:row.name,
+      // Path-only ancestors reveal their name/position, never activity dates,
+      // non-visible siblings, slugs, posts, or management metadata.
+      sortOrder:access?row.sortOrder:0,updatedAt:access?row.updatedAt:"",
+      // Never disclose parent contents, underlying slug, or sibling counts.
+      ancestorOnly:!access,
+      role:access?.role??null,canRead:!!access,canWrite:access?.canWrite??false,
+      canManage:access?.canManage??false,
+    });
+  }
+  // Ancestor placeholders must only survive when required by a readable node.
+  const visibleIds=new Set(nodes.filter(n=>n.canRead).map(n=>n.id));
+  const byId=new Map(nodes.map(n=>[n.id,n]));
+  for(const id of [...visibleIds]){
+    let parent=byId.get(id)?.parentId??null;
+    const seen=new Set<number>();
+    while(parent!==null&&!seen.has(parent)){
+      seen.add(parent);
+      if(!byId.has(parent))break;
+      visibleIds.add(parent);
+      parent=byId.get(parent)?.parentId??null;
+    }
+  }
+  return nodes.filter(n=>visibleIds.has(n.id));
+}
+
 export async function listSpaceMembers(userId:number,spaceId:number){
   await spaceAccess(userId,spaceId,"manage");
   const rows=await env.DB.prepare("SELECT m.user_id AS userId,u.display_name AS name,m.role,m.created_at AS joinedAt,(SELECT i.subject FROM user_identities i WHERE i.user_id=m.user_id AND i.provider='email' ORDER BY i.id LIMIT 1) AS email FROM space_collaboration_members m JOIN users u ON u.id=m.user_id WHERE m.space_id=? ORDER BY m.created_at,m.user_id")

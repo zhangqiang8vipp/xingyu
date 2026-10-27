@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { ensureDatabase } from "@/db/bootstrap";
 import { ensurePersonalWorkspace } from "@/db/workspace-access";
+import { invitedSpaceTree } from "@/db/invited-space-view";
 import { newScopedSpace, WorkspaceContentError } from "@/db/workspace-content";
 import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 import { identityFromRequest } from "@/server/auth/identity-session";
@@ -96,6 +97,10 @@ export async function GET(request:Request){
     const parentId=rawParent&&rawParent!=="root"?Number(rawParent):null;
     if(rawParent&&rawParent!=="root"&&!(Number.isSafeInteger(parentId)&&Number(parentId)>0))return apiJson({error:"空间不存在"},404);
     const tree=await personalTree(workspaceId,user.userId);
+    const invited=await invitedSpaceTree(user.userId);
+    // Personal nodes retain the original UI, while invitation-only nodes carry
+    // only authorized content and ancestor-name breadcrumbs.
+    const sharedNodes=invited.rows.filter(row=>row.workspaceId!==workspaceId);
     if(query){
       const root=Number(url.searchParams.get("root"));
       const scope=url.searchParams.get("scope")??"all";
@@ -109,12 +114,24 @@ export async function GET(request:Request){
         }
         return true;
       }).slice(0,20).map(row=>tree.shape(row));
-      return apiJson({spaces:matches});
+      const shared=sharedNodes.filter(row=>{
+        const path=invited.path(row.id);
+        if(!path.some(part=>part.name.toLocaleLowerCase().includes(query)))return false;
+        if(root>0){
+          if(!path.some(part=>part.id===root))return false;
+          if(scope==="current"&&row.id!==root)return false;
+        }
+        return true;
+      }).slice(0,Math.max(0,20-matches.length)).map(row=>invited.shape(row.id));
+      return apiJson({spaces:[...matches,...shared]});
     }
-    const result=(tree.children.get(parentId)??[]).map(row=>tree.shape(row));
+    const owned=(tree.children.get(parentId)??[]).map(row=>tree.shape(row));
+    const shared=sharedNodes.filter(row=>parentId===null?row.parentId===null:row.parentId===parentId)
+      .map(row=>invited.shape(row.id));
+    const result=[...owned,...shared];
     const meta=parentId===null?{
       rootCount:result.length,
-      spaceCount:tree.rows.length,
+      spaceCount:tree.rows.length+sharedNodes.length,
       articleCount:result.reduce((sum,row)=>sum+row.totalArticleCount,0),
     }:undefined;
     return apiJson({spaces:result,...(meta?{meta}:{})});

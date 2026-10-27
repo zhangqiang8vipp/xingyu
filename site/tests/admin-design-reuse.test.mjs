@@ -107,3 +107,28 @@ test("personal accounts use the same original admin console with only data and p
   assert.doesNotMatch(client,/mineResponse, publicResponse/,
     "do not concatenate and truncate two fixed-size lists in the browser");
 });
+
+
+test("knowledge-space invitations and AI coauthoring reuse product cards, menus, editors and theme",()=>{
+  const sidebar=read("features/admin/AdminSidebar.tsx");
+  const spaces=read("features/admin/AdminSpacesPanel.tsx");
+  const manager=read("features/admin/AdminSpaceCollaborationDialog.tsx");
+  const writer=read("features/admin/AdminSpaceCoauthorDialog.tsx");
+  const oldRoute=read("app/collaboration/page.tsx");
+  const css=read("app/admin/admin.css");
+  assert.doesNotMatch(sidebar,/href="\/collaboration"/,"do not add a parallel collaboration tab");
+  assert.match(oldRoute,/redirect\("\/admin\?section=spaces"/);
+  assert.equal(existsSync(new URL("../app/collaboration/CollaborationClient.tsx",import.meta.url)),false);
+  assert.match(spaces,/<SpaceActions space=\{space\}/);
+  assert.match(spaces,/onCollaborate=\{setCollabTarget\}/);
+  assert.match(spaces,/<AdminSpaceCollaborationDialog/);
+  assert.match(spaces,/<AdminSpaceCoauthorDialog/);
+  assert.match(manager,/className="space-dialog space-collab-dialog"/);
+  assert.match(writer,/<VditorEditor/,"use the product's original Markdown editor");
+  assert.match(css,/\.space-card-actions/);
+  assert.match(css,/\.space-collab-dialog/);
+  assert.match(css,/\.space-coauthor-dialog/);
+  assert.match(css,/var\(--admin-panel\)/,"retain original dark/light theme tokens");
+  assert.doesNotMatch(css,/--xy-(?:accent|background|text)/,
+    "do not introduce a demo palette");
+});
