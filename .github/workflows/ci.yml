@@ -47,7 +47,7 @@ jobs:
         run: npm run test:source
 
   integration:
-    name: D1/Worker integration shard ${{ matrix.shard + 1 }}/3
+    name: D1/Worker integration shard ${{ matrix.shard }} of 3
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
