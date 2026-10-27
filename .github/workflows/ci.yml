@@ -1,7 +1,6 @@
 name: CI
 
-# PRs get one complete CI run per update. Pushing main still verifies the
-# merged code. Do not run an identical CI again for each feature-branch push.
+# Run one full required CI per PR update, and verify main after merge.
 on:
   push:
     branches: [main]
@@ -16,10 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
-    name: lint, types, build, source and provisioning
+  lint:
+    name: ESLint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     defaults:
       run:
         working-directory: site
@@ -32,28 +31,68 @@ jobs:
           node-version: 22.18.0
           cache: npm
           cache-dependency-path: site/package-lock.json
-      - run: npm ci
-      - name: ESLint
+      - name: Install exactly locked dependencies from cache
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Full ESLint
         run: npm run lint
-      - name: TypeScript
+
+  types:
+    name: TypeScript and Worker bindings
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.18.0
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install exactly locked dependencies from cache
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Full TypeScript
         run: npm run typecheck
+      - name: Cloudflare Worker generated type safety
+        run: npm run types:worker:check
+
+  build:
+    name: Production build and full source test suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.18.0
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install exactly locked dependencies from cache
+        run: npm ci --prefer-offline --no-audit --no-fund
       - name: Production Worker build
         run: npm run build
-      - name: Generated Cloudflare worker typings
-        run: npm run types:worker:check
-      - name: Provisioning tests
+      - name: Complete provisioning tests
         run: npm run test:provisioning
-      - name: Complete source test suite
+      - name: Complete source tests, including CI coverage invariants
         run: npm run test:source
 
   integration:
-    name: D1/Worker integration shard ${{ matrix.shard }} of 3
+    name: Worker/D1 case shard ${{ matrix.shard }} of 16
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     strategy:
       fail-fast: false
+      max-parallel: 16
       matrix:
-        shard: [0, 1, 2]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     defaults:
       run:
         working-directory: site
@@ -66,30 +105,37 @@ jobs:
           node-version: 22.18.0
           cache: npm
           cache-dependency-path: site/package-lock.json
-      - run: npm ci
-      - name: Build production Worker for isolated tests
+      - name: Install exactly locked dependencies from cache
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Build full production Worker for isolated D1 tests
         run: npm run build
-      - name: Run all assigned D1/Worker integration files
-        run: node scripts/ci-integration-shard.mjs ${{ matrix.shard }} 3
+      - name: Run and verify exactly assigned integration test cases
+        run: node scripts/ci-case-shard.mjs ${{ matrix.shard }} 16
 
-  # Keep the original "CI / verify" required check name. It is deliberately
-  # NOT skipped when one of the parallel jobs fails or is cancelled.
+  # Preserve original required "CI / verify" check.
+  # Every shard and all static checks must pass before merging.
   verify:
     name: verify
-    needs: [checks, integration]
+    needs: [lint, types, build, integration]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Require all security and build checks, including every integration shard
-        env:
-          CHECKS_RESULT: ${{ needs.checks.result }}
-          INTEGRATION_RESULT: ${{ needs.integration.result }}
+      - name: Fail closed if any full-suite check or case shard fails
         shell: bash
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          TYPES_RESULT: ${{ needs.types.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
         run: |
-          echo "Source and build: $CHECKS_RESULT"
-          echo "Every D1/Worker integration shard: $INTEGRATION_RESULT"
-          if [[ "$CHECKS_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
-            echo "::error::Full CI coverage did not pass; branch must not be merged."
-            exit 1
-          fi
+          echo "ESLint: $LINT_RESULT"
+          echo "TypeScript and Worker bindings: $TYPES_RESULT"
+          echo "Production build and source/provisioning: $BUILD_RESULT"
+          echo "Full case-level Worker/D1 integrations: $INTEGRATION_RESULT"
+          for status in "$LINT_RESULT" "$TYPES_RESULT" "$BUILD_RESULT" "$INTEGRATION_RESULT"; do
+            if [[ "$status" != "success" ]]; then
+              echo "::error::Required CI coverage failed, skipped or was cancelled."
+              exit 1
+            fi
+          done
