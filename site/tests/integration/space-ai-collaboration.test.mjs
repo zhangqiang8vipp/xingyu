@@ -335,3 +335,43 @@ test("legacy password owner can manage invitations from the native space menu",a
     assert.equal(anonymous.status,401);
   }finally{await closeTestHarness(h);}
 });
+
+
+test("organization owners navigate their own knowledge trees; external invitees see path only",async()=>{
+  const h=await openTestHarness();
+  try{
+    const owner=await makeActiveUser(h,"org-collab-owner");
+    const member=await makeActiveUser(h,"org-collab-invitee");
+    const suffix=randomBytes(6).toString("hex");
+    const organization=await api(h,"/api/organizations",{cookie:owner.cookie,method:"POST",body:{name:"协作组织-"+suffix}});
+    assert.equal(organization.status,201,JSON.stringify(organization.body));
+    const orgId=organization.body.organization.id;
+    const ws=(await h.db.prepare("INSERT INTO workspaces(kind,owner_user_id,slug,name,status) VALUES('organization',?,?,?,'active') RETURNING id")
+      .bind(owner.id,"org-shared-"+suffix,"组织知识空间").first()).id;
+    await h.db.prepare("INSERT INTO workspace_memberships(workspace_id,user_id,role,status) VALUES(?,?,'owner','active')")
+      .bind(ws,owner.id).run();
+    await h.db.prepare("INSERT INTO organization_workspaces(organization_id,workspace_id) VALUES(?,?)")
+      .bind(orgId,ws).run();
+    const root=(await h.db.prepare("INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(?,NULL,?,?) RETURNING id")
+      .bind(ws,"组织顶级空间","org-root-"+suffix).first()).id;
+    const shared=(await h.db.prepare("INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(?,?,?,?) RETURNING id")
+      .bind(ws,root,"交接文档","org-handoff-"+suffix).first()).id;
+    const other=(await h.db.prepare("INSERT INTO spaces(workspace_id,parent_id,name,slug) VALUES(?,?,?,?) RETURNING id")
+      .bind(ws,root,"其他机密","org-private-"+suffix).first()).id;
+    const ownerRoot=await api(h,"/api/spaces?parent=root",{cookie:owner.cookie});
+    assert.equal(ownerRoot.status,200);
+    assert.ok(ownerRoot.body.spaces.some(n=>n.id===root&&n.canManage&&!n.ancestorOnly),
+      "organization owner does not need a self-invitation to reach their tree");
+    assert.equal((await api(h,"/api/spaces/"+root,{cookie:member.cookie})).status,404);
+
+    const token=await invite(h,shared,ws,member.email,owner.id);
+    assert.equal((await api(h,"/api/space-invitations",{cookie:member.cookie,method:"POST",body:{token}})).status,200);
+    const memberRoot=await api(h,"/api/spaces?parent=root",{cookie:member.cookie});
+    assert.equal(memberRoot.status,200);
+    assert.equal(memberRoot.body.spaces.find(n=>n.id===root)?.ancestorOnly,true);
+    const branch=await api(h,"/api/spaces?parent="+root,{cookie:member.cookie});
+    assert.deepEqual(branch.body.spaces.map(n=>n.id),[shared]);
+    assert.equal((await api(h,"/api/spaces/"+shared,{cookie:member.cookie})).body.space.canWrite,true);
+    assert.equal((await api(h,"/api/spaces/"+other,{cookie:member.cookie})).status,404);
+  }finally{await closeTestHarness(h);}
+});
