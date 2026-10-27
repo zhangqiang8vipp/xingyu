@@ -96,7 +96,7 @@ jobs:
         run: npm run typecheck
 
   build:
-    name: Production build and full source test suite
+    name: Build the exact production Worker once
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     defaults:
@@ -136,10 +136,15 @@ jobs:
         run: npm run build
       - name: Cloudflare Worker generated type safety (after build)
         run: npm run types:worker:check
-      - name: Complete provisioning tests
-        run: npm run test:provisioning
-      - name: Complete source tests, including CI coverage invariants
-        run: npm run test:source
+      - name: Upload the exact built Worker and static assets for all tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: xingyu-ci-production-worker
+          path: site/dist/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+          compression-level: 1
       - name: Save trusted exact-lock dependency cache after tests
         if: success() && steps.modules.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
@@ -147,7 +152,60 @@ jobs:
           path: site/node_modules
           key: ci-nodemodules-v1-${{ runner.os }}-${{ runner.arch }}-node2218-${{ hashFiles('site/package-lock.json') }}
 
+  source:
+    name: Full source, provisioning and build-artifact contracts
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Detect supported Node 22 already installed on Ubuntu
+        id: runner-node
+        shell: bash
+        run: |
+          if node -e 'const [major,minor]=process.versions.node.split(".").map(Number);process.exit(major===22&&minor>=18?0:1)'; then
+            echo 'supported=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'supported=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Restore immutable exact-lock Node dependencies
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: site/node_modules
+          key: ci-nodemodules-v1-${{ runner.os }}-${{ runner.arch }}-node2218-${{ hashFiles('site/package-lock.json') }}
+      - uses: actions/setup-node@v7
+        if: steps.modules.outputs.cache-hit != 'true' || steps.runner-node.outputs.supported != 'true'
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Validate supported Node 22 before executing code
+        run: node -e 'const [major,minor]=process.versions.node.split(".").map(Number);if(major!==22||minor<18){console.error("CI requires Node >=22.18 within Node 22.x");process.exit(1)}'
+      - name: Install exactly locked dependencies when cache is cold
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Download the production Worker built by this exact CI run
+        uses: actions/download-artifact@v4
+        with:
+          name: xingyu-ci-production-worker
+          path: site/dist/
+      - name: Fail if the exact compiled Worker or client asset manifest is absent
+        run: |
+          test -s dist/server/index.js
+          test -s dist/client/.vite/manifest.json
+      - name: Complete provisioning tests
+        run: npm run test:provisioning
+      - name: Complete source tests, including CI coverage invariants
+        run: npm run test:source
+
   integration:
+    needs: [build]
     name: Worker/D1 case shard ${{ matrix.shard }} of 16
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -189,8 +247,15 @@ jobs:
       - name: Install exactly locked dependencies when cache is cold
         if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit --no-fund
-      - name: Build full production Worker for isolated D1 tests
-        run: npm run build
+      - name: Download the production Worker built by this exact CI run
+        uses: actions/download-artifact@v4
+        with:
+          name: xingyu-ci-production-worker
+          path: site/dist/
+      - name: Fail if the exact compiled Worker or client asset manifest is absent
+        run: |
+          test -s dist/server/index.js
+          test -s dist/client/.vite/manifest.json
       - name: Run and verify exactly assigned integration test cases
         run: node scripts/ci-case-shard.mjs ${{ matrix.shard }} 16
 
@@ -198,7 +263,7 @@ jobs:
   # Every shard and all static checks must pass before merging.
   verify:
     name: verify
-    needs: [lint, types, build, integration]
+    needs: [lint, types, build, source, integration]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -209,13 +274,15 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           TYPES_RESULT: ${{ needs.types.result }}
           BUILD_RESULT: ${{ needs.build.result }}
+          SOURCE_RESULT: ${{ needs.source.result }}
           INTEGRATION_RESULT: ${{ needs.integration.result }}
         run: |
           echo "ESLint: $LINT_RESULT"
           echo "TypeScript and Worker bindings: $TYPES_RESULT"
-          echo "Production build and source/provisioning: $BUILD_RESULT"
+          echo "Production Worker built and archived: $BUILD_RESULT"
+          echo "Complete source + provisioning tests: $SOURCE_RESULT"
           echo "Full case-level Worker/D1 integrations: $INTEGRATION_RESULT"
-          for status in "$LINT_RESULT" "$TYPES_RESULT" "$BUILD_RESULT" "$INTEGRATION_RESULT"; do
+          for status in "$LINT_RESULT" "$TYPES_RESULT" "$BUILD_RESULT" "$SOURCE_RESULT" "$INTEGRATION_RESULT"; do
             if [[ "$status" != "success" ]]; then
               echo "::error::Required CI coverage failed, skipped or was cancelled."
               exit 1
