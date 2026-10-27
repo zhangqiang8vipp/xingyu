@@ -644,7 +644,7 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
 .space-collab-member-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--admin-text);font-size:11px;font-weight:640}
 .space-collab-member-name small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--admin-muted);font-size:9px}
 .space-collab-member select{max-width:95px;padding:7px 8px;border:1px solid var(--admin-line);border-radius:9px;color:var(--admin-text);background:var(--admin-panel);font-size:10px}
-.space-collab-subtle,.space-coauthor-revisions button,.space-collab-mcp button,.space-coauthor-preview button{min-height:30px;padding:5px 10px;border:1px solid var(--admin-line);border-radius:9px;color:var(--admin-text);background:var(--admin-panel);font-size:10px}
+.space-collab-subtle,.space-coauthor-revisions button,.space-collab-mcp button{min-height:30px;padding:5px 10px;border:1px solid var(--admin-line);border-radius:9px;color:var(--admin-text);background:var(--admin-panel);font-size:10px}
 .space-collab-subtle.danger{color:#ff453a}
 .space-collab-inheritance{display:flex;gap:16px;justify-content:space-between;align-items:center}
 .space-collab-inheritance span{display:grid;gap:6px}
@@ -659,7 +659,7 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
 .space-coauthor-body{display:grid;gap:17px;padding:5px 1px 12px}
 .space-coauthor-title input{height:42px}
 .space-coauthor-content .vditor{min-height:310px;border:1px solid var(--admin-line-strong);border-radius:13px;overflow:hidden}
-.space-coauthor-readonly,.space-coauthor-preview pre,.space-coauthor-diff pre{min-height:130px;max-height:380px;padding:15px;overflow:auto;border:1px solid var(--admin-line);border-radius:12px;color:var(--admin-text);background:var(--admin-canvas);white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;line-height:1.8}
+.space-coauthor-readonly,.space-coauthor-diff pre{min-height:130px;max-height:380px;padding:15px;overflow:auto;border:1px solid var(--admin-line);border-radius:12px;color:var(--admin-text);background:var(--admin-canvas);white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;line-height:1.8}
 .space-coauthor-conflict{padding:15px;border:1px solid var(--admin-line-strong);border-radius:15px;background:var(--admin-soft)}
 .space-coauthor-conflict p{color:var(--admin-muted);font-size:11px;line-height:1.8}
 .space-coauthor-diff{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
@@ -669,9 +669,6 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
 .space-coauthor-conflict .space-collab-primary{margin-top:12px}
 .space-coauthor-revisions{padding:13px 15px;border:1px solid var(--admin-line);border-radius:14px;background:var(--admin-canvas)}
 .space-coauthor-revisions summary span{float:right;color:var(--admin-muted);font-weight:400}
-.space-coauthor-preview{margin:10px 0}
-.space-coauthor-preview b{font-size:11px}
-.space-coauthor-preview pre{max-height:210px}
 @media(max-width:700px){
   .space-collab-dialog{max-height:94dvh;padding:17px}
   .space-collab-invite-form{grid-template-columns:minmax(0,1fr) 110px}
@@ -683,8 +680,9 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
   .space-section-heading{flex-wrap:wrap}
 }
 
-/* Knowledge document actions: preview follows the existing reading typography. */
-.space-coauthor-live-preview{min-height:240px;padding:22px 25px;border:1px solid var(--admin-line);border-radius:14px;background:var(--admin-panel);color:var(--admin-ink);overflow-wrap:anywhere}
+/* One shared live article preview, including invited coauthors and revisions. */
+.space-document-frontstage.writing-studio{z-index:270}
+.space-document-preview-status{min-height:35vh;display:grid;place-items:center;padding:30px;color:var(--admin-muted);text-align:center}
 .space-coauthor-dialog .space-collab-section-heading>button{margin-left:auto}
 .space-article-list button.space-document-delete,.space-coauthor-dialog button.space-collab-danger{color:#bf303d}
 html[data-theme="dark"] .space-article-list button.space-document-delete,html[data-theme="dark"] .space-coauthor-dialog button.space-collab-danger{color:#ff8790}

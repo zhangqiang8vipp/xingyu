@@ -318,6 +318,30 @@ test("admin previews unsaved content through the real public pages", async () =>
   assert.match(vditor, /previewMode="both"/);
 });
 
+test("knowledge-space previews reuse the exact normal article frontstage, including invited members and revisions",async()=>{
+  const [spacePanel,coauthor,frontstage,previewDialog,previewPage,styles] = await Promise.all([
+    source("features/admin/AdminSpacesPanel.tsx"),
+    source("features/admin/AdminSpaceCoauthorDialog.tsx"),
+    source("features/admin/ArticleWritingStudio.tsx"),
+    source("features/admin/AdminDocumentPreviewDialog.tsx"),
+    source("app/admin/article-preview/page.tsx"),
+    source("app/admin/admin.css"),
+  ]);
+  assert.match(previewDialog,/import \{ ArticleFrontstage/);
+  assert.match(previewDialog,/<ArticleFrontstage/);
+  assert.match(frontstage,/postMessage\(\{type:"xingyu:admin-preview",kind:"article"/);
+  assert.match(frontstage,/\/admin\/article-preview\?draft=/);
+  assert.match(spacePanel,/<AdminDocumentPreviewDialog/);
+  assert.match(spacePanel,/onClick=\{\(\)=>setPreviewTarget\(post\)\}>预览/);
+  assert.match(coauthor,/<AdminDocumentPreviewDialog/);
+  assert.match(coauthor,/content:preview\?\.content\?\?content/);
+  assert.doesNotMatch(coauthor,/<MarkdownRenderer|space-coauthor-live-preview|space-coauthor-preview/);
+  assert.doesNotMatch(styles,/\.space-coauthor-live-preview\{/);
+  assert.match(previewPage,/currentIdentity\(\)/);
+  assert.match(previewDialog,/api\/space-collaboration\/documents/);
+  assert.match(previewDialog,/credentials:"same-origin"/);
+});
+
 test("first modal open uses one stable entrance during lazy chunk replacement", async () => {
   const [link, reader, css] = await Promise.all([
     source("features/reader/ModalPostLink.tsx"),

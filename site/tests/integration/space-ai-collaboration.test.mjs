@@ -445,6 +445,10 @@ test("invited editors can preview, rename and share a single private document wh
     const read=await api(h,docPath,{cookie:viewer.cookie});
     assert.equal(read.status,200,"viewers retain read access");
     assert.equal(read.body.document.canWrite,false);
+    const readerShell=await jsonRequest(h,"/admin/article-preview",{cookie:viewer.cookie});
+    assert.equal(readerShell.status,200,"invited signed-in readers may load the shared public preview shell");
+    const anonymousShell=await jsonRequest(h,"/admin/article-preview",{redirect:"manual"});
+    assert.ok([302,303,307,308].includes(anonymousShell.status),"guests cannot load the preview shell");
     assert.equal((await api(h,sharePath,{cookie:viewer.cookie,method:"POST",body:{lifetimeSeconds:86400}})).status,403);
     assert.equal((await api(h,sharePath,{cookie:outsider.cookie})).status,404);
     assert.equal((await api(h,sharePath,{cookie:outsider.cookie,method:"POST",body:{lifetimeSeconds:86400}})).status,404);

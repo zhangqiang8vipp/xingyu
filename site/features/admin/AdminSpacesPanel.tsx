@@ -8,6 +8,7 @@ import AdminKnowledgeImport from "./AdminKnowledgeImport";
 import AdminSpaceCollaborationDialog from "./AdminSpaceCollaborationDialog";
 import AdminSpaceCoauthorDialog from "./AdminSpaceCoauthorDialog";
 import AdminPreviewShareDialog from "./AdminPreviewShareDialog";
+import AdminDocumentPreviewDialog from "./AdminDocumentPreviewDialog";
 
 type SpaceNode={id:number;parentId:number|null;name:string;slug:string;sortOrder:number;childCount:number;articleCount:number;totalArticleCount?:number;latestActivityAt?:string;childPreview?:string|null;updatedAt:string;path?:PathNode[];isInvited?:boolean;ancestorOnly?:boolean;canRead?:boolean;canWrite?:boolean;canManage?:boolean;role?:string|null};
 type PathNode={id:number;parentId:number|null;name:string;slug:string};
@@ -16,7 +17,7 @@ type SpacePost={id:number;publicId:string;title:string;slug:string;excerpt:strin
 type DialogState={kind:"create"|"rename"|"sort"|"move"|"delete";target?:SpaceNode};
 type DialogImpact={descendantCount:number;articleCount:number}|null;
 
-export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false,onLocationChange,onCreateArticle,onEditArticle,onBrowseArticle,onShareArticle,isPersonalAccount=false}:{initialSpaceId?:number|null;createOnOpen?:boolean;onLocationChange?:(spaceId:number|null)=>void;onCreateArticle:(spaceId:number,spacePath:string)=>void;onEditArticle:(postId:number)=>void;onBrowseArticle:(postId:number,readerContext:AdminReaderContext)=>void;onShareArticle:(post:{id:number;title:string})=>void;isPersonalAccount?:boolean}){
+export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false,onLocationChange,onCreateArticle,onEditArticle,onBrowseArticle,onShareArticle,isPersonalAccount=false,authorName,avatarUrl}:{initialSpaceId?:number|null;createOnOpen?:boolean;onLocationChange?:(spaceId:number|null)=>void;onCreateArticle:(spaceId:number,spacePath:string)=>void;onEditArticle:(postId:number)=>void;onBrowseArticle:(postId:number,readerContext:AdminReaderContext)=>void;onShareArticle:(post:{id:number;title:string})=>void;isPersonalAccount?:boolean;authorName:string;avatarUrl:string}){
   const [roots,setRoots]=useState<SpaceNode[]>([]);
   const [rootMeta,setRootMeta]=useState({rootCount:0,spaceCount:0,articleCount:0});
   const currentId=initialSpaceId;
@@ -41,7 +42,8 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
   const [expandedGroupId,setExpandedGroupId]=useState<number|null>(null);
   const [dialogImpact,setDialogImpact]=useState<DialogImpact>(null);
   const [collabTarget,setCollabTarget]=useState<SpaceNode|null>(null);
-  const [coauthor,setCoauthor]=useState<{publicId?:string;spaceId:number;name:string;canWrite:boolean;initialPreview?:boolean}|null>(null);
+  const [coauthor,setCoauthor]=useState<{publicId?:string;spaceId:number;name:string;canWrite:boolean}|null>(null);
+  const [previewTarget,setPreviewTarget]=useState<SpacePost|null>(null);
   const [shareTarget,setShareTarget]=useState<{id:number;publicId:string;title:string}|null>(null);
   const loadRequest=useRef(0);
 
@@ -209,17 +211,17 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
   const renderPost=(post:SpacePost)=>{
     const mayWrite=post.canWrite??canWrite;
     const mayDelete=post.canManage??canManage;
-    const openDocument=(initialPreview=false)=>setCoauthor({
+    const openDocument=()=>setCoauthor({
       publicId:post.publicId,spaceId:post.spaceId,name:overview?.name??"知识空间",
-      canWrite:mayWrite,initialPreview,
+      canWrite:mayWrite,
     });
     return <article key={post.id}><div><small>{post.categoryName} · {post.status==="published"?"内容完成":"草稿"} · {new Date(post.updatedAt).toLocaleDateString("zh-CN",{month:"2-digit",day:"2-digit"})}</small><b>{post.title}</b><p>{post.excerpt||"暂无摘要"}</p></div><div>
-      {overview?.isInvited?<><button onClick={()=>openDocument(true)}>预览</button>
+      {overview?.isInvited?<><button onClick={()=>setPreviewTarget(post)}>预览</button>
         {mayWrite?<button onClick={()=>setShareTarget(post)}>分享</button>:null}
-        <button onClick={()=>openDocument()}>{mayWrite?"共创编辑":"阅读"}</button>
+        <button onClick={()=>mayWrite?openDocument():setPreviewTarget(post)}>{mayWrite?"共创编辑":"阅读"}</button>
       </>:<>
         <button onClick={()=>onBrowseArticle(post.id,readerContext)}>浏览</button>
-        <button onClick={()=>openDocument(true)}>预览</button>
+        <button onClick={()=>setPreviewTarget(post)}>预览</button>
         {mayWrite?(!isPersonalAccount?<button onClick={()=>onShareArticle(post)}>分享</button>
           :<button onClick={()=>setShareTarget(post)}>分享</button>):null}
         {mayWrite?<button onClick={()=>onEditArticle(post.id)}>编辑 ↗</button>:null}
@@ -290,13 +292,17 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     {collabTarget&&<AdminSpaceCollaborationDialog spaceId={collabTarget.id} spaceName={collabTarget.name} onClose={()=>setCollabTarget(null)}
       onUpdated={()=>window.dispatchEvent(new Event("xingyu:spaces-changed"))}/>}
     {coauthor&&<AdminSpaceCoauthorDialog key={coauthor.publicId??"new-"+coauthor.spaceId} spaceId={coauthor.spaceId}
-      spaceName={coauthor.name} publicId={coauthor.publicId} canWrite={coauthor.canWrite} initialPreview={coauthor.initialPreview}
+      spaceName={coauthor.name} publicId={coauthor.publicId} canWrite={coauthor.canWrite}
+      authorName={authorName} avatarUrl={avatarUrl}
       onShare={coauthor.publicId?()=>{const target=posts.find(row=>row.publicId===coauthor.publicId);
         if(target){setCoauthor(null);setShareTarget(target);}}:undefined}
       onClose={()=>setCoauthor(null)} onUpdated={()=>window.dispatchEvent(new Event("xingyu:spaces-changed"))}/>}
     {shareTarget&&<AdminPreviewShareDialog post={shareTarget}
       apiPath={"/api/space-collaboration/documents/"+encodeURIComponent(shareTarget.publicId)+"/preview-links"}
       onClose={()=>setShareTarget(null)}/>}
+    {previewTarget&&<AdminDocumentPreviewDialog key={previewTarget.publicId}
+      publicId={previewTarget.publicId} spaceName={previewTarget.spacePath||overview?.name||"知识空间"}
+      authorName={authorName} avatarUrl={avatarUrl} onClose={()=>setPreviewTarget(null)}/>}
     {dialog&&<SpaceDialog dialog={dialog} impact={dialogImpact} isInvited={overview?.isInvited} isPersonalAccount={isPersonalAccount} name={name} setName={setName} sortOrder={sortOrder} setSortOrder={setSortOrder} moveTarget={moveTarget} setMoveTarget={setMoveTarget} deleteMode={deleteMode} setDeleteMode={setDeleteMode} confirmName={confirmName} setConfirmName={setConfirmName} message={message} onClose={()=>setDialog(null)} onSubmit={submitDialog}/>}
   </section>;
 }
