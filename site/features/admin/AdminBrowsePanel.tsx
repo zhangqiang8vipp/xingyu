@@ -54,8 +54,8 @@ export default function AdminBrowsePanel({
   useEffect(()=>{
     if(isPersonalAccount)return;
     const controller=new AbortController();
-    void checkHealth(controller.signal);
-    return()=>controller.abort();
+    const task=window.setTimeout(()=>void checkHealth(controller.signal),0);
+    return()=>{window.clearTimeout(task);controller.abort();};
   },[checkHealth,isPersonalAccount]);
   const integrityIssues=health?Object.values(health.audit).reduce((sum,n)=>sum+n,0):0;
   const healthy=health&&integrityIssues===0&&health.schema.code===health.schema.database&&health.ownerPresent;
