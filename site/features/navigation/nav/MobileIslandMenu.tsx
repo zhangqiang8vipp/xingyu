@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import NavTools from "./NavTools";
 import { NAV_DESTINATIONS, type NavCurrent } from "./nav-destinations";
@@ -8,8 +9,14 @@ import { NAV_DESTINATIONS, type NavCurrent } from "./nav-destinations";
 /** Phone: icon trigger + sheet. Not a compressed copy of the desktop island. */
 export default function MobileIslandMenu({ current }: { current?: NavCurrent }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const firstLinkRef = useRef<HTMLAnchorElement>(null);
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const sheetId = useId();
+  const activeDestination = NAV_DESTINATIONS.find((item) => item.href === "/"
+    ? pathname === "/"
+    : pathname === item.href || pathname.startsWith(`${item.href}/`))?.id ?? current;
 
   useEffect(() => {
     if (!open) return;
@@ -17,7 +24,10 @@ export default function MobileIslandMenu({ current }: { current?: NavCurrent }) 
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const closeWithEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
     };
     document.addEventListener("pointerdown", closeOutside);
     document.addEventListener("keydown", closeWithEscape);
@@ -27,8 +37,15 @@ export default function MobileIslandMenu({ current }: { current?: NavCurrent }) 
     };
   }, [open]);
 
+  useEffect(() => { setOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    if (open) firstLinkRef.current?.focus();
+  }, [open]);
+
   return <div className={`nav-mobile${open ? " open" : ""}`} ref={rootRef}>
     <button
+      ref={triggerRef}
       className="nav-mobile-trigger"
       type="button"
       aria-label={open ? "关闭菜单" : "打开菜单"}
@@ -40,16 +57,17 @@ export default function MobileIslandMenu({ current }: { current?: NavCurrent }) 
     </button>
     {open ? <div className="nav-mobile-sheet" id={sheetId}>
       <div className="nav-mobile-section-title">导航</div>
-      <div className="nav-mobile-links">
+      <nav className="nav-mobile-links" aria-label="移动端站点导航">
         {NAV_DESTINATIONS.map((item) => <Link
           key={item.id}
-          className={current === item.id ? "nav-current" : undefined}
-          aria-current={current === item.id ? "page" : undefined}
+          ref={item.id === NAV_DESTINATIONS[0].id ? firstLinkRef : undefined}
+          className={activeDestination === item.id ? "nav-current" : undefined}
+          aria-current={activeDestination === item.id ? "page" : undefined}
           href={item.href}
           prefetch={false}
           onClick={() => setOpen(false)}
-        >{item.label}{current === item.id ? <i /> : null}</Link>)}
-      </div>
+        >{item.label}{activeDestination === item.id ? <i aria-hidden="true" /> : null}</Link>)}
+      </nav>
       <div className="nav-mobile-tools">
         <span className="nav-mobile-section-title">显示偏好</span>
         <NavTools />
