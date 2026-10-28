@@ -268,6 +268,82 @@ async function checkViewer(browser,origin,user,root){
     console.log("PASS viewer: mobile/dark, view-only, identical preview");
   }finally{await x.context.close()}
 }
+
+async function checkMobileProductSurfaces(browser,origin,user,rootId){
+  const x=await actor(browser,origin,user,390,844,true),page=x.page;
+  try{
+    const account=await page.goto(origin+"/ai-connections",{waitUntil:"networkidle0",timeout:70000});
+    assert.equal(account.status(),200,"AI account experience accessible to authenticated user");
+    await page.waitForSelector(".admin-account-shell .admin-more .admin-dock",{timeout:30000});
+    const accountLayout=await page.evaluate(()=>{
+      const nav=document.querySelector(".admin-account-shell .admin-more .admin-dock");
+      const links=Array.from(nav.querySelectorAll("a"));
+      const box=nav.getBoundingClientRect();
+      return {labels:links.map(link=>link.textContent.trim()),
+        columns:getComputedStyle(nav).gridTemplateColumns.trim().split(/\s+/).length,
+        heights:links.map(link=>Math.round(link.getBoundingClientRect().height)),
+        viewport:innerWidth,bodyOverflow:document.documentElement.scrollWidth-innerWidth,
+        navWidth:box.width,navBottom:box.bottom};
+    });
+    assert.deepEqual(accountLayout.labels,["知识空间","AI 连接","知识问答","返回博客"],
+      "account island has four real destinations");
+    assert.equal(accountLayout.columns,4,"AI account must not inherit retired three-column dock");
+    assert.ok(accountLayout.heights.every(height=>height>=48),"account targets are thumb-friendly");
+    assert.ok(accountLayout.navWidth<=480&&accountLayout.navBottom<=844&&accountLayout.bodyOverflow<=2);
+    await page.screenshot({path:resolve(dir,"mobile-axis-account-dark.png"),animations:"disabled"});
+    console.log("MOBILE_ACCOUNT_LAYOUT",JSON.stringify(accountLayout));
+
+    const root=await page.goto(origin+"/admin?section=spaces",{waitUntil:"networkidle0",timeout:70000});
+    assert.equal(root.status(),200,"mobile knowledge-space root accessible");
+    await page.waitForSelector(".space-domain-card",{timeout:30000});
+    const card=await page.evaluate(()=>{
+      const el=document.querySelector(".space-domain-card");
+      const title=el.querySelector("h2");
+      const description=el.querySelector("p");
+      const btn=el.querySelector(".space-card-actions>button");
+      return {titleSize:parseFloat(getComputedStyle(title).fontSize),
+        descriptionSize:parseFloat(getComputedStyle(description).fontSize),
+        actionWidth:Math.round(btn.getBoundingClientRect().width),
+        scrollOverflow:document.documentElement.scrollWidth-innerWidth};
+    });
+    assert.ok(card.titleSize>=20&&card.descriptionSize>=12&&card.actionWidth>=44,
+      "mobile knowledge cards have proper hierarchy and 44px actions");
+    assert.ok(card.scrollOverflow<=2,"knowledge root fits phone viewport");
+    await page.screenshot({path:resolve(dir,"mobile-axis-spaces-dark.png"),animations:"disabled"});
+    await page.click(".space-domain-card .space-card-actions>button");
+    await page.waitForSelector(".space-card-actions>div[role=menu]",{timeout:5000});
+    const sheet=await page.evaluate(()=>{
+      const menu=document.querySelector(".space-card-actions>div[role=menu]");
+      const backdrop=document.querySelector(".space-card-actions-dismiss");
+      const box=menu.getBoundingClientRect(),shade=backdrop.getBoundingClientRect();
+      return {menuTop:box.top,menuBottom:box.bottom,menuLeft:box.left,menuRight:box.right,
+        shadeWidth:shade.width,shadeHeight:shade.height,viewport:innerWidth,
+        menuItems:menu.querySelectorAll('[role="menuitem"]').length};
+    });
+    assert.ok(sheet.menuTop>=0&&sheet.menuBottom<=844-7&&sheet.menuLeft>=8&&
+      sheet.menuRight<=390-8,"space actions must open in a bounded mobile bottom sheet");
+    assert.ok(sheet.shadeWidth>=390&&sheet.shadeHeight>=844&&sheet.menuItems>=1,
+      "mobile sheet must cover the backdrop and retain authorized actions");
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(()=>!document.querySelector(".space-card-actions>div[role=menu]"),
+      {timeout:5000});
+    console.log("MOBILE_SPACE_SHEET",JSON.stringify(sheet));
+
+    await page.emulateMediaFeatures([{name:"prefers-color-scheme",value:"light"}]);
+    await openKnowledgeSpace(page,origin,rootId);
+    const scopes=await page.evaluate(()=>Array.from(
+      document.querySelectorAll(".space-scope button")).map(el=>({
+      size:parseFloat(getComputedStyle(el).fontSize),
+      height:el.getBoundingClientRect().height,
+    })));
+    assert.ok(scopes.length>=2&&scopes.every(x=>x.size>=12&&x.height>=44),
+      "space scope tabs are legible touch targets");
+    await page.screenshot({path:resolve(dir,"mobile-axis-space-detail-light.png"),animations:"disabled"});
+    x.assertClean();
+    console.log("PASS mobile AXIS: account/space root/detail, touch sheets and light/dark");
+  }finally{await x.context.close()}
+}
+
 async function checkOwner(browser,origin,user,root){
   const x=await actor(browser,origin,user,1365,900,false),page=x.page;
   try{
@@ -336,6 +412,7 @@ try{
     args:["--no-sandbox","--disable-dev-shm-usage","--disable-gpu"]});
   await checkEditor(browser,proxy.origin,editor,root.id);
   await checkViewer(browser,proxy.origin,viewer,root.id);
+  await checkMobileProductSurfaces(browser,proxy.origin,owner,root.id);
   await checkOwner(browser,proxy.origin,owner,root.id);
   await checkShare(browser,h,proxy.origin,editor,documentId);
   console.log("PASS all isolated knowledge-space Chromium checks; screenshots in "+dir);
