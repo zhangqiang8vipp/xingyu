@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import ThemeToggle from "../navigation/ThemeToggle";
 import AxisMark from "../navigation/AxisMark";
 import type { AdminSection, AdminStats } from "./admin-types";
@@ -23,7 +23,7 @@ const NAV_GROUPS: Array<{ id: string; label: string; items: NavItem[] }> = [
       { section: "browse", icon: "◉", label: "浏览", count: (stats) => stats.total + stats.privateArticles, dock: true },
       { section: "articles", icon: "▤", label: "文章", count: (stats) => stats.total, dock: true },
       { section: "spaces", icon: "◇", label: "知识空间", short: "空间", count: (stats) => stats.privateArticles, dock: true },
-      { section: "files", icon: "▧", label: "文件", short: "文件", dock: true },
+      { section: "files", icon: "▧", label: "文件", short: "文件" },
     ],
   },
   {
@@ -45,12 +45,11 @@ const NAV_GROUPS: Array<{ id: string; label: string; items: NavItem[] }> = [
   },
 ];
 
-const MORE_SECTIONS = new Set<AdminSection>(["home", "about", "categories", "connect", "integrations"]);
+const MORE_SECTIONS = new Set<AdminSection>(["files", "home", "about", "categories", "connect", "integrations"]);
 
 // The same sidebar serves personal/organization areas; no second console navigation theme.
 const ACCOUNT_LINKS = [
-  { href:"/workspace", icon:"◇", label:"知识空间", area:"workspace" },
-  { href:"/organizations", icon:"◎", label:"组织与团队", area:"organizations" },
+  { href:"/admin?section=spaces", icon:"◇", label:"知识空间", area:"workspace" },
   { href:"/ai-connections", icon:"↗", label:"AI 连接", area:"ai-connections" },
 ] as const;
 const EMPTY_STATS:AdminStats={total:0,published:0,drafts:0,views:0,privateArticles:0};
@@ -116,6 +115,7 @@ export default function AdminSidebar({
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  const moreSheetId = useId();
   const moreActive = !accountArea && MORE_SECTIONS.has(section??"browse");
   const visibleGroups = isPersonalAccount ? NAV_GROUPS.filter((group) => group.id !== "site") : NAV_GROUPS;
   const dockItems = visibleGroups.flatMap((group) => group.items).filter((item) => item.dock);
@@ -126,8 +126,15 @@ export default function AdminSidebar({
     const close = (event: PointerEvent) => {
       if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
     };
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMoreOpen(false);
+    };
     document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
+    document.addEventListener("keydown", closeWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", closeWithEscape);
+    };
   }, [moreOpen]);
 
   const select = (next: AdminSection) => {
@@ -171,14 +178,14 @@ export default function AdminSidebar({
       <button data-icon="⏻" title="安全退出" className="admin-desktop-utility" type="button" onClick={onSignOut}>安全退出</button>
     </nav>
     <div className="admin-more" ref={moreRef}>
-      {accountArea ? <nav className="admin-dock">
-        {ACCOUNT_LINKS.map(item=><Link key={item.area} href={item.href}
+      {accountArea ? <nav className="admin-dock" aria-label="手机快捷导航">
+        {ACCOUNT_LINKS.map(item=><Link key={item.area} href={item.href} data-icon={item.icon}
           aria-current={accountArea===item.area?"page":undefined}
           className={accountArea===item.area?"selected":undefined}>{item.label}</Link>)}
-        <Link href="/ask?scope=mine">问问知识库</Link>
-        <Link href="/">返回博客</Link>
+        <Link data-icon="✧" href="/ask?scope=mine">知识问答</Link>
+        <Link data-icon="⌂" href="/">返回博客</Link>
       </nav> : <>
-      {moreOpen ? <div className="admin-more-sheet">
+      {moreOpen ? <div className="admin-more-sheet" id={moreSheetId} aria-label="更多导航入口">
         {moreItems.map((item) => <NavButton
           key={item.section}
           item={item}
@@ -188,7 +195,7 @@ export default function AdminSidebar({
           onSelect={select}
         />)}
       </div> : null}
-      <nav className="admin-dock">
+      <nav className="admin-dock" aria-label="手机快捷导航">
         {dockItems.map((item) => <NavButton
           key={item.section}
           item={item}
@@ -200,8 +207,11 @@ export default function AdminSidebar({
         />)}
         <button
           type="button"
+          data-icon="⋯"
+          aria-label="更多导航"
           className={moreActive || moreOpen ? "selected" : undefined}
           aria-expanded={moreOpen}
+          aria-controls={moreOpen ? moreSheetId : undefined}
           onClick={() => setMoreOpen((open) => !open)}
         ><span>更多</span></button>
       </nav>
