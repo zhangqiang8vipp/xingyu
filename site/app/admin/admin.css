@@ -798,3 +798,37 @@ html[data-theme="dark"] .space-article-list button.space-document-delete,html[da
   .space-section-heading .space-collab-inline-action{margin-left:0}
   .space-header-actions .new-button{flex:1}
 }
+
+/* AXIS Workspace 2 preview: additive to the production dashboard, preserving all workflows. */
+.admin-workspace-bar.axis-workspace-command{
+  gap:16px;align-items:center;justify-content:space-between;
+  width:min(1040px,calc(100% - 48px));margin:12px auto 0;padding:8px 10px 8px 19px;
+  border:1px solid var(--admin-line);border-radius:19px;
+  background:var(--admin-glass);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+  box-shadow:0 12px 38px rgba(20,28,43,.065),inset 0 1px rgba(255,255,255,.36);
+}
+.axis-workspace-command .axis-workspace-location{
+  display:flex;align-items:center;gap:10px;min-width:0;color:var(--admin-muted);font-size:10px;font-weight:700;letter-spacing:.12em;white-space:nowrap;
+}
+.axis-workspace-command .axis-workspace-location b{
+  color:var(--admin-ink);font-size:13px;font-weight:700;letter-spacing:0;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.axis-command-dot{width:8px;height:8px;border-radius:50%;background:var(--admin-accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--admin-accent) 12%,transparent)}
+.admin-workspace-bar.axis-workspace-command .admin-article-search{flex:0 1 340px;width:min(340px,100%)}
+.admin-workspace-bar.axis-workspace-command .admin-article-search.active{flex-basis:500px;width:min(500px,100%)}
+.axis-editor-view-switch{display:inline-flex;align-items:center;gap:2px;padding:4px;border:1px solid var(--admin-line);border-radius:13px;background:var(--admin-glass)}
+.axis-editor-view-switch button{min-height:34px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--admin-ink);font-size:12px;font-weight:650;white-space:nowrap}
+.axis-editor-view-switch button:hover,.axis-editor-view-switch button:focus-visible{background:var(--admin-panel);outline-offset:2px}
+@media(max-width:800px){
+ .admin-workspace-bar.axis-workspace-command{position:relative;top:auto;width:calc(100% - 24px);margin:10px 12px 0;padding:7px 9px 7px 12px;border-radius:17px;gap:8px}
+ .axis-workspace-command .axis-workspace-location{gap:6px;letter-spacing:0}
+ .axis-workspace-command .axis-workspace-location>span:not(.axis-command-dot){display:none}
+ .axis-workspace-command .axis-workspace-location b{font-size:12px;max-width:90px}
+ .admin-workspace-bar.axis-workspace-command .admin-article-search,.admin-workspace-bar.axis-workspace-command .admin-article-search.active{min-width:0;flex:1;width:auto}
+ .axis-editor-view-switch{order:2;width:100%;justify-content:space-between}
+ .axis-editor-view-switch button{flex:1;min-height:42px}
+ .editor-header-actions{flex-wrap:wrap}
+}
+@media(max-width:390px){.axis-workspace-command .axis-workspace-location b{max-width:68px}}
+@media(prefers-reduced-motion:reduce){.axis-editor-view-switch button{transition:none}}
