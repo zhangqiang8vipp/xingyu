@@ -246,7 +246,12 @@ async function checkViewer(browser,origin,user,root){
   const x=await actor(browser,origin,user,390,844,true),page=x.page;
   try{
     await openKnowledgeSpace(page,origin,root);
-    await assertMobileAxisChrome(page);
+    // Exercise the same mobile AXIS layout from compact phones to small tablets.
+    for(const width of [320,375,390,430,768]){
+      await page.setViewport({width,height:844,deviceScaleFactor:1});
+      await assertMobileAxisChrome(page);
+    }
+    await page.setViewport({width:390,height:844,deviceScaleFactor:1});
     await page.screenshot({path:resolve(dir,"mobile-axis-navigation-dark.png"),animations:"disabled"});
     const buttons=await rowButtons(page);
     assert.ok(buttons.includes("预览")&&buttons.includes("阅读"),"viewer read and preview");
