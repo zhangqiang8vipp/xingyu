@@ -36,9 +36,10 @@ export default function MobileIslandMenu({ current }: { current?: NavCurrent }) 
       aria-controls={sheetId}
       onClick={() => setOpen((value) => !value)}
     >
-      <span className="nav-mobile-burger" aria-hidden="true">☰</span>
+      <svg className="nav-mobile-menu-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
     </button>
     {open ? <div className="nav-mobile-sheet" id={sheetId}>
+      <div className="nav-mobile-section-title">导航</div>
       <div className="nav-mobile-links">
         {NAV_DESTINATIONS.map((item) => <Link
           key={item.id}
@@ -50,6 +51,7 @@ export default function MobileIslandMenu({ current }: { current?: NavCurrent }) 
         >{item.label}{current === item.id ? <i /> : null}</Link>)}
       </div>
       <div className="nav-mobile-tools">
+        <span className="nav-mobile-section-title">显示偏好</span>
         <NavTools />
       </div>
     </div> : null}
