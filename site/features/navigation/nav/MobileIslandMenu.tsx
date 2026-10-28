@@ -37,12 +37,6 @@ export default function MobileIslandMenu({ current }: { current?: NavCurrent }) 
     };
   }, [open]);
 
-  useEffect(() => { setOpen(false); }, [pathname]);
-
-  useEffect(() => {
-    if (open) firstLinkRef.current?.focus();
-  }, [open]);
-
   return <div className={`nav-mobile${open ? " open" : ""}`} ref={rootRef}>
     <button
       ref={triggerRef}
@@ -51,7 +45,10 @@ export default function MobileIslandMenu({ current }: { current?: NavCurrent }) 
       aria-label={open ? "关闭菜单" : "打开菜单"}
       aria-expanded={open}
       aria-controls={sheetId}
-      onClick={() => setOpen((value) => !value)}
+      onClick={() => {
+        if (!open) requestAnimationFrame(() => firstLinkRef.current?.focus());
+        setOpen((value) => !value);
+      }}
     >
       <svg className="nav-mobile-menu-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 7h14M5 12h14M5 17h14" /></svg>
     </button>
