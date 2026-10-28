@@ -1,0 +1,73 @@
+name: One-time prune merged Mobile AXIS design branches
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-time-mobile-axis-prune.yml
+permissions:
+  contents: write
+  pull-requests: read
+concurrency:
+  group: xingyu-mobile-axis-branch-cleanup
+  cancel-in-progress: false
+jobs:
+  prune:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.run_attempt == 1 &&
+      github.event.head_commit.message == 'chore(ops): prune merged Mobile AXIS branches (PR 72 and 73)'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.18.0'
+      - name: Remove only validated merged design branches
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          const repo="zhangqiang8vipp/xingyu",token=process.env.GITHUB_TOKEN;
+          const targets=[
+           {branch:"design/mobile-axis-navigation-20261028",sha:"a263cb61fb508a903a9c5539296805d82c9f6fcb",pr:72},
+           {branch:"design/mobile-axis-content-20261028",sha:"67874ee262db89386be7741cf14be1400183832e",pr:73},
+          ];
+          if(process.env.GITHUB_REPOSITORY!==repo||process.env.GITHUB_REF!=="refs/heads/main"||!token)
+            throw Error("Invalid cleanup context");
+          const base=(process.env.GITHUB_API_URL||"https://api.github.com")+"/repos/"+repo+"/";
+          async function get(path){
+            const r=await fetch(base+path,{headers:{Authorization:"Bearer "+token,Accept:"application/vnd.github+json"},signal:AbortSignal.timeout(20000)});
+            if(!r.ok)throw Error("GET "+path+": HTTP "+r.status);
+            return r.json();
+          }
+          const current=await get("git/ref/heads/main");
+          if(current?.object?.sha!==process.env.GITHUB_SHA)throw Error("main advanced since cleanup dispatch");
+          const open=await get("pulls?state=open&per_page=100");
+          if(!Array.isArray(open)||open.length!==0)throw Error("Open PRs exist; abort branch cleanup");
+          const branches=await get("branches?per_page=100");
+          if(!Array.isArray(branches)||branches.length!==targets.length+1||
+            !branches.some(x=>x.name==="main"))
+            throw Error("Unexpected branch inventory; never delete unidentified branches");
+          for(const target of targets){
+            const pr=await get("pulls/"+target.pr);
+            if(!pr?.merged_at||pr.state!=="closed"||pr.head?.ref!==target.branch||
+               pr.head?.sha!==target.sha||pr.head?.repo?.full_name!==repo)
+              throw Error("PR "+target.pr+" not merged at reviewed SHA");
+            const branch=branches.find(x=>x.name===target.branch);
+            if(!branch||branch.protected||branch.commit?.sha!==target.sha)
+              throw Error("Branch has changed or is protected: "+target.branch);
+          }
+          for(const target of targets){
+            const path="git/refs/heads/"+target.branch.split("/").map(encodeURIComponent).join("/");
+            const response=await fetch(base+path,{
+              method:"DELETE",headers:{Authorization:"Bearer "+token,Accept:"application/vnd.github+json"},
+              signal:AbortSignal.timeout(20000)});
+            if(response.status!==204)throw Error("Delete failed for "+target.branch+": HTTP "+response.status);
+            console.log("Removed merged branch "+target.branch);
+          }
+          const remaining=await get("branches?per_page=100");
+          if(!Array.isArray(remaining)||remaining.length!==1||remaining[0].name!=="main")
+            throw Error("Unexpected branches left after cleanup");
+          console.log("SUCCESS: only main remains; both Mobile AXIS PR branches removed");
+          NODE
