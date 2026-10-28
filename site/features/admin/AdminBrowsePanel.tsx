@@ -38,6 +38,28 @@ export default function AdminBrowsePanel({
 }){
   const [posts,setPosts]=useState<BlogHomePost[]>([]);
   const [loading,setLoading]=useState(true);
+  const [health,setHealth]=useState<{schema:{code:string;database:string|null};audit:Record<string,number>;ownerPresent:boolean;queue:{pendingCleanup:number};generatedAt:string}|null>(null);
+  const [healthError,setHealthError]=useState(false);
+  const [checking,setChecking]=useState(false);
+  const checkHealth=useCallback(async(signal?:AbortSignal)=>{
+    setChecking(true);
+    try{
+      const response=await fetch("/api/admin/diagnostics",{cache:"no-store",signal});
+      if(!response.ok)throw new Error("diagnostics unavailable");
+      const data=await readApiJson<NonNullable<typeof health>>(response);
+      if(!signal?.aborted){setHealth(data);setHealthError(false);}
+    }catch{if(!signal?.aborted)setHealthError(true);}
+    finally{if(!signal?.aborted)setChecking(false);}
+  },[]);
+  useEffect(()=>{
+    if(isPersonalAccount)return;
+    const controller=new AbortController();
+    const task=window.setTimeout(()=>void checkHealth(controller.signal),0);
+    return()=>{window.clearTimeout(task);controller.abort();};
+  },[checkHealth,isPersonalAccount]);
+  const integrityIssues=health?Object.values(health.audit).reduce((sum,n)=>sum+n,0):0;
+  const healthy=health&&integrityIssues===0&&health.schema.code===health.schema.database&&health.ownerPresent;
+
 
   const load=useCallback(async(signal:AbortSignal)=>{
     setLoading(true);
@@ -92,6 +114,12 @@ export default function AdminBrowsePanel({
       <div><i/><span>{isPersonalAccount?"个人内容浏览":"管理员浏览"}</span><b>{isPersonalAccount?stats.total:stats.total+stats.privateArticles} 篇内容</b></div>
       <p>{isPersonalAccount?"沿用原有浏览界面；个人文章仅自己可编辑，公开文章可直接阅读。":"这里与公开博客共用首页、卡片和完整阅读器；草稿与知识空间仅管理员可见。"}</p>
     </div>
+    {!isPersonalAccount&&<section className="admin-runtime-summary" aria-label="站点运行摘要" style={{display:"grid",gap:10,margin:"12px 0 20px",padding:16,border:"1px solid var(--admin-line)",borderRadius:18}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><strong>站点运行摘要</strong><button type="button" disabled={checking} onClick={()=>void checkHealth()}>{checking?"检查中…":"重新检查"}</button></div>
+      <div style={{display:"flex",gap:18,flexWrap:"wrap"}}><span>公开文章 <b>{stats.published}</b></span><span>草稿 <b>{stats.drafts}</b></span><span>私有文章 <b>{stats.privateArticles}</b></span><span>累计阅读 <b>{stats.views}</b></span></div>
+      <p role="status" style={{margin:0}}>{healthError?"健康检查不可用，请重试或查看服务端日志":!health?"正在检查数据库完整性…":healthy?"数据库关系与版本检查正常":`需要关注：${integrityIssues} 项关系异常${health.schema.code!==health.schema.database?"；数据库版本不一致":""}${!health.ownerPresent?"；站点所有者缺失":""}`}</p>
+      {health&&<small>待清理附件 {health.queue.pendingCleanup} · 检查于 {new Date(health.generatedAt).toLocaleString("zh-CN")}</small>}
+    </section>}
     {loading&&!posts.length?<div className="admin-public-browser-loading"><i/><i/><i/><span>正在打开真实博客视图</span></div>:<BlogHomeExperience
       mode="admin"
       settings={settings}
