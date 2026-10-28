@@ -339,6 +339,10 @@ html[data-theme="dark"] .admin-search-island .admin-article-search-trigger{backg
 .admin-card-actions button{padding:5px 7px;color:var(--admin-accent);border:0;background:transparent;font-size:9px;font-weight:700}
 .admin-public-browser{width:100%;max-width:none;padding:0 0 80px;overflow:hidden}
 .admin-browser-context{position:relative;z-index:2;width:min(1100px,calc(100% - 48px));margin:86px auto -64px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:20px;color:var(--admin-copy);border:1px solid var(--admin-line);border-radius:16px;background:var(--admin-glass);box-shadow:var(--admin-shadow);backdrop-filter:blur(22px) saturate(145%)}
+/* Health summary sits between the context island and hero; cancel the hero-only overlap. */
+.admin-public-browser:has(.admin-runtime-summary) .admin-browser-context{margin-bottom:16px}
+.admin-public-browser .admin-runtime-summary{width:min(1100px,calc(100% - 48px));margin:12px auto 20px!important;box-sizing:border-box}
+@media(max-width:800px){.admin-public-browser .admin-runtime-summary{width:calc(100% - 24px)}}
 .admin-browser-context>div{display:flex;align-items:center;gap:8px;font-size:9px}.admin-browser-context i{width:7px;height:7px;border-radius:50%;background:#30a46c;box-shadow:0 0 0 4px rgba(48,164,108,.1)}.admin-browser-context span{color:var(--admin-muted);font-weight:750;letter-spacing:.12em}.admin-browser-context b{color:var(--admin-ink)}.admin-browser-context p{margin:0;color:var(--admin-muted);font-size:9px}
 .admin-shared-hero{min-height:660px;padding-top:150px;background:var(--page)}
 .admin-browser-kicker{margin-bottom:18px;display:flex;align-items:center;justify-content:center;gap:9px;color:var(--admin-muted);font-size:9px}.admin-browser-kicker span{font-weight:750;letter-spacing:.16em}.admin-browser-kicker b{color:var(--admin-ink)}
