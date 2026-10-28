@@ -158,3 +158,30 @@ test("mobile AXIS admin chrome is one four-action island with safe account desti
   assert.match(style,/\.admin-header span\{display:block/);
   assert.match(style,/\.admin-shell:has\(input:focus,textarea:focus/);
 });
+
+
+test("mobile spaces, editing and AI account navigation reuse one accessible AXIS system",()=>{
+  const adminCss=read("app/admin/admin.css");
+  const adapter=read("features/admin/account-ui-adapter.css");
+  const spaces=read("features/admin/AdminSpacesPanel.tsx");
+  const browser=read("scripts/visual-spaces-acceptance.mjs");
+  assert.doesNotMatch(adapter,/\.admin-account-shell \.admin-dock\{grid-template-columns:repeat\(3/,
+    "account adapter must not force four links into three columns");
+  assert.doesNotMatch(adapter,/\.admin-account-shell \.admin-dock a\{/,
+    "account links inherit shared mobile island hit targets and colors");
+  assert.match(adapter,/font-size:16px!important/,"account inputs avoid mobile Safari focus zoom");
+  assert.match(adminCss,/Mobile AXIS, Phase B:/);
+  assert.match(adminCss,/\.space-domain-card h2\{margin:23px 0 7px;font-size:clamp\(21px/);
+  assert.match(adminCss,/\.space-article-list article button\{height:auto;min-height:44px/);
+  assert.match(adminCss,/\.space-scope button\{min-width:0;min-height:44px/);
+  assert.match(adminCss,/\.space-card-actions>div\[role="menu"\]\{/);
+  assert.match(adminCss,/\.space-card-actions>\.space-card-actions-dismiss\{/);
+  assert.match(adminCss,/\.editor-panel \.editor-section :is\(input:not\(\[type="checkbox"\]\),select,textarea\)\{font-size:16px\}/);
+  assert.match(adminCss,/\.writing-mode-switch button\{height:44px/);
+  assert.match(spaces,/className="space-card-actions-dismiss"/);
+  assert.match(spaces,/aria-haspopup="menu"/);
+  assert.match(spaces,/const escape=\(event:KeyboardEvent\)/);
+  assert.match(browser,/checkMobileProductSurfaces/);
+  assert.match(browser,/MOBILE_ACCOUNT_LAYOUT/);
+  assert.match(browser,/MOBILE_SPACE_SHEET/);
+});

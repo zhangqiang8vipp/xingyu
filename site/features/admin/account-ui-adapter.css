@@ -69,14 +69,13 @@
 @media(max-width:800px){
   .admin-account-main{padding-top:86px}
   .admin-account-main .admin-account-columns{grid-template-columns:minmax(0,1fr)}
-  .admin-account-shell .admin-dock{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .admin-account-shell .admin-dock a{
-    height:46px;padding:5px 2px;display:flex;align-items:center;
-    justify-content:center;border:0;border-radius:13px;
-    color:var(--admin-copy);background:transparent;font-size:11px
+  /* Keep exactly the same four-slot AXIS dock as /admin. Legacy account
+     adapters must not override the shared 52px controls or four-column grid. */
+  .admin-account-main :is(input:not([type="checkbox"]),select,textarea){
+    font-size:16px!important; /* Prevent Safari focus zoom in authorized forms. */
   }
-  .admin-account-shell .admin-dock a.selected{
-    color:var(--admin-accent);background:var(--admin-accent-soft)
+  .admin-account-main button:not(.new-button):not(.admin-account-article){
+    min-height:44px;
   }
   .admin-account-main .admin-account-switcher{align-items:stretch}
   .admin-account-main .admin-account-switcher select{width:100%}

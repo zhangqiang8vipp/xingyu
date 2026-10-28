@@ -353,13 +353,20 @@ function SpaceActions({space,onAction,onCollaborate,onDeleteEmpty}:{
   useEffect(()=>{
     if(!open)return;
     const close=(event:PointerEvent)=>{if(!rootRef.current?.contains(event.target as Node))setOpen(false)};
+    const escape=(event:KeyboardEvent)=>{if(event.key==="Escape")setOpen(false)};
     document.addEventListener("pointerdown",close);
-    return()=>document.removeEventListener("pointerdown",close);
+    document.addEventListener("keydown",escape);
+    return()=>{
+      document.removeEventListener("pointerdown",close);
+      document.removeEventListener("keydown",escape);
+    };
   },[open]);
   if(!mayManage&&!mayEditLegacy&&!mayDeleteEmpty)return null;
   return <div className="space-card-actions" ref={rootRef} onClick={event=>event.stopPropagation()}>
-    <button type="button" aria-label={space.name+"操作"} aria-expanded={open} onClick={()=>setOpen(value=>!value)}>···</button>
-    {open?<div role="menu">
+    <button type="button" aria-label={space.name+"操作"} aria-haspopup="menu" aria-expanded={open} onClick={()=>setOpen(value=>!value)}>···</button>
+    {open?<><button type="button" className="space-card-actions-dismiss" aria-label="关闭空间操作" onClick={()=>setOpen(false)}/>
+    <div role="menu" aria-label={space.name+"操作菜单"}>
+      <p className="space-actions-sheet-title">{space.name} · 空间操作</p>
       {mayManage?<button role="menuitem" onClick={()=>{setOpen(false);onCollaborate(space)}}>邀请与协作成员</button>:null}
       {mayDeleteEmpty?<button role="menuitem" className="danger" onClick={()=>{setOpen(false);onDeleteEmpty(space)}}>删除空子空间</button>:null}
       {mayEditLegacy?<><button role="menuitem" onClick={()=>{setOpen(false);onAction("rename",space)}}>重命名</button>
@@ -367,7 +374,7 @@ function SpaceActions({space,onAction,onCollaborate,onDeleteEmpty}:{
         <button role="menuitem" onClick={()=>{setOpen(false);onAction("move",space)}}>移动空间</button>
         <button role="menuitem" className="danger" onClick={()=>{setOpen(false);onAction("delete",space)}}>删除空间</button>
       </>:null}
-    </div>:null}
+    </div></>:null}
   </div>;
 }
 
