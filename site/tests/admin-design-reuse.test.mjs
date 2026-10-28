@@ -132,3 +132,29 @@ test("knowledge-space invitations and AI coauthoring reuse product cards, menus,
   assert.doesNotMatch(css,/--xy-(?:accent|background|text)/,
     "do not introduce a demo palette");
 });
+
+test("mobile AXIS admin chrome is one four-action island with safe account destinations",()=>{
+  const side=read("features/admin/AdminSidebar.tsx");
+  const style=read("app/admin/admin.css");
+  assert.equal((side.match(/dock: true/g)||[]).length,3,
+    "the dock has Browse, Articles, Spaces + More, never a fifth wrapped item");
+  assert.match(side,/const MORE_SECTIONS = new Set<AdminSection>\(\["files",/);
+  assert.match(side,/href:"\/admin\?section=spaces"/);
+  assert.doesNotMatch(side,/href:"\/workspace"|href:"\/organizations"/,
+    "account navigation must not advertise redirect-only pages");
+  assert.match(side,/aria-label="手机快捷导航"/);
+  assert.match(side,/return <><aside className="admin-sidebar">/);
+  assert.match(side,/<\/aside>\s*<div className="admin-more"/,"dock must not be a descendant of the frosted header");
+  assert.match(side,/aria-controls=\{moreOpen \? moreSheetId : undefined\}/);
+  assert.match(side,/closeWithEscape/);
+  assert.match(style,/\.admin-sidebar\{position:fixed;z-index:80;top:calc\(8px \+ env\(safe-area-inset-top\)\)/);
+  assert.match(style,/\.admin-sidebar::before\{content:"";position:absolute;/);
+  assert.match(style,/border-radius:18px;background:transparent;[^\n]*backdrop-filter:none;/,
+    "the frosted visual must not trap the nested position:fixed dock");
+  assert.match(style,/\.admin-more \.admin-dock\{width:min\(480px,100%\);height:66px/);
+  assert.match(style,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(style,/\.admin-more \.admin-dock :is\(button,a\)::before/);
+  assert.match(style,/\.admin-more-sheet\{width:min\(480px,100%\);max-height:/);
+  assert.match(style,/\.admin-header span\{display:block/);
+  assert.match(style,/\.admin-shell:has\(input:focus,textarea:focus/);
+});

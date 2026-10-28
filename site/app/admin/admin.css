@@ -325,8 +325,8 @@ html[data-theme="dark"] .admin-search-island .admin-article-search-trigger{backg
   .admin-shell.sidebar-collapsed .admin-sidebar nav>*{height:46px}
   .admin-shell.sidebar-collapsed .admin-sidebar nav>*::before{display:none}
   .admin-shell.sidebar-collapsed .admin-sidebar nav>* > span,.admin-shell.sidebar-collapsed .admin-sidebar nav>* > b{display:initial}
-  .admin-search-island,.admin-shell.sidebar-collapsed .admin-search-island{z-index:82;top:13px;left:50%;width:34px}
-  .admin-search-island:has(.admin-article-search.active),.admin-shell.sidebar-collapsed .admin-search-island:has(.admin-article-search.active){top:7px;width:calc(100vw - 14px)}
+  .admin-search-island,.admin-shell.sidebar-collapsed .admin-search-island{z-index:82;top:calc(18px + env(safe-area-inset-top));left:50%;width:34px}
+  .admin-search-island:has(.admin-article-search.active),.admin-shell.sidebar-collapsed .admin-search-island:has(.admin-article-search.active){top:calc(9px + env(safe-area-inset-top));width:calc(100vw - 18px)}
   .admin-search-island .admin-article-search-trigger{width:34px;height:34px;padding:0;justify-content:center;border-radius:11px}
   .admin-search-island .admin-article-search-trigger span,.admin-search-island .admin-article-search-trigger kbd{display:none}
 }
@@ -365,28 +365,40 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
   .admin-reader-return{top:74px;left:12px}
 }
 @media(max-width:800px){
-  .admin-shell{padding:0 0 calc(78px + env(safe-area-inset-bottom))}
-  .admin-sidebar{position:fixed;z-index:80;top:0;right:0;bottom:auto;left:0;width:100%;height:60px;padding:0 13px;display:flex;align-items:center;border-radius:0;background:var(--admin-glass);backdrop-filter:blur(24px) saturate(145%)}
+  .admin-shell{padding:0 0 calc(88px + env(safe-area-inset-bottom))}
+  .admin-sidebar{position:fixed;z-index:80;top:calc(8px + env(safe-area-inset-top));right:8px;bottom:auto;left:8px;width:auto;height:54px;padding:0 12px;display:flex;align-items:center;border:1px solid var(--admin-line-strong);border-radius:18px;background:transparent;box-shadow:0 12px 38px rgba(25,30,44,.1);backdrop-filter:none;-webkit-backdrop-filter:none;isolation:isolate}
+  .admin-sidebar::before{content:"";position:absolute;z-index:-1;inset:0;border-radius:inherit;background:var(--admin-glass);backdrop-filter:blur(24px) saturate(145%);-webkit-backdrop-filter:blur(24px) saturate(145%);pointer-events:none}
+  .admin-shell.sidebar-collapsed .admin-sidebar{width:auto;padding:0 12px}
   .admin-sidebar-top{width:100%;gap:8px}
   .admin-sidebar-top .theme-button{margin-left:0}
   .admin-mobile-actions{margin-left:auto;display:flex;align-items:center;gap:5px}
-  .admin-mobile-actions :is(a,button){width:32px;height:32px;padding:0;display:grid;place-items:center;color:var(--admin-copy);border:1px solid var(--admin-line);border-radius:10px;background:var(--admin-control);font-size:13px}
+  .admin-mobile-actions :is(a,button){width:36px;height:36px;padding:0;display:grid;place-items:center;color:var(--admin-copy);border:1px solid var(--admin-line);border-radius:12px;background:var(--admin-control);font-size:15px;touch-action:manipulation}
   .admin-nav-desktop,.admin-nav-group,.admin-desktop-utility,.admin-user{display:none!important}
-  .admin-sidebar .admin-dock button,.admin-sidebar .admin-more-sheet button{display:flex!important}
-  .admin-more{position:fixed;z-index:85;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));left:8px;display:block}
-  .admin-sidebar .admin-dock{height:58px;margin:0;padding:5px;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;border:1px solid var(--admin-line-strong);border-radius:18px;background:var(--admin-glass);box-shadow:0 18px 48px rgba(0,0,0,.18);backdrop-filter:blur(26px) saturate(150%)}
-  .admin-dock button{height:46px;padding:5px 2px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;border:0;border-radius:13px;background:transparent;color:var(--admin-copy);font-size:11px}
-  .admin-dock button b{display:none}
-  .admin-dock button.selected{color:var(--admin-accent);background:var(--admin-accent-soft)}
-  .admin-more-sheet{margin-bottom:8px;padding:8px;border:1px solid var(--admin-line-strong);border-radius:18px;background:var(--admin-panel);box-shadow:0 18px 48px rgba(0,0,0,.16)}
-  .admin-more-sheet button{width:100%;min-height:42px;padding:0 12px;display:flex;justify-content:space-between;align-items:center;border:0;border-radius:11px;background:transparent;color:var(--admin-ink);font-size:14px}
+  .admin-more .admin-dock button,.admin-more .admin-more-sheet button{display:flex!important}
+  .admin-more{position:fixed;z-index:85;right:10px;bottom:calc(8px + env(safe-area-inset-bottom));left:10px;display:block;pointer-events:none}
+  .admin-more .admin-dock{width:min(480px,100%);height:66px;margin:0 auto;padding:6px;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;border:1px solid var(--admin-line-strong);border-radius:22px;background:var(--admin-glass);box-shadow:0 18px 48px rgba(0,0,0,.15);backdrop-filter:blur(26px) saturate(150%);-webkit-backdrop-filter:blur(26px) saturate(150%);pointer-events:auto}
+  .admin-more .admin-dock :is(button,a){height:52px;min-height:52px;min-width:0;padding:4px 2px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;border:0;border-radius:16px;background:transparent;color:var(--admin-copy);font-size:11px;font-weight:680;line-height:1.2;text-decoration:none;touch-action:manipulation}
+  .admin-more .admin-dock :is(button,a)::before{width:auto;height:20px;display:block!important;flex:none;content:attr(data-icon);color:var(--admin-muted);font-size:18px;font-weight:500;line-height:20px;text-align:center}
+  .admin-more .admin-dock :is(button,a)>span{flex:none;overflow:visible;text-overflow:clip}
+  .admin-more .admin-dock :is(button,a)>b{display:none}
+  .admin-more .admin-dock :is(button,a).selected{color:var(--admin-accent);background:var(--admin-accent-soft)}
+  .admin-more .admin-dock :is(button,a).selected::before{color:var(--admin-accent)}
+  .admin-more .admin-dock :is(button,a):focus-visible{outline:2px solid var(--admin-accent);outline-offset:2px}
+  .admin-more-sheet{width:min(480px,100%);max-height:min(62dvh,520px);margin:0 auto 9px;padding:9px;overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;border:1px solid var(--admin-line-strong);border-radius:20px;background:var(--admin-glass);box-shadow:0 20px 55px rgba(0,0,0,.16);backdrop-filter:blur(26px) saturate(140%);-webkit-backdrop-filter:blur(26px) saturate(140%)}
+  .admin-more-sheet button{width:100%;min-height:46px;padding:0 13px;display:flex;justify-content:space-between;align-items:center;border:0;border-radius:12px;background:transparent;color:var(--admin-ink);font-size:14px}
   .admin-more-sheet button.selected{color:var(--admin-accent);background:var(--admin-accent-soft)}
-  .admin-workspace-bar{top:60px;padding:10px 13px 0;justify-content:stretch}
+  .admin-more-sheet button:focus-visible{outline:2px solid var(--admin-accent);outline-offset:2px}
+  .admin-more .admin-dock :is(button,a){-webkit-tap-highlight-color:transparent}
+  html[data-theme="dark"] .admin-sidebar{background:transparent;box-shadow:0 18px 46px rgba(0,0,0,.35)}
+  .admin-shell:has(input:focus,textarea:focus,[contenteditable="true"]:focus) .admin-more{visibility:hidden;pointer-events:none}
+  .admin-workspace-bar{top:calc(70px + env(safe-area-inset-top));padding:10px 16px 0;justify-content:stretch}
   .admin-workspace-bar .admin-article-search,.admin-workspace-bar .admin-article-search.active{width:100%}
-  .admin-main{width:100%;padding:86px 13px 38px}
-  .admin-header{gap:12px;align-items:flex-end}
-  .admin-header h1{font-size:31px}
-  .admin-header span{display:none}
+  .admin-workspace{padding-top:calc(12px + env(safe-area-inset-top))}
+  .admin-account-shell .admin-workspace{padding-top:calc(65px + env(safe-area-inset-top))}
+  .admin-main{width:100%;padding:22px 16px 38px}
+  .admin-header{gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .admin-header h1{font-size:clamp(28px,7vw,34px);line-height:1.13}
+  .admin-header span{display:block;max-width:40ch;margin-top:8px;font-size:12px;line-height:1.6}
   .new-button{height:40px;padding:0 12px;white-space:nowrap}
   .stats{margin-top:22px;grid-template-columns:1fr 1fr;gap:9px}
   .stats>div,.stats>div:last-child{min-height:84px;padding:16px;display:block}
@@ -397,8 +409,8 @@ html[data-theme="dark"] .reader-toolbar.admin-reader-toolbar>div>b{color:#b8b8bf
   .table-wrap thead{display:none}
   .table-wrap tbody{display:grid;gap:10px}
   .table-wrap tbody tr{padding:15px;display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;border:1px solid var(--admin-line);border-radius:17px;background:var(--admin-panel);box-shadow:var(--admin-shadow)}
-  .table-wrap tbody td{min-width:0;padding:0;display:flex;align-items:center;gap:6px;border:0;font-size:10px}
-  .table-wrap tbody td::before{content:attr(data-label);margin-right:auto;color:var(--admin-muted);font-size:8px}
+  .table-wrap tbody td{min-width:0;padding:0;display:flex;align-items:center;gap:6px;border:0;font-size:12px}
+  .table-wrap tbody td::before{content:attr(data-label);margin-right:auto;color:var(--admin-muted);font-size:10px}
   .table-wrap tbody td:first-child{grid-column:1/-1;padding-bottom:11px;border-bottom:1px solid var(--admin-line)}
   .table-wrap tbody td:first-child::before{display:none}
   .table-wrap tbody td:last-child{grid-column:1/-1;padding-top:3px}.config-form .editor-section,.editor-section{padding:18px;border-radius:17px}

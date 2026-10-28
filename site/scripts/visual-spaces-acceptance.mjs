@@ -206,10 +206,53 @@ async function checkEditor(browser,origin,user,root){
     console.log("PASS editor: list preview, live preview, edit/share, delete hidden");
   }finally{await x.context.close()}
 }
+async function assertMobileAxisChrome(page){
+  const layout=await page.evaluate(()=>{
+    const header=document.querySelector(".admin-sidebar");
+    const dock=document.querySelector(".admin-more .admin-dock");
+    if(!header||!dock)throw Error("Shared admin AXIS navigation missing");
+    const actions=Array.from(dock.children).filter(el=>el.matches("button,a"));
+    const h=header.getBoundingClientRect();
+    const d=dock.getBoundingClientRect();
+    return {actionCount:actions.length,columns:getComputedStyle(dock).gridTemplateColumns.trim().split(/\s+/).length,
+      headerTop:h.top,headerLeft:h.left,headerWidth:h.width,
+      dockTop:d.top,dockBottom:d.bottom,dockHeight:d.height,dockWidth:d.width,
+      viewportWidth:innerWidth,viewportHeight:innerHeight,
+      xOverflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+      fileOnDock:actions.some(el=>el.textContent.trim()==="文件")};
+  });
+  console.log("MOBILE_AXIS_LAYOUT",JSON.stringify(layout));
+  assert.equal(layout.actionCount,4,"three primary tasks and More only");
+  assert.equal(layout.columns,4,"four real columns, not a wrapped second row");
+  assert.equal(layout.fileOnDock,false,"files stay accessible under More");
+  assert.ok(layout.headerTop>=0&&layout.headerLeft>=7,"top AXIS island floats within safe area");
+  assert.ok(layout.headerWidth<=layout.viewportWidth-14,"top island does not overflow");
+  assert.ok(Math.abs(layout.dockHeight-66)<3,"bottom island has one row at 66px");
+  assert.ok(layout.dockBottom<=layout.viewportHeight+1&&layout.dockTop>=layout.viewportHeight-100,
+    "bottom island must anchor to the viewport, not the frosted top header");
+  assert.ok(layout.dockWidth<=480&&layout.xOverflow<=2,"mobile nav does not cause horizontal scroll");
+  await page.evaluate(()=>{
+    const more=document.querySelector('button[aria-label="更多导航"]');
+    if(!more)throw Error("More navigation missing");
+    more.click();
+  });
+  await page.waitForSelector(".admin-more-sheet",{timeout:5000});
+  const menu=await page.$eval(".admin-more-sheet",el=>el.textContent);
+  assert.ok(menu.includes("文件"),"all less-used navigation is reachable through More");
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(()=>!document.querySelector(".admin-more-sheet"),{timeout:5000});
+}
 async function checkViewer(browser,origin,user,root){
   const x=await actor(browser,origin,user,390,844,true),page=x.page;
   try{
     await openKnowledgeSpace(page,origin,root);
+    // Exercise the same mobile AXIS layout from compact phones to small tablets.
+    for(const width of [320,375,390,430,768]){
+      await page.setViewport({width,height:844,deviceScaleFactor:1});
+      await assertMobileAxisChrome(page);
+    }
+    await page.setViewport({width:390,height:844,deviceScaleFactor:1});
+    await page.screenshot({path:resolve(dir,"mobile-axis-navigation-dark.png"),animations:"disabled"});
     const buttons=await rowButtons(page);
     assert.ok(buttons.includes("预览")&&buttons.includes("阅读"),"viewer read and preview");
     for(const name of ["分享","删除","共创编辑","编辑 ↗"])
