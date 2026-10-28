@@ -143,15 +143,17 @@ test("mobile AXIS admin chrome is one four-action island with safe account desti
   assert.doesNotMatch(side,/href:"\/workspace"|href:"\/organizations"/,
     "account navigation must not advertise redirect-only pages");
   assert.match(side,/aria-label="手机快捷导航"/);
+  assert.match(side,/return <><aside className="admin-sidebar">/);
+  assert.match(side,/<\/aside>\s*<div className="admin-more"/,"dock must not be a descendant of the frosted header");
   assert.match(side,/aria-controls=\{moreOpen \? moreSheetId : undefined\}/);
   assert.match(side,/closeWithEscape/);
   assert.match(style,/\.admin-sidebar\{position:fixed;z-index:80;top:calc\(8px \+ env\(safe-area-inset-top\)\)/);
   assert.match(style,/\.admin-sidebar::before\{content:"";position:absolute;/);
   assert.match(style,/border-radius:18px;background:transparent;[^\n]*backdrop-filter:none;/,
     "the frosted visual must not trap the nested position:fixed dock");
-  assert.match(style,/\.admin-sidebar \.admin-dock\{width:min\(480px,100%\);height:66px/);
+  assert.match(style,/\.admin-more \.admin-dock\{width:min\(480px,100%\);height:66px/);
   assert.match(style,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
-  assert.match(style,/\.admin-sidebar \.admin-dock :is\(button,a\)::before/);
+  assert.match(style,/\.admin-more \.admin-dock :is\(button,a\)::before/);
   assert.match(style,/\.admin-more-sheet\{width:min\(480px,100%\);max-height:/);
   assert.match(style,/\.admin-header span\{display:block/);
   assert.match(style,/\.admin-shell:has\(input:focus,textarea:focus/);

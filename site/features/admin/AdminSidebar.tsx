@@ -142,7 +142,7 @@ export default function AdminSidebar({
     onSectionChange?.(next);
   };
 
-  return <aside className="admin-sidebar">
+  return <><aside className="admin-sidebar">
     <div className="admin-sidebar-top">
       <Link className="brand admin-brand" href="/" aria-label={brandName + "首页"}>
         <AxisMark className="brand-axis admin-brand-axis" />
@@ -177,6 +177,12 @@ export default function AdminSidebar({
       <Link data-icon="↗" title="查看前台" className="admin-desktop-utility" href="/" target="_blank">查看前台</Link>
       <button data-icon="⏻" title="安全退出" className="admin-desktop-utility" type="button" onClick={onSignOut}>安全退出</button>
     </nav>
+    <div className="admin-user">{accountArea || isPersonalAccount
+      ? <span aria-hidden="true">{userName.trim().slice(0,1)||"星"}</span>
+      : <img src={avatarUrl} alt={`${authorName}管理员`}/>}
+      <div><b>{userName}</b><small>{accountArea?"星屿账号":isPersonalAccount?"个人账号":"管理员"}</small></div></div>
+    <button className="admin-sidebar-collapse" type="button" onClick={onToggle} aria-expanded={!collapsed} aria-label={collapsed ? "展开管理栏" : "收起管理栏"} title={collapsed ? "展开管理栏" : "收起管理栏"}><span aria-hidden="true">{collapsed ? "›" : "‹"}</span></button>
+  </aside>
     <div className="admin-more" ref={moreRef}>
       {accountArea ? <nav className="admin-dock" aria-label="手机快捷导航">
         {ACCOUNT_LINKS.map(item=><Link key={item.area} href={item.href} data-icon={item.icon}
@@ -217,10 +223,5 @@ export default function AdminSidebar({
       </nav>
       </>}
     </div>
-    <div className="admin-user">{accountArea || isPersonalAccount
-      ? <span aria-hidden="true">{userName.trim().slice(0,1)||"星"}</span>
-      : <img src={avatarUrl} alt={`${authorName}管理员`}/>}
-      <div><b>{userName}</b><small>{accountArea?"星屿账号":isPersonalAccount?"个人账号":"管理员"}</small></div></div>
-    <button className="admin-sidebar-collapse" type="button" onClick={onToggle} aria-expanded={!collapsed} aria-label={collapsed ? "展开管理栏" : "收起管理栏"} title={collapsed ? "展开管理栏" : "收起管理栏"}><span aria-hidden="true">{collapsed ? "›" : "‹"}</span></button>
-  </aside>;
+  </>;
 }

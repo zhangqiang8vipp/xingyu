@@ -209,7 +209,7 @@ async function checkEditor(browser,origin,user,root){
 async function assertMobileAxisChrome(page){
   const layout=await page.evaluate(()=>{
     const header=document.querySelector(".admin-sidebar");
-    const dock=document.querySelector(".admin-sidebar .admin-dock");
+    const dock=document.querySelector(".admin-more .admin-dock");
     if(!header||!dock)throw Error("Shared admin AXIS navigation missing");
     const actions=Array.from(dock.children).filter(el=>el.matches("button,a"));
     const h=header.getBoundingClientRect();
@@ -221,6 +221,7 @@ async function assertMobileAxisChrome(page){
       xOverflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
       fileOnDock:actions.some(el=>el.textContent.trim()==="文件")};
   });
+  console.log("MOBILE_AXIS_LAYOUT",JSON.stringify(layout));
   assert.equal(layout.actionCount,4,"three primary tasks and More only");
   assert.equal(layout.columns,4,"four real columns, not a wrapped second row");
   assert.equal(layout.fileOnDock,false,"files stay accessible under More");
