@@ -1,5 +1,6 @@
 "use client";
 import { useCallback,useEffect,useState } from "react";
+import Link from "next/link";
 type Connection={clientId:string;clientName:string;resource:string;scopes:string;grantedAt:number};
 async function loadConnections(){
   const response=await fetch("/api/identity/connections",{credentials:"same-origin",cache:"no-store"});
@@ -11,11 +12,13 @@ export default function ConnectionsPanel(){
   const [connections,setConnections]=useState<Connection[]>([]);
   const [error,setError]=useState("");
   const [busy,setBusy]=useState("");
+  const [loaded,setLoaded]=useState(false);
   const reload=useCallback(async()=>setConnections(await loadConnections()),[]);
   useEffect(()=>{
     let active=true;
     void loadConnections().then(items=>{if(active)setConnections(items);})
-      .catch(e=>{if(active)setError(e instanceof Error?e.message:"读取授权连接失败");});
+      .catch(e=>{if(active)setError(e instanceof Error?e.message:"读取授权连接失败");})
+      .finally(()=>{if(active)setLoaded(true);});
     return ()=>{active=false};
   },[]);
   async function revoke(clientId:string){
@@ -33,7 +36,7 @@ export default function ConnectionsPanel(){
   return <section className="editor-section" style={{marginTop:18}}>
     <h2>已连接的 AI 客户端</h2><p>这些连接通过独立的 MCP OAuth 授权，与邮箱登录不是同一个令牌体系。</p>
     {error?<p role="alert">{error}</p>:null}
-    {connections.length===0?<p>暂无已授权连接。</p>:
+    {!loaded?<p role="status">正在读取连接…</p>:connections.length===0&&!error?<div className="integration-card"><strong>连接你的第一个 AI 客户端</strong><p>先选择 OAuth 或个人 Token，再在 AI 客户端中添加星屿 MCP 服务。授权成功后会显示在这里。</p><Link href="/connect">查看接入方式 ↗</Link></div>:
       <ul>{connections.map(item=><li key={item.clientId} style={{marginBottom:12}}>
         <strong>{item.clientName}</strong> · {item.scopes}
         <button className="admin-account-danger" type="button" disabled={Boolean(busy)} onClick={()=>revoke(item.clientId)}
