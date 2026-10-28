@@ -46,7 +46,7 @@ export default function AdminArticleEditor({
   onChange:Dispatch<SetStateAction<ArticleForm|null>>;
   onChangeSpace:(choice:SpaceChoice|null)=>void;
   onClose:()=>void;
-  onOpenStudio:(mode:"split"|"reading")=>void;
+  onOpenStudio:(mode:"code"|"split"|"reading")=>void;
   onSharePreview?:()=>void;
   onSave:()=>Promise<void>;
   isPersonalAccount?:boolean;
@@ -61,7 +61,7 @@ export default function AdminArticleEditor({
     <form className="editor-panel" onSubmit={submit} onKeyDown={(event)=>{if((event.metaKey||event.ctrlKey)&&event.key==="Enter")event.currentTarget.requestSubmit()}}>
       <header className="editor-header">
         <div><small>{form.id?`EDITING · ARTICLE ${form.id}`:"COMPOSE · NEW ARTICLE"}</small><h2>{form.id?"编辑文章":"写一篇新文章"}</h2><p>{isPersonalAccount ? "编辑自己的内容并保存到个人知识空间；不会发布到公开站点。" : `编辑内容、检查链接，然后发布到${settings.brandName}。`}</p></div>
-        <div className="editor-header-actions"><button className="editor-preview-button" type="button" onClick={()=>onOpenStudio("reading")}>即时预览 <b>↗</b></button>{form.id&&onSharePreview&&<button className="editor-share-button" type="button" onClick={onSharePreview}>邀请预览 <b>◇</b></button>}<span className={`editor-state ${form.status}`}>{isPersonalAccount ? "仅自己可见" : form.status==="published"?(form.spaceId?"内容完成":"已发布"):"草稿"}</span><button type="button" aria-label="关闭编辑器" onClick={onClose}>×</button></div>
+        <div className="editor-header-actions"><div className="axis-editor-view-switch" role="group" aria-label="编辑器三种查看方式"><button type="button" onClick={()=>onOpenStudio("code")}>源码</button><button type="button" onClick={()=>onOpenStudio("split")}>分屏</button><button type="button" onClick={()=>onOpenStudio("reading")}>阅读</button></div><button className="editor-preview-button" type="button" onClick={()=>onOpenStudio("reading")}>即时预览 <b>↗</b></button>{form.id&&onSharePreview&&<button className="editor-share-button" type="button" onClick={onSharePreview}>邀请预览 <b>◇</b></button>}<span className={`editor-state ${form.status}`}>{isPersonalAccount ? "仅自己可见" : form.status==="published"?(form.spaceId?"内容完成":"已发布"):"草稿"}</span><button type="button" aria-label="关闭编辑器" onClick={onClose}>×</button></div>
       </header>
 
       <div className="editor-form-body">
