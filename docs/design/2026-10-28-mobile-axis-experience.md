@@ -1,6 +1,6 @@
 # XINGYU · Mobile AXIS 移动体验设计规范
 
-**日期：** 2026-10-28　**状态：** Phase A 已合并 `main` 并通过 5 档 Chromium 布局验收；Phase B 代码在独立 PR 验证中。**原则：不新增页面、不引入第二套视觉系统。**
+**日期：** 2026-10-28　**状态：** Phase A [#72](https://github.com/zhangqiang8vipp/xingyu/pull/72) 与 Phase B [#73](https://github.com/zhangqiang8vipp/xingyu/pull/73) 均已合并 `main`，完整 CI 与真实 Chromium 自动化通过；真实 iPhone Safari 仍待人工设备验收。**原则：不新增页面、不引入第二套视觉系统。**
 
 ## 1. 风格归属
 
@@ -41,13 +41,13 @@
 - [x] 列表正文和后台标题描述在手机端保持可读。
 - [x] Chromium 验证 320、375、390、430、768px 导航四列、定位与无横向溢出，390px 暗色截图已生成。真实 Safari 键盘、动态安全区与更广泛视觉审查仍待完成。
 
-### B. 知识空间与编辑器（本轮独立 PR，等待验证）
+### B. 知识空间与编辑器（已合并 PR #73）
 
 - [x] 将空间卡片、子空间、文章列表的主标题、摘要和元信息按手机阅读节奏重排；提高触控目标。
 - [x] 将空间操作菜单改成同源底部 Sheet，增加遮罩、Escape 与明确关闭；权限判断保持原逻辑。
 - [x] 更新目录树的字体与触控尺寸；统一移动写作表单、AI 连接输入框的 16px 字号，减少 iOS 聚焦放大。
 - [x] 修复账号区旧样式把四个快捷导航错误挤成三列的问题，继承共享底栏的 4 格布局。
-- [ ] 待真实 Chromium 核验账户/空间/编辑器视觉、菜单屏幕边界和暗色状态，再决定是否合并。
+- [x] [真实 Chromium 自动化](https://github.com/zhangqiang8vipp/xingyu/actions/runs/40627410129) 核验账号、空间列表/详情、操作 Sheet、明暗主题及权限回归，截图存于 CI artifact；**编辑器 Safari 键盘行为尚未实测**。
 - [ ] 真实 iPhone Safari 键盘、长标题、系统字体缩放及横屏验收仍待完成；不把 Chromium 代替设备验收。
 
 ### C. 对齐全站五项 P0
