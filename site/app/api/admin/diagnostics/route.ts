@@ -5,8 +5,14 @@ import { isAdminRequest, unauthorized } from "@/server/auth/admin-auth";
 
 export async function GET(request: Request) {
   if (!(await isAdminRequest(request))) return unauthorized();
+  const start = performance.now();
   await ensureDatabase();
-  return Response.json(await collectSiteHealth(env.DB, schemaVersion), {
-    headers: { "Cache-Control": "no-store" },
+  const health = await collectSiteHealth(env.DB, schemaVersion);
+  const elapsed = Math.max(0, performance.now() - start);
+  return Response.json(health, {
+    headers: {
+      "Cache-Control": "no-store",
+      "Server-Timing": `health;dur=${elapsed.toFixed(1)};desc="D1 health diagnostics"`,
+    },
   });
 }
