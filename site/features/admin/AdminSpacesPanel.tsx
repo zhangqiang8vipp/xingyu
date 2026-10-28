@@ -239,7 +239,7 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
       <div><i/><span>{space.ancestorOnly?"上级路径 · 仅导航":space.isInvited?"受邀空间":space.childCount+" 个子空间"}</span><SpaceActions space={space} onAction={beginDialog} onCollaborate={setCollabTarget} onDeleteEmpty={deleteInvitedEmptySpace}/></div>
       <h2>{space.name}</h2><p>{space.ancestorOnly?"仅可查看上级目录名称":(space.childPreview||"尚未创建子空间")+" · "+(space.totalArticleCount??space.articleCount)+" 篇知识文章"}</p><footer><span>{space.ancestorOnly?"路径导航":space.isInvited?"按授权范围访问":"最近更新 "+new Date(space.latestActivityAt??space.updatedAt).toLocaleDateString("zh-CN")}</span><b>进入空间 ↗</b></footer>
     </article>)}</div>
-    {!roots.length&&!loading&&<div className="space-empty"><i>◇</i><h2>建立第一个知识空间</h2><p>空间只在后台与 MCP 中可见，不会改变公开博客。</p><button onClick={()=>beginDialog("create")}>新建顶级空间</button></div>}
+    {!roots.length&&!loading&&<div className="space-empty"><i>◇</i><h2>从第一个知识空间开始</h2><p>先建立一个私有空间，再添加知识文章；需要合作时，可从空间操作里邀请共创。空间内容默认不会出现在公开博客。</p><button onClick={()=>beginDialog("create")}>创建我的第一个空间 →</button></div>}
     {collabTarget&&<AdminSpaceCollaborationDialog spaceId={collabTarget.id} spaceName={collabTarget.name} onClose={()=>setCollabTarget(null)} onUpdated={()=>window.dispatchEvent(new Event("xingyu:spaces-changed"))}/>}
     {dialog&&<SpaceDialog dialog={dialog} impact={dialogImpact} isPersonalAccount={isPersonalAccount} name={name} setName={setName} sortOrder={sortOrder} setSortOrder={setSortOrder} moveTarget={moveTarget} setMoveTarget={setMoveTarget} deleteMode={deleteMode} setDeleteMode={setDeleteMode} confirmName={confirmName} setConfirmName={setConfirmName} message={message} onClose={()=>setDialog(null)} onSubmit={submitDialog}/>}
   </section>;
@@ -286,7 +286,7 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
             </button>
             <div className="space-article-list" id={`space-articles-${group.spaceId}`} hidden={!expanded}>{group.rows.map(renderPost)}</div>
           </section>;
-        })}{!loading&&!posts.length&&<div className="space-empty compact"><h3>{query&&searchKind==="spaces"?"正在按空间名称搜索":"这个空间还很安静"}</h3><p>{query?(searchKind==="spaces"?"匹配空间显示在左侧，正文列表保持隐藏。":"没有找到匹配文章"):canWrite?"可以创建子空间，或从这里开始写第一篇知识文章。":"这个空间目前没有可读文章。"}</p></div>}{!loading&&nextCursor&&<button className="space-load-more" onClick={()=>void loadMore()} disabled={loadingMore}>{loadingMore?"正在加载…":"继续加载"}</button>}</div>:null}
+        })}{!loading&&!posts.length&&<div className="space-empty compact"><h3>{query&&searchKind==="spaces"?"正在按空间名称搜索":"这个空间还很安静"}</h3><p>{query?(searchKind==="spaces"?"匹配空间显示在左侧，正文列表保持隐藏。":"没有找到匹配文章"):canWrite?"从第一篇文章开始整理知识，也可以先创建子空间分类。":"这个空间目前没有可读文章。你仍可浏览有权限访问的空间目录。"}</p>{!query&&canWrite&&overview?<div className="space-empty-actions"><button type="button" onClick={()=>overview.isInvited?setCoauthor({spaceId:overview.id,name:overview.name,canWrite:true}):onCreateArticle(overview.id,pathLabel)}>写第一篇文章 →</button><button type="button" onClick={()=>beginDialog("create")}>创建子空间</button></div>:null}</div>}{!loading&&nextCursor&&<button className="space-load-more" onClick={()=>void loadMore()} disabled={loadingMore}>{loadingMore?"正在加载…":"继续加载"}</button>}</div>:null}
       </div>
     </div>
     {collabTarget&&<AdminSpaceCollaborationDialog spaceId={collabTarget.id} spaceName={collabTarget.name} onClose={()=>setCollabTarget(null)}
