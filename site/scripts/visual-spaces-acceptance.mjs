@@ -331,7 +331,8 @@ async function checkMobileProductSurfaces(browser,origin,user,rootId){
 
     await page.emulateMediaFeatures([{name:"prefers-color-scheme",value:"light"}]);
     await openKnowledgeSpace(page,origin,rootId);
-    const scopes=await page.$eval(".space-scope button",els=>els.map(el=>({
+    const scopes=await page.evaluate(()=>Array.from(
+      document.querySelectorAll(".space-scope button")).map(el=>({
       size:parseFloat(getComputedStyle(el).fontSize),
       height:el.getBoundingClientRect().height,
     })));
