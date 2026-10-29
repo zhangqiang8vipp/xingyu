@@ -1,0 +1,79 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+
+const read = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
+
+test("AXIS evolution keeps the existing search, sidebar and mobile floating islands", () => {
+  const sidebar = read("features/admin/AdminSidebar.tsx");
+  const client = read("features/admin/AdminClient.tsx");
+  const css = read("app/admin/admin.css");
+  assert.match(client, /<AdminArticleSearch/);
+  assert.match(sidebar, /<AxisMark/);
+  assert.match(sidebar, /className="admin-sidebar"/);
+  assert.match(sidebar, /className="admin-more"/);
+  assert.match(sidebar, /className="admin-dock"/);
+  assert.equal((sidebar.match(/dock: true/g) ?? []).length, 3, "exactly three top-level dock actions plus More");
+  assert.match(css, /Mobile AXIS, Phase B:/, "do not remove the original mobile AXIS implementation");
+  assert.match(css, /\.admin-more \.admin-dock\{width:min\(480px,100%\);height:66px/);
+  assert.match(css, /\.admin-sidebar\{position:fixed;z-index:80;top:calc\(8px \+ env\(safe-area-inset-top\)\)/);
+});
+
+test("global search supports accessible scope switching and one permission-scoped list", () => {
+  const src = read("features/admin/AdminArticleSearch.tsx");
+  assert.match(src, /event\.key\.toLowerCase\(\)==="k"/);
+  assert.match(src, /aria-expanded=\{open\}/);
+  assert.match(src, /aria-pressed=\{scope===key\}/);
+  assert.match(src, /setRetryKey/);
+  assert.match(src, /requestAnimationFrame\(\(\)=>triggerRef\.current\?\.focus\(\)\)/);
+  assert.match(src, /\/api\/knowledge\/posts\?/);
+  assert.match(src, /type=scope==="public"\?"public":scope==="private"\?"mine":"all"/);
+  assert.doesNotMatch(src, /mineResponse, publicResponse/, "search must not merge two 50-item result lists");
+});
+
+test("writing modes use the same real preview and protect unsaved drafts", () => {
+  const client = read("features/admin/AdminClient.tsx");
+  const editor = read("features/admin/AdminArticleEditor.tsx");
+  const studio = read("features/admin/ArticleWritingStudio.tsx");
+  assert.match(client, /editorSnapshot/);
+  assert.match(client, /editorBaselineRef/);
+  assert.match(client, /editorDirty&&!window\.confirm/);
+  assert.match(client, /addEventListener\("beforeunload"/);
+  assert.match(client, /saveInFlightRef\.current/);
+  assert.match(client, /网络异常，修改仍保留在编辑器里/);
+  for (const mode of ["code", "split", "reading"])
+    assert.ok(editor.includes('onOpenStudio("' + mode + '")'), "editor one-click mode " + mode);
+  assert.match(editor, /dirty=\{editorDirty\}/);
+  assert.match(editor, /aria-busy=\{saving\}/);
+  assert.match(studio, /<ArticleFrontstage/);
+  assert.match(studio, /aria-pressed=\{mode==="reading"\}/);
+  assert.match(studio, /返回编辑/);
+});
+
+test("knowledge cards are keyboard reachable without relaxing permissions", () => {
+  const spaces = read("features/admin/AdminSpacesPanel.tsx");
+  assert.match(spaces, /enterSpaceWithKeyboard/);
+  assert.match(spaces, /event\.target!==event\.currentTarget/);
+  assert.match(spaces, /aria-current=\{currentId===node\.id\?"page":undefined\}/);
+  assert.match(spaces, /<AdminSpaceCollaborationDialog/);
+  assert.match(spaces, /<AdminSpaceCoauthorDialog/);
+  assert.match(spaces, /mayDelete\?<button/, "only existing authorized users can delete");
+  assert.match(spaces, /onClick=\{event=>event\.stopPropagation\(\)\}/);
+});
+
+test("ergonomic CSS extends existing product tokens, never adds another UI theme", () => {
+  const css = read("app/admin/axis-evolution.css");
+  const admin = read("features/admin/AdminClient.tsx");
+  const stage = read("scripts/stage-account-styles.mjs");
+  const browse = read("features/admin/AdminBrowsePanel.tsx");
+  assert.match(css, /var\(--admin-/);
+  assert.doesNotMatch(css, /--xy-(?:accent|background|text)/);
+  assert.match(css, /prefers-reduced-motion:reduce/);
+  assert.match(css, /\.axis-search-scopes/);
+  assert.match(css, /\.axis-writing-view-modes/);
+  assert.match(admin, /import "@\/app\/admin\/admin\.css"/);
+  assert.match(admin, /import "@\/app\/admin\/axis-evolution\.css"/);
+  assert.match(stage, /app\/admin\/axis-evolution\.css/);
+  assert.match(browse, /<BlogHomeExperience/);
+  assert.match(browse, /<details className="admin-runtime-summary axis-runtime-disclosure"/);
+});
