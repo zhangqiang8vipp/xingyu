@@ -109,3 +109,65 @@ test("AI launcher is one movable XINGYU AXIS logo, never a text CTA or dock item
   assert.match(panelStyle, /\.xy-ai-form textarea\{font-size:16px/);
   assert.doesNotMatch(panelStyle, /\.xy-ai-launcher-spark/);
 });
+
+
+test("all nine backstage sections share existing AXIS patterns without replacing floating islands",()=>{
+  const admin=read("features/admin/AdminClient.tsx");
+  const sidebar=read("features/admin/AdminSidebar.tsx");
+  const css=read("app/admin/axis-evolution.css");
+  const visual=read("scripts/visual-backstage-acceptance.mjs");
+  for(const name of ["browse","articles","spaces","files","home","about","connect","categories","integrations"]){
+    assert.match(visual,new RegExp('\\["'+name+'",'),name+" must be reviewed in real Chromium");
+  }
+  for(const mode of ["desktop","tablet","phone","phone-dark"])
+    assert.ok(visual.includes('id:"'+mode+'"'),"must include "+mode+" viewport");
+  assert.match(admin,/<AdminArticleSearch/);
+  assert.match(admin,/data-axis-section=\{section\}/);
+  assert.match(sidebar,/className="admin-dock"/);
+  assert.match(css,/\.admin-shell \.admin-main:not\(\.admin-public-browser\)/);
+  assert.match(css,/--admin-/);
+  assert.doesNotMatch(css,/\.admin-dock\s*\{\s*display:none/);
+});
+
+test("config screens preserve unsaved content and never block the writing surface with sticky save",()=>{
+  const hook=read("features/admin/useUnsavedAdminForm.ts");
+  const client=read("features/admin/AdminClient.tsx");
+  const settings=read("features/admin/AdminSettingsPanel.tsx");
+  const page=read("features/admin/AdminPageEditor.tsx");
+  const categories=read("features/admin/AdminCategoriesPanel.tsx");
+  const ai=read("features/admin/AdminAskModelPanel.tsx");
+  const css=read("app/admin/axis-evolution.css");
+  assert.match(hook,/addEventListener\("beforeunload"/);
+  assert.match(hook,/xingyu:admin-before-section-change/);
+  assert.match(client,/dispatchEvent\(new Event\("xingyu:admin-before-section-change"/);
+  for(const component of [settings,page,categories,ai]){
+    assert.match(component,/useUnsavedAdminForm\(dirty\)/);
+  }
+  for(const component of [settings,page]){
+    assert.match(component,/axis-config-quick-save/);
+    assert.match(component,/requestSubmit\(\)/);
+    assert.match(component,/data-axis-save-state/);
+    assert.match(component,/setSaved\(/);
+  }
+  assert.match(css,/\.admin-shell \.admin-config-main \.config-footer\s*\{\s*position:static;/);
+  assert.match(css,/\.axis-config-quick-save/);
+  assert.match(read("scripts/visual-backstage-acceptance.mjs"),/save footer must not cover form content/);
+});
+
+test("list surfaces offer reversible, contextual operations without inventing more dashboards",()=>{
+  const articles=read("features/admin/AdminArticlesPanel.tsx");
+  const client=read("features/admin/AdminClient.tsx");
+  const files=read("features/admin/AdminFilesPanel.tsx");
+  const categories=read("features/admin/AdminCategoriesPanel.tsx");
+  assert.match(articles,/onResetFilters/);
+  assert.match(client,/function resetArticleFilters/);
+  assert.match(client,/currentLocation\(\{query:"",category:"all",status:"all"\}\)/);
+  assert.match(articles,/axis-filter-clear/);
+  assert.match(files,/axis-file-utilities/);
+  assert.match(files,/清除搜索/);
+  assert.match(files,/setRevision/);
+  assert.match(categories,/axis-category-create/);
+  assert.match(categories,/撤销更改/);
+  assert.doesNotMatch(categories,/prompt\(/);
+  assert.match(categories,/网络异常/);
+});
