@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: axis-temporary-preview
@@ -54,6 +55,8 @@ jobs:
           echo "Isolated real Worker admin responded successfully."
       - name: Open short-lived Cloudflare tunnel (no Cloudflare account or production secrets)
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           curl -fsSL --retry 3 --retry-delay 2 \
@@ -78,6 +81,16 @@ jobs:
           echo "**Open:** $url/admin" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Fixture-only data, no production bindings, tunnel closes after 15 minutes." >> "$GITHUB_STEP_SUMMARY"
+          # Expose the short-lived link through GitHub while this job is still running.
+          # Job-log downloads are generally unavailable until the runner exits.
+          comment_body="AXIS 2.0 temporary preview (isolated demo data, expires after 15 minutes): $url/admin"
+          curl -fsS --max-time 15 -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/zhangqiang8vipp/xingyu/issues/80/comments" \
+            -d "$(node -e 'process.stdout.write(JSON.stringify({body:process.argv[1]}))' "$comment_body")" \
+            -o /tmp/axis-preview-comment.json || echo "::warning::Could not post preview link to PR"
           ready=0
           for attempt in $(seq 1 35); do
             if curl --fail --silent --show-error --max-time 8 "$url/admin" -o /tmp/axis-tunnel-response.html 2>/dev/null; then
