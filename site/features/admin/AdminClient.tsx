@@ -1,6 +1,7 @@
 "use client";
 
 import "@/app/admin/admin.css";
+import "@/app/admin/axis-workspace-2.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import AdminSettingsPanel, { type SiteSettingsForm } from "./AdminSettingsPanel";
@@ -23,6 +24,11 @@ import ModalPostLink from "../reader/ModalPostLink";
 import type { AdminReaderContext, AdminReaderReturnTarget } from "@/domain/reader/admin-reader-context";
 import { adminLocationHref, parseAdminLocation, type AdminLocation } from "@/domain/admin/location";
 import type { BetaActivationSignal } from "@/domain/admin/activation";
+
+const AXIS_SECTION_NAMES: Record<AdminSection, string> = {
+  browse: "工作总览", articles: "文章管理", spaces: "知识空间", files: "资源文件",
+  integrations: "AI 连接", connect: "接入指南", home: "首页设置", about: "关于页面", categories: "内容分类",
+};
 
 const emptyForm = (categoryId = 1,spaceId:number|null=null,spacePath=""): ArticleForm => ({ title: "", slug: "", excerpt: "", content: "", categoryId, spaceId,sortOrder:0,spacePath,status: "draft", featured: false, publishedAt:null });
 
@@ -415,8 +421,18 @@ export default function AdminClient({ categories:initialCategories, settings, co
     <main className={`admin-shell${sidebarCollapsed?" sidebar-collapsed":""}`}>
       <AdminSidebar brandName={settings.brandName} avatarUrl={settings.avatarUrl} authorName={settings.authorName} userName={userName} section={section} stats={stats} categoryCount={categories.length} collapsed={sidebarCollapsed} onSectionChange={changeSection} onToggle={toggleSidebar} onSignOut={()=>void signOut()} isPersonalAccount={isPersonalAccount}/>
       <div className="admin-workspace">
-        <div className="admin-workspace-bar">
-          <AdminArticleSearch disabled={Boolean(form||studio)} articleCount={isPersonalAccount?stats.total:stats.total+stats.privateArticles} onBrowse={(postId,publicId)=>void browseById(postId,undefined,publicId)} isPersonalAccount={isPersonalAccount}/>
+        <div className="admin-workspace-bar axis-command-island" role="navigation" aria-label="工作空间快捷操作">
+          <div className="axis-command-context">
+            <span className="axis-command-symbol" aria-hidden="true">✳</span>
+            <span className="axis-command-path"><small>XINGYU / WORKSPACE</small><b>{AXIS_SECTION_NAMES[section]}</b></span>
+          </div>
+          <div className="axis-command-search">
+            <AdminArticleSearch disabled={Boolean(form||studio)} articleCount={isPersonalAccount?stats.total:stats.total+stats.privateArticles} onBrowse={(postId,publicId)=>void browseById(postId,undefined,publicId)} isPersonalAccount={isPersonalAccount}/>
+          </div>
+          <div className="axis-command-actions">
+            <a href="/ask?scope=mine" className="axis-command-ask">✧ <span>问问知识库</span></a>
+            <button type="button" className="axis-command-create" onClick={()=>openNewArticle()} aria-label="新建文章"><b>＋</b><span>新建文章</span></button>
+          </div>
         </div>
       {section==="browse" ? <AdminBrowsePanel settings={settings} categories={categories} stats={stats} category={browseCategory} visibility={browseVisibility} onCategoryChange={changeBrowseCategory} onVisibilityChange={changeBrowseVisibility} onEdit={(postId)=>void editById(postId)} onWrite={()=>openNewArticle()} onOpenArticles={()=>changeSection("articles")} onOpenSpaces={(spaceId)=>openSpaces(spaceId??null)} isPersonalAccount={isPersonalAccount} /> : section==="home" ? <AdminSettingsPanel initial={settings} readOnly={isPersonalAccount} /> : section==="articles" ? <AdminArticlesPanel brandName={settings.brandName} stats={stats} posts={posts} categories={categories} loading={loading} message={message} query={query} category={category} status={status} batch={cursorStack.length+1} hasPrevious={cursorStack.length>0} hasNext={Boolean(nextCursor)} onQueryChange={changeArticleQuery} onCategoryChange={changeArticleCategory} onStatusChange={changeArticleStatus} onNew={()=>openNewArticle()} onBrowse={(postId)=>void browseById(postId,{range:"all",query,category,status:status as "all"|"draft"|"published",source:"articles"})} onShare={setSharePost} onEdit={(postId)=>void editById(postId)} onRemove={(post)=>void remove(post)} onPrevious={previousBatch} onNext={nextBatch} isPersonalAccount={isPersonalAccount}/> : section==="files" ? <AdminFilesPanel isPersonalAccount={isPersonalAccount}/> : section==="spaces" ? <AdminSpacesPanel initialSpaceId={spaceLandingId} createOnOpen={createSpaceOnOpen} onLocationChange={changeSpaceLocation} onCreateArticle={(spaceId,spacePath)=>openNewArticle(spaceId,spacePath)} onEditArticle={(postId)=>void editById(postId)} onBrowseArticle={(postId,readerContext)=>void browseById(postId,readerContext)} onShareArticle={setSharePost} isPersonalAccount={isPersonalAccount} authorName={settings.authorName} avatarUrl={settings.avatarUrl} /> : section==="connect" ? <AdminPageEditor initial={connectPage} settings={settings} kind="connect" label="接入" readOnly={isPersonalAccount} /> : section==="integrations" ? <AdminIntegrationsPanel initial={connections} initialActivation={activation} isPersonalAccount={isPersonalAccount} /> : section==="about" ? <AdminPageEditor initial={aboutPage} settings={settings} kind="about" label="关于" readOnly={isPersonalAccount} /> : <AdminCategoriesPanel initial={isPersonalAccount?categories.filter((item)=>!item.slug.startsWith("user-")):categories} onChange={setCategories} readOnly={isPersonalAccount} />}
       </div>
