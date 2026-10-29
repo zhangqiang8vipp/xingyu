@@ -87,8 +87,8 @@ export default function AdminClient({ categories:initialCategories, settings, co
   const [message, setMessage] = useState("");
   const [saving,setSaving]=useState(false);
   const saveInFlightRef=useRef(false);
-  const editorBaselineRef=useRef(editorSnapshot(initialArticle));
-  const editorDirty=Boolean(form&&editorSnapshot(form)!==editorBaselineRef.current);
+  const [editorBaseline,setEditorBaseline]=useState(()=>editorSnapshot(initialArticle));
+  const editorDirty=Boolean(form&&editorSnapshot(form)!==editorBaseline);
   const [stats,setStats]=useState(initialStats);
   const [studio,setStudio]=useState<null|"code"|"split"|"reading">(null);
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
@@ -231,7 +231,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
     readerReturnRef.current=null;
     setStudio(null);
     const draft=isPersonalAccount ? emptyForm(editableCategories[0]?.id,0,"个人知识空间") : emptyForm(categories[0]?.id,spaceId,spacePath);
-    editorBaselineRef.current=editorSnapshot(draft);
+    setEditorBaseline(editorSnapshot(draft));
     setForm(draft);
     setMessage("");
   }
@@ -268,7 +268,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
       const returnTarget=readerReturnRef.current;
       readerReturnRef.current=null;
       setMessage("保存成功"); setStudio(null); setForm(null);
-      editorBaselineRef.current="";
+      setEditorBaseline("");
       window.dispatchEvent(new Event("xingyu:spaces-changed"));
       writeLocation(currentLocation());
       await Promise.all([load(), loadStats()]);
@@ -323,7 +323,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
       setMessage("公开文章只读；你只能编辑自己的文章。");
       return;
     }
-    if(article){readerReturnRef.current=returnTarget??null;editorBaselineRef.current=editorSnapshot(article);setStudio(null);setForm(article);setMessage("")}
+    if(article){readerReturnRef.current=returnTarget??null;setEditorBaseline(editorSnapshot(article));setStudio(null);setForm(article);setMessage("")}
   }
 
   function openAdminReader(target:AdminReaderReturnTarget){
@@ -338,7 +338,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
         window.open(`/posts/${article.publicId}/${article.slug}`, "_blank", "noopener,noreferrer");
         return;
       }
-      editorBaselineRef.current=editorSnapshot(article);
+      setEditorBaseline(editorSnapshot(article));
       setStudio(null);setForm(article);setMessage("");
       return;
     }
