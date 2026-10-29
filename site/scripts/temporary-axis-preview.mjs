@@ -37,7 +37,7 @@ async function main() {
       REGISTRATION_ENABLED: "false"
     }
   });
-  const owner = await makeActiveUser(harness, "AXIS 2.0 预览用户");
+  const owner = await makeActiveUser(harness, "axis-preview-owner");
   // This grants owner access only to the disposable in-memory/local D1 fixture.
   await harness.db.prepare("INSERT INTO site_memberships(user_id, role) VALUES(?,'owner')")
     .bind(owner.id).run();
