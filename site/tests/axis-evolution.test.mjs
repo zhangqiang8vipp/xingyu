@@ -36,7 +36,7 @@ test("writing modes use the same real preview and protect unsaved drafts", () =>
   const editor = read("features/admin/AdminArticleEditor.tsx");
   const studio = read("features/admin/ArticleWritingStudio.tsx");
   assert.match(client, /editorSnapshot/);
-  assert.match(client, /editorBaselineRef/);
+  assert.match(client, /editorBaseline/);
   assert.match(client, /editorDirty&&!window\.confirm/);
   assert.match(client, /addEventListener\("beforeunload"/);
   assert.match(client, /saveInFlightRef\.current/);
