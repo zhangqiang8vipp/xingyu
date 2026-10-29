@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const base = new URL("../", import.meta.url);
 const sources = [
   "app/admin/admin.css",
+  "app/admin/axis-evolution.css",
   "features/admin/account-ui-adapter.css",
 ];
 const contents = sources.map(source => {
