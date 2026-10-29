@@ -18,33 +18,32 @@ type NavItem = {
 const NAV_GROUPS: Array<{ id: string; label: string; items: NavItem[] }> = [
   {
     id: "content",
-    label: "内容",
+    label: "工作空间",
     items: [
-      { section: "browse", icon: "◉", label: "浏览", count: (stats) => stats.total + stats.privateArticles, dock: true },
-      { section: "articles", icon: "▤", label: "文章", count: (stats) => stats.total, dock: true },
+      { section: "browse", icon: "◉", label: "总览", count: (stats) => stats.total + stats.privateArticles, dock: true },
       { section: "spaces", icon: "◇", label: "知识空间", short: "空间", count: (stats) => stats.privateArticles, dock: true },
+      { section: "articles", icon: "▤", label: "文章", count: (stats) => stats.total, dock: true },
       { section: "files", icon: "▧", label: "文件", short: "文件" },
     ],
   },
   {
-    id: "site",
-    label: "站点",
+    id: "connect",
+    label: "AI 与共创",
     items: [
-      { section: "home", icon: "⌂", label: "首页" },
-      { section: "about", icon: "○", label: "关于" },
-      { section: "categories", icon: "#", label: "分类", count: (_, categoryCount) => categoryCount },
+      { section: "integrations", icon: "✳", label: "AI 连接" },
+      { section: "connect", icon: "↗", label: "接入指南" },
     ],
   },
   {
-    id: "connect",
-    label: "连接",
+    id: "site",
+    label: "站点配置",
     items: [
-      { section: "connect", icon: "↗", label: "接入" },
-      { section: "integrations", icon: "◎", label: "AI 连接" },
+      { section: "home", icon: "⌂", label: "首页设置" },
+      { section: "about", icon: "○", label: "关于页面" },
+      { section: "categories", icon: "#", label: "内容分类", count: (_, categoryCount) => categoryCount },
     ],
   },
 ];
-
 const MORE_SECTIONS = new Set<AdminSection>(["files", "home", "about", "categories", "connect", "integrations"]);
 
 // The same sidebar serves personal/organization areas; no second console navigation theme.
@@ -146,7 +145,7 @@ export default function AdminSidebar({
     <div className="admin-sidebar-top">
       <Link className="brand admin-brand" href="/" aria-label={brandName + "首页"}>
         <AxisMark className="brand-axis admin-brand-axis" />
-        <span className="admin-brand-full">{brandName}</span>
+        <span className="admin-brand-full">{brandName}<small>WORKSPACE / 02</small></span>
       </Link>
       <div className="admin-mobile-actions">
         <Link href="/" target="_blank" aria-label="查看前台">↗</Link>
@@ -154,6 +153,7 @@ export default function AdminSidebar({
       </div>
       <ThemeToggle />
     </div>
+    <div className="axis-sidebar-caption"><span>01 AXIS</span><span>创作 · 协作 · 连接</span></div>
     <nav className="admin-nav-desktop">
       {accountArea ? <div className="admin-nav-block">
         <div className="admin-nav-group">协作</div>
@@ -177,6 +177,7 @@ export default function AdminSidebar({
       <Link data-icon="↗" title="查看前台" className="admin-desktop-utility" href="/" target="_blank">查看前台</Link>
       <button data-icon="⏻" title="安全退出" className="admin-desktop-utility" type="button" onClick={onSignOut}>安全退出</button>
     </nav>
+    <div className="axis-sidebar-secure"><i aria-hidden="true"/>私人内容与受邀空间保持权限隔离</div>
     <div className="admin-user">{accountArea || isPersonalAccount
       ? <span aria-hidden="true">{userName.trim().slice(0,1)||"星"}</span>
       : <img src={avatarUrl} alt={`${authorName}管理员`}/>}
