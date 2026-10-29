@@ -77,3 +77,30 @@ test("ergonomic CSS extends existing product tokens, never adds another UI theme
   assert.match(browse, /<BlogHomeExperience/);
   assert.match(browse, /<details className="admin-runtime-summary axis-runtime-disclosure"/);
 });
+
+
+test("AI launcher is one movable XINGYU AXIS logo, never a text CTA or dock item",()=>{
+  const parent=read("features/ask/GlobalAskAssistant.tsx");
+  const bubble=read("features/ask/DraggableAxisLauncher.tsx");
+  const globalStyle=read("app/globals.css");
+  const panelStyle=read("public/assistant.css");
+  const layout=read("app/layout.tsx");
+  assert.match(layout, /<GlobalAskAssistant/);
+  assert.match(parent, /<DraggableAxisLauncher/);
+  assert.doesNotMatch(parent, /询问 AI|xy-ai-launcher-spark/);
+  assert.match(bubble, /<AxisMark className="xy-ai-launcher-mark"/);
+  assert.match(bubble, /onPointerDown=\{onPointerDown\}/);
+  assert.match(bubble, /onPointerMove=\{onPointerMove\}/);
+  assert.match(bubble, /onPointerUp=\{endDrag\}/);
+  assert.match(bubble, /onPointerCancel=\{endDrag\}/);
+  assert.match(bubble, /event\.detail !== 0 && ignoreClickRef\.current/);
+  assert.match(bubble, /window\.localStorage\.setItem/);
+  assert.match(bubble, /setPointerCapture/);
+  assert.match(bubble, /getBounds/);
+  assert.match(bubble, /getBoundingClientRect\(\)\.top - SIZE - 12/);
+  assert.match(globalStyle, /\.xy-ai-launcher \.axis-mark/);
+  assert.match(globalStyle, /touch-action:none/);
+  assert.match(globalStyle, /body:has\(\.admin-shell\) \.xy-ai-launcher/);
+  assert.match(globalStyle, /\.xy-ai-launcher\[hidden\]\{display:none\}/);
+  assert.doesNotMatch(panelStyle, /\.xy-ai-launcher-spark/);
+});
