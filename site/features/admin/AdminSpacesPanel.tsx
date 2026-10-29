@@ -47,6 +47,16 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
   const [shareTarget,setShareTarget]=useState<{id:number;publicId:string;title:string}|null>(null);
   const loadRequest=useRef(0);
 
+  const enterSpaceWithKeyboard=(event:React.KeyboardEvent<HTMLElement>,spaceId:number)=>{
+    // The card contains an independent actions menu. Its keys must not
+    // accidentally navigate when the user is operating that menu.
+    if(event.target!==event.currentTarget)return;
+    if(event.key==="Enter"||event.key===" "){
+      event.preventDefault();
+      selectSpace(spaceId);
+    }
+  };
+
   const selectSpace=(spaceId:number|null)=>{
     if(spaceId!==currentId){
       setScope("descendants");
@@ -235,7 +245,7 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     <header className="admin-header"><div><p>KNOWLEDGE SPACES</p><h1>知识空间</h1><span>顶级空间彼此独立；个人空间与受邀共创空间集中管理，权限互不混淆。</span></div><button className="new-button" onClick={()=>beginDialog("create")}>＋ 新建顶级空间</button></header>
     {message&&!dialog?<p className="space-collab-notice" role="status">{message}</p>:null}
     <div className="spaces-root-summary"><span>{rootMeta.rootCount} 个顶级入口 · {rootMeta.articleCount} 篇可访问文章</span><i/><span>{rootMeta.spaceCount} 个可见空间节点</span><i/>只展示已授权空间及必要的上级路径</div>
-    <div className="space-domain-grid">{roots.map((space)=><article className="space-domain-card" key={space.id} onClick={()=>selectSpace(space.id)}>
+    <div className="space-domain-grid">{roots.map((space)=><article className="space-domain-card" key={space.id} onClick={()=>selectSpace(space.id)} tabIndex={0} role="link" aria-label={"进入知识空间："+space.name} onKeyDown={event=>enterSpaceWithKeyboard(event,space.id)}>
       <div><i/><span>{space.ancestorOnly?"上级路径 · 仅导航":space.isInvited?"受邀空间":space.childCount+" 个子空间"}</span><SpaceActions space={space} onAction={beginDialog} onCollaborate={setCollabTarget} onDeleteEmpty={deleteInvitedEmptySpace}/></div>
       <h2>{space.name}</h2><p>{space.ancestorOnly?"仅可查看上级目录名称":(space.childPreview||"尚未创建子空间")+" · "+(space.totalArticleCount??space.articleCount)+" 篇知识文章"}</p><footer><span>{space.ancestorOnly?"路径导航":space.isInvited?"按授权范围访问":"最近更新 "+new Date(space.latestActivityAt??space.updatedAt).toLocaleDateString("zh-CN")}</span><b>进入空间 ↗</b></footer>
     </article>)}</div>
@@ -245,13 +255,13 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
   </section>;
 
   return <section className="admin-main spaces-page">
-    <header className="admin-header space-page-header"><div><button className="space-back" onClick={()=>selectSpace(overview?.parentId??null)}>←</button>
+    <header className="admin-header space-page-header"><div><button className="space-back" type="button" aria-label="返回上一级知识空间" onClick={()=>selectSpace(overview?.parentId??null)}>←</button>
       <p>{overview?.ancestorOnly?"NAVIGATION ONLY":overview?.isInvited?"SHARED KNOWLEDGE":"PRIVATE KNOWLEDGE"}</p>
       <h1>{overview?.name??"知识空间"}</h1>
       <SpaceBreadcrumb path={overview?.path??[]} onSelect={selectSpace}/>
       {overview?.isInvited?<span className="space-shared-access">{overview.ancestorOnly?"上级路径 · 仅可查看名称":"受邀协作 · "+sharedRole}</span>:null}
     </div><div className="space-header-actions">
-      <button className="space-mobile-tree-toggle" onClick={()=>setTreeOpen(true)}>☰ 空间路径</button>
+      <button className="space-mobile-tree-toggle" aria-controls="axis-space-tree" aria-expanded={treeOpen} onClick={()=>setTreeOpen(true)}>☰ 空间路径</button>
       {canWrite?<button onClick={()=>beginDialog("create")}>＋ 子空间</button>:null}
       {overview&&!isPersonalAccount&&canManage?<AdminKnowledgeImport spaceId={overview.id} spaceName={overview.name}/>:null}
       {canWrite?<button className="new-button" onClick={()=>{
@@ -264,7 +274,7 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
     {message&&!dialog?<p className="space-collab-notice" role="status">{message}</p>:null}
     <div className="space-workbench">
       {treeOpen&&<button className="space-tree-mobile-backdrop" aria-label="关闭空间树" onClick={()=>setTreeOpen(false)}/>}
-      <aside className={`space-tree-panel ${treeOpen?"mobile-open":""}`}><div><b>知识空间</b><button onClick={()=>{selectSpace(null);setTreeOpen(false)}}>全部</button></div><label><span>⌕</span><input value={query} onChange={(event)=>{setQuery(event.target.value);setExpandedGroupId(null)}} placeholder="搜索空间或文章"/></label><div className="space-search-kind"><button className={searchKind==="all"?"active":""} onClick={()=>setSearchKind("all")}>全部</button><button className={searchKind==="spaces"?"active":""} onClick={()=>setSearchKind("spaces")}>空间</button><button className={searchKind==="articles"?"active":""} onClick={()=>setSearchKind("articles")}>正文</button></div><nav>{query&&spaceMatches.length>0&&<div className="space-tree-search-results"><small>空间</small>{spaceMatches.map((space)=><button key={space.id} onClick={()=>{selectSpace(space.id);setQuery("");setTreeOpen(false)}}><b>{space.name}</b><span>{space.path?.map((item)=>item.name).join(" / ")}</span></button>)}<small>空间树</small></div>}{roots.map((space)=><SpaceTreeNode key={`${space.id}-${treeVersion}`} node={space} currentId={currentId} activePathIds={overview?.path.map((item)=>item.id)??[]} onSelect={(id)=>{selectSpace(id);setTreeOpen(false)}}/>)}</nav></aside>
+      <aside id="axis-space-tree" aria-label="知识空间目录" className={`space-tree-panel ${treeOpen?"mobile-open":""}`}><div><b>知识空间</b><button onClick={()=>{selectSpace(null);setTreeOpen(false)}}>全部</button></div><label><span>⌕</span><input value={query} onChange={(event)=>{setQuery(event.target.value);setExpandedGroupId(null)}} placeholder="搜索空间或文章"/></label><div className="space-search-kind"><button className={searchKind==="all"?"active":""} onClick={()=>setSearchKind("all")}>全部</button><button className={searchKind==="spaces"?"active":""} onClick={()=>setSearchKind("spaces")}>空间</button><button className={searchKind==="articles"?"active":""} onClick={()=>setSearchKind("articles")}>正文</button></div><nav>{query&&spaceMatches.length>0&&<div className="space-tree-search-results"><small>空间</small>{spaceMatches.map((space)=><button key={space.id} onClick={()=>{selectSpace(space.id);setQuery("");setTreeOpen(false)}}><b>{space.name}</b><span>{space.path?.map((item)=>item.name).join(" / ")}</span></button>)}<small>空间树</small></div>}{roots.map((space)=><SpaceTreeNode key={`${space.id}-${treeVersion}`} node={space} currentId={currentId} activePathIds={overview?.path.map((item)=>item.id)??[]} onSelect={(id)=>{selectSpace(id);setTreeOpen(false)}}/>)}</nav></aside>
       <div className="space-content">
         <div className="space-content-intro"><div><span>{overview?.children.length??0} 个直属子空间 · {overview?.ancestorOnly?0:overview?.articleCount??0} 篇可访问文章（含下级）</span><p>{pathLabel}</p></div>
       {!overview?.ancestorOnly?<div className="space-scope">
@@ -272,7 +282,7 @@ export default function AdminSpacesPanel({initialSpaceId=null,createOnOpen=false
         <button className={scope==="current"?"active":""} onClick={()=>{setScope("current");setExpandedGroupId(null)}}>仅当前空间</button>
         {!overview?.isInvited?<button className={scope==="all"?"active":""} onClick={()=>{setScope("all");setExpandedGroupId(null)}}>全部空间</button>:null}
       </div>:null}</div>
-        {!!overview?.children.length&&<><div className="space-section-heading"><b>子空间</b><span>按浏览顺序排列</span></div><div className="space-child-grid">{overview.children.map((space)=><article key={space.id} onClick={()=>selectSpace(space.id)}><div><i/><SpaceActions space={space} onAction={beginDialog} onCollaborate={setCollabTarget} onDeleteEmpty={deleteInvitedEmptySpace}/></div><h3>{space.name}</h3><p>{pathLabel} / {space.name}</p><footer>{space.ancestorOnly?"上级路径 · 仅显示目录名称":space.childCount+" 个子空间 · "+(space.totalArticleCount??space.articleCount)+" 篇文章"} <b>↗</b></footer></article>)}</div></>}
+        {!!overview?.children.length&&<><div className="space-section-heading"><b>子空间</b><span>按浏览顺序排列</span></div><div className="space-child-grid">{overview.children.map((space)=><article key={space.id} onClick={()=>selectSpace(space.id)} tabIndex={0} role="link" aria-label={"进入子空间："+space.name} onKeyDown={event=>enterSpaceWithKeyboard(event,space.id)}><div><i/><SpaceActions space={space} onAction={beginDialog} onCollaborate={setCollabTarget} onDeleteEmpty={deleteInvitedEmptySpace}/></div><h3>{space.name}</h3><p>{pathLabel} / {space.name}</p><footer>{space.ancestorOnly?"上级路径 · 仅显示目录名称":space.childCount+" 个子空间 · "+(space.totalArticleCount??space.articleCount)+" 篇文章"} <b>↗</b></footer></article>)}</div></>}
         {overview?.ancestorOnly?<div className="space-shared-ancestor-note">你可以通过目录导航进入获邀空间。上级目录仅提供位置关系，不允许查看其文章、成员或其他子空间。</div>:null}
         {!overview?.ancestorOnly?<div className="space-section-heading"><b>{scope==="current"?"直属文章":scope==="descendants"?"空间内文章":"全部私有文章"}</b><span>{query?`搜索“${query}” · `:""}按空间分组，点击展开文章</span>
         {canWrite?<button className="space-collab-inline-action" onClick={()=>overview&&setCoauthor({spaceId:overview.id,name:overview.name,canWrite:true})}>＋ 共创文档</button>:null}
@@ -336,7 +346,7 @@ function SpaceTreeNode({node,currentId,activePathIds,onSelect}:{node:SpaceNode;c
     if(!open)await loadChildren();
     setOpen((value)=>!value);
   };
-  return <div className="space-tree-node"><button className={currentId===node.id?"current":""} onClick={()=>onSelect(node.id)} title={node.name}><i onClick={toggle}>{node.childCount?(open?"⌄":"›"):"·"}</i><span>{node.name}</span><small>{node.ancestorOnly?"路径":node.totalArticleCount??node.articleCount}</small></button>{open&&<div>{children.map((child)=><SpaceTreeNode key={child.id} node={child} currentId={currentId} activePathIds={activePathIds} onSelect={onSelect}/>)}</div>}</div>;
+  return <div className="space-tree-node"><button className={currentId===node.id?"current":""} aria-current={currentId===node.id?"page":undefined} onClick={()=>onSelect(node.id)} title={node.name}><i onClick={toggle}>{node.childCount?(open?"⌄":"›"):"·"}</i><span>{node.name}</span><small>{node.ancestorOnly?"路径":node.totalArticleCount??node.articleCount}</small></button>{open&&<div>{children.map((child)=><SpaceTreeNode key={child.id} node={child} currentId={currentId} activePathIds={activePathIds} onSelect={onSelect}/>)}</div>}</div>;
 }
 
 function SpaceActions({space,onAction,onCollaborate,onDeleteEmpty}:{
