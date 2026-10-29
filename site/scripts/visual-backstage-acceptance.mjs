@@ -135,6 +135,10 @@ async function verifyPage(page,profile,section){
       profile.id+" "+section+" readable heading: "+JSON.stringify(m));
     assert.ok(m.leadDisplay!=="none",profile.id+" "+section+" heading description visible");
   }
+  if(["home","about","connect","integrations"].includes(section)){
+    const footerMode=await page.$eval(".config-footer",node=>getComputedStyle(node).position);
+    assert.equal(footerMode,"static",profile.id+" "+section+" save footer must not cover form content");
+  }
   if(profile.width<=800){
     assert.ok(m.nav.bottom<=profile.height+2&&m.nav.width>150,
       profile.id+" "+section+" bottom AXIS navigation must remain on screen");
@@ -182,6 +186,28 @@ async function verifyUnsavedNavigation(page,origin){
   console.log("PASS desktop navigation: unsaved Home cannot be silently lost");
 }
 
+async function verifyArticleReset(page,origin){
+  await open(page,origin,"articles",".admin-real-stats");
+  await page.focus(".axis-admin-list-page .admin-search input");
+  await page.keyboard.type("not-present-in-fixture");
+  await page.select(".axis-admin-list-page .table-tools select[aria-label='按发布状态筛选文章']","draft");
+  await page.waitForSelector(".axis-filter-clear",{visible:true,timeout:10000});
+  await page.click(".axis-filter-clear");
+  const cleared=await page.evaluate(()=>({
+    query:document.querySelector(".axis-admin-list-page .admin-search input")?.value,
+    status:document.querySelector(".axis-admin-list-page select[aria-label='按发布状态筛选文章']")?.value,
+    category:document.querySelector(".axis-admin-list-page select[aria-label='按分类筛选文章']")?.value,
+    url:new URL(window.location.href).searchParams,
+  }));
+  assert.equal(cleared.query,"");
+  assert.equal(cleared.status,"all");
+  assert.equal(cleared.category,"all");
+  assert.equal(cleared.url.get("q")??"","");
+  assert.equal(cleared.url.get("status")??"all","all");
+  assert.equal(cleared.url.get("category")??"all","all");
+  console.log("PASS article filtering reset: state and URL agree");
+}
+
 async function verifyEditor(page,origin,profile){
   await open(page,origin,"articles",".admin-real-stats");
   await page.click(".admin-main > .admin-header .new-button");
@@ -222,7 +248,10 @@ async function checkProfile(browser,origin,cookie,profile){
       await page.screenshot({path:resolve(dir,"axis-"+profile.id+"-"+section+".png"),
         animations:"disabled"});
     }
-    if(profile.id==="desktop")await verifyUnsavedNavigation(page,origin);
+    if(profile.id==="desktop"){
+      await verifyUnsavedNavigation(page,origin);
+      await verifyArticleReset(page,origin);
+    }
     if(profile.id==="desktop"||profile.id==="phone")await verifyEditor(page,origin,profile);
     assert.deepEqual(errors,[],profile.id+" browser JavaScript errors");
     console.log("PASS whole AXIS backstage",profile.id,sections.length+" real sections");
