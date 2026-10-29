@@ -53,10 +53,9 @@ jobs:
             echo "::error::Admin UI not detected"; head -c 300 /tmp/axis-admin.html; exit 1
           fi
           echo "Isolated real Worker admin responded successfully."
-      - name: Open short-lived Cloudflare tunnel (no Cloudflare account or production secrets)
+      - name: Open short-lived Cloudflare tunnel
+        id: tunnel
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           curl -fsSL --retry 3 --retry-delay 2 \
@@ -66,7 +65,7 @@ jobs:
           /tmp/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8789 > /tmp/axis-tunnel.log 2>&1 &
           echo "$!" > /tmp/axis-tunnel.pid
           url=""
-          for i in $(seq 1 45); do
+          for attempt in $(seq 1 45); do
             url="$(grep -Eo 'https://[a-z0-9-]+[.]trycloudflare[.]com' /tmp/axis-tunnel.log | head -1 || true)"
             if [ -n "$url" ]; then break; fi
             if ! kill -0 "$(cat /tmp/axis-tunnel.pid)" 2>/dev/null; then
@@ -75,30 +74,27 @@ jobs:
             sleep 2
           done
           if [ -z "$url" ]; then tail -n 80 /tmp/axis-tunnel.log; exit 1; fi
-          echo "::notice title=AXIS preview URL::$url/admin"
-          echo "## XINGYU AXIS 2.0 temporary preview" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Open:** $url/admin" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Fixture-only data, no production bindings, tunnel closes after 15 minutes." >> "$GITHUB_STEP_SUMMARY"
-          # Expose the short-lived link through GitHub while this job is still running.
-          # Job-log downloads are generally unavailable until the runner exits.
-          comment_body="AXIS 2.0 temporary preview (isolated demo data, expires after 15 minutes): $url/admin"
-          curl -fsS --max-time 15 -X POST \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/zhangqiang8vipp/xingyu/issues/80/comments" \
-            -d "$(node -e 'process.stdout.write(JSON.stringify({body:process.argv[1]}))' "$comment_body")" \
-            -o /tmp/axis-preview-comment.json || echo "::warning::Could not post preview link to PR"
-          ready=0
-          for attempt in $(seq 1 35); do
-            if curl --fail --silent --show-error --max-time 8 "$url/admin" -o /tmp/axis-tunnel-response.html 2>/dev/null; then
-              ready=1; break
+          printf '%s/admin\n' "$url" > /tmp/axis-live-url.txt
+          echo "host=${url#https://}" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "::notice title=AXIS preview::$url/admin"
+          echo "**XINGYU isolated demo:** $url/admin (15-minute session)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish link while tunnel is running
+        uses: actions/upload-artifact@v4
+        with:
+          name: axis-live-${{ steps.tunnel.outputs.host }}
+          path: /tmp/axis-live-url.txt
+          retention-days: 1
+      - name: Keep the preview running for 15 minutes
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="${{ steps.tunnel.outputs.url }}"
+          echo "PREVIEW_LIVE $url/admin"
+          for attempt in $(seq 1 15); do
+            if curl -fsS --max-time 6 "$url/admin" -o /tmp/axis-tunnel-response.html 2>/dev/null; then
+              echo "PREVIEW_PUBLIC_HTTP_OK"; break
             fi
             sleep 3
           done
-          if [ "$ready" = 1 ]; then echo "TUNNEL_VERIFIED $url/admin"; else echo "::warning::Tunnel DNS not yet reachable from runner; leaving tunnel running for external verification"; fi
-          echo "TUNNEL_READY $url/admin"
           sleep 900
-          echo "Temporary preview time elapsed; stopping tunnel."
