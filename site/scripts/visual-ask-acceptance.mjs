@@ -75,6 +75,60 @@ async function check(browser,origin,label,width,height,dark) {
     await page.waitForSelector(".xy-ai-launcher",{visible:true,timeout:20000});
     assert.equal(await page.evaluate(()=>document.querySelectorAll(".xy-ai-nav-trigger").length),0,
       label+" no redundant top Ask AI button");
+    const launcher=await page.$eval(".xy-ai-launcher",button=>{
+      const rect=button.getBoundingClientRect();
+      return {
+        x:rect.left,y:rect.top,width:rect.width,height:rect.height,
+        right:rect.right,bottom:rect.bottom,
+        text:button.textContent.trim(),
+        logos:button.querySelectorAll("svg.axis-mark").length,
+        touchAction:getComputedStyle(button).touchAction,
+      };
+    });
+    assert.equal(launcher.text,"",label+" floating assistant has no visible label");
+    assert.equal(launcher.logos,1,label+" exactly one original XINGYU emblem");
+    assert.ok(launcher.width>=48&&launcher.width<=58&&launcher.height>=48&&launcher.height<=58,
+      label+" AI launcher has a compact touch target");
+    assert.ok(launcher.x>=0&&launcher.y>=0&&launcher.right<=width+1&&launcher.bottom<=height+1,
+      label+" AI launcher stays on-screen");
+
+    if(width<=720){
+      await page.screenshot({path:resolve(output,"ask-logo-launcher-mobile.png"),animations:"disabled"});
+      assert.equal(launcher.touchAction,"none","touch drag must not scroll the page");
+      const start={x:launcher.x+launcher.width/2,y:launcher.y+launcher.height/2};
+      await page.mouse.move(start.x,start.y);
+      await page.mouse.down();
+      await page.mouse.move(start.x-112,start.y-116,{steps:10});
+      await page.mouse.up();
+      const dragged=await page.$eval(".xy-ai-launcher",button=>{
+        const box=button.getBoundingClientRect();
+        return {x:box.left,y:box.top,open:document.querySelector(".xy-ai-panel:not([hidden])")!==null,
+          stored:window.localStorage.getItem("xingyu:axis-ai-launcher:v1:mobile")};
+      });
+      assert.ok(Math.abs(dragged.x-launcher.x)>70&&Math.abs(dragged.y-launcher.y)>70,
+        "dragging AXIS AI logo must reposition it");
+      assert.equal(dragged.open,false,"drag and release must NOT open the assistant");
+      assert.ok(dragged.stored,"mobile launcher remembers the final position");
+      await page.reload({waitUntil:"networkidle0",timeout:70000});
+      await page.waitForSelector(".xy-ai-launcher",{visible:true,timeout:20000});
+      await page.waitForFunction(()=>{
+        const box=document.querySelector(".xy-ai-launcher")?.getBoundingClientRect();
+        return Boolean(box&&box.left<300&&box.top<740);
+      },{timeout:5000});
+      const restored=await page.$eval(".xy-ai-launcher",button=>{
+        const box=button.getBoundingClientRect();
+        return {x:box.left,y:box.top};
+      });
+      assert.ok(Math.abs(restored.x-dragged.x)<=4&&Math.abs(restored.y-dragged.y)<=4,
+        "mobile bubble position should survive a reload");
+      await page.focus(".xy-ai-launcher");
+      await page.keyboard.down("Shift");
+      await page.keyboard.press("ArrowLeft");
+      await page.keyboard.up("Shift");
+      const keyboardX=await page.$eval(".xy-ai-launcher",button=>button.getBoundingClientRect().left);
+      assert.ok(keyboardX<restored.x-10,"focused button must also be movable by keyboard");
+      console.log("PASS AXIS AI logo drag + restore + keyboard positioning",JSON.stringify(restored));
+    }
     // Simulate a long article in the real browser without relying on external content.
     await page.evaluate(()=>{
       const spacer=document.createElement("div");
