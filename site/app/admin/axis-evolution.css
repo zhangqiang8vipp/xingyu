@@ -772,3 +772,15 @@
     min-height:44px;
   }
 }
+
+
+/* Editing is a focused task. The optional floating AI logo stays available
+ * everywhere in the backstage, but steps away while a full-screen editor,
+ * Markdown studio or live document preview is open. */
+body:has(.admin-shell .editor-backdrop) .xy-ai-launcher,
+body:has(.admin-shell .writing-studio) .xy-ai-launcher,
+body:has(.admin-shell .space-coauthor-dialog) .xy-ai-launcher,
+body:has(.admin-shell .space-document-frontstage) .xy-ai-launcher{
+  visibility:hidden;
+  pointer-events:none;
+}
