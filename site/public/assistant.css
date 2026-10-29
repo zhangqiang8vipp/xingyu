@@ -124,6 +124,11 @@
   .xy-ai-chat-top{padding:0 15px}
   .xy-ai-thread{padding:21px 16px 19px}
   .xy-ai-composer{padding:12px 13px calc(12px + env(safe-area-inset-bottom))}
+  /* iPhone Safari must not zoom the entire page when the user starts typing. */
+  .xy-ai-form textarea{font-size:16px;line-height:1.55;min-height:44px}
+  .xy-ai-scopes button{min-height:40px;font-size:12px}
+  .xy-ai-send,.xy-ai-only-search{min-height:44px}
+  .xy-ai-panel-controls .xy-ai-close,.xy-ai-panel-controls .xy-ai-expand{width:44px;height:44px}
   .xy-ai-welcome{margin-top:24px}
   .xy-ai-welcome h2{font-size:22px}
   .xy-ai-chat--page{height:calc(100dvh - 135px);min-height:460px;border:0;border-radius:0;box-shadow:none}
