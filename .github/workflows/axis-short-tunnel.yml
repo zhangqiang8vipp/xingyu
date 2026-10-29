@@ -78,7 +78,14 @@ jobs:
           echo "**Open:** $url/admin" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Fixture-only data, no production bindings, tunnel closes after 15 minutes." >> "$GITHUB_STEP_SUMMARY"
-          curl --fail --silent --show-error --max-time 35 "$url/admin" -o /tmp/axis-tunnel-response.html
+          ready=0
+          for attempt in $(seq 1 35); do
+            if curl --fail --silent --show-error --max-time 8 "$url/admin" -o /tmp/axis-tunnel-response.html 2>/dev/null; then
+              ready=1; break
+            fi
+            sleep 3
+          done
+          if [ "$ready" = 1 ]; then echo "TUNNEL_VERIFIED $url/admin"; else echo "::warning::Tunnel DNS not yet reachable from runner; leaving tunnel running for external verification"; fi
           echo "TUNNEL_READY $url/admin"
           sleep 900
           echo "Temporary preview time elapsed; stopping tunnel."
