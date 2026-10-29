@@ -228,6 +228,12 @@
 .space-breadcrumb :is(button,span) { line-height:1.55; }
 
 @media(max-width:800px){
+  /* Sticky search takes its 70px position visually, but without a matching
+   * flow offset the original page heading starts *under* the search field.
+   * Reserve the island's vertical space instead of moving/removing it. */
+  .admin-shell:not(.admin-account-shell) .admin-workspace {
+    padding-top:calc(70px + env(safe-area-inset-top));
+  }
   /* Mobile AXIS top and bottom islands remain exactly where they belong. */
   .admin-main .admin-header > div > span { font-size:12px; }
   .admin-public-browser .axis-runtime-disclosure {
