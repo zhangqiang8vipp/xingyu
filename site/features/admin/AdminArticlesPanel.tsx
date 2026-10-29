@@ -51,7 +51,13 @@ export default function AdminArticlesPanel({
   onNext:()=>void;
   isPersonalAccount?:boolean;
 }){
-  return <section className="admin-main">
+  const filtered=Boolean(query.trim()||category!=="all"||status!=="all");
+  const resetFilters=()=>{
+    onQueryChange("");
+    onCategoryChange("all");
+    onStatusChange("all");
+  };
+  return <section className="admin-main axis-admin-list-page">
     <header className="admin-header"><div><p>CONTENT</p><h1>文章管理</h1><span>{isPersonalAccount ? "沿用统一的文章管理界面；只显示自己的文章和公开文章。" : `管理、筛选并发布${brandName}的全部内容。`}</span></div><button className="new-button" onClick={onNew}>＋ 新建文章</button></header>
     {message&&<p className="form-message" role="status">{message}</p>}
     <div className="stats admin-real-stats"><div><span>全部文章</span><b>{stats.total.toLocaleString()}</b></div><div><span>已发布</span><b>{stats.published.toLocaleString()}</b></div><div><span>草稿</span><b>{stats.drafts.toLocaleString()}</b></div><div><span>总阅读量</span><b>{stats.views.toLocaleString()}</b></div></div>
@@ -59,16 +65,20 @@ export default function AdminArticlesPanel({
       <div className="admin-search"><span>⌕</span><input value={query} onChange={(event)=>onQueryChange(event.target.value)} placeholder="全文搜索标题、摘要或正文" aria-label="搜索文章标题、摘要或正文"/></div>
       <select aria-label="按分类筛选文章" value={category} onChange={(event)=>onCategoryChange(event.target.value)}><option value="all">全部分类</option>{categories.map((item)=><option key={item.id} value={item.slug}>{item.name}</option>)}</select>
       <select aria-label="按发布状态筛选文章" value={status} onChange={(event)=>onStatusChange(event.target.value)}><option value="all">全部状态</option><option value="published">已发布</option><option value="draft">草稿</option></select>
+      {filtered&&<button className="axis-filter-clear" type="button" onClick={resetFilters} aria-label="清除所有文章筛选">清除筛选 ×</button>}
     </div>
+    <p className="axis-table-context" role="status" aria-live="polite">
+      {loading?"正在筛选文章…":filtered?`当前条件下找到 ${posts.length} 篇文章（本批）`:`当前显示 ${posts.length} 篇文章`}
+    </p>
     <div className="table-wrap">
-      <table><thead><tr><th>文章</th><th>分类</th><th>状态</th><th>浏览</th><th>发布时间</th><th>操作</th></tr></thead>
-        <tbody>{loading?<tr><td colSpan={6} className="table-empty">正在读取文章…</td></tr>:posts.length===0?<tr><td colSpan={6} className="table-empty">没有符合条件的文章</td></tr>:posts.map((post)=><tr key={post.id}>
+      <table aria-label="文章列表"><thead><tr><th>文章</th><th>分类</th><th>状态</th><th>浏览</th><th>发布时间</th><th>操作</th></tr></thead>
+        <tbody>{loading?<tr><td colSpan={6} className="table-empty">正在读取文章…</td></tr>:posts.length===0?<tr><td colSpan={6} className="table-empty">{filtered?"没有找到匹配文章，试试清除筛选":"还没有文章，使用右上角「新建文章」开始创作"}</td></tr>:posts.map((post)=><tr key={post.id}>
           <td data-label="文章"><div className="title-cell"><span>{post.id}</span><div><b>{post.title}</b><small>/{post.slug}</small></div></div></td>
           <td data-label="分类">{post.categoryName}</td>
           <td data-label="状态"><i className={`status ${post.status}`}/>{isPersonalAccount ? (post.visibility === "public" ? "公开文章" : "个人文章") : post.status==="published"?"已发布":"草稿"}</td>
           <td data-label="浏览">{post.viewCount.toLocaleString()}</td>
           <td data-label="发布">{post.publishedAt?new Date(post.publishedAt).toLocaleDateString("zh-CN"):"—"}</td>
-          <td data-label="操作"><div className="row-actions"><button onClick={()=>onBrowse(post.id)}>浏览</button>{!isPersonalAccount && <button onClick={()=>onShare(post)}>分享预览</button>}{(!isPersonalAccount || post.canEdit) && <><button onClick={()=>onEdit(post.id)}>编辑</button><button className="danger" onClick={()=>onRemove(post)}>删除</button></>}</div></td>
+          <td data-label="操作"><div className="row-actions"><button type="button" aria-label={"浏览《"+post.title+"》"} onClick={()=>onBrowse(post.id)}>浏览</button>{!isPersonalAccount && <button type="button" aria-label={"分享《"+post.title+"》的预览"} onClick={()=>onShare(post)}>分享预览</button>}{(!isPersonalAccount || post.canEdit) && <><button type="button" aria-label={"编辑《"+post.title+"》"} onClick={()=>onEdit(post.id)}>编辑</button><button className="danger" type="button" aria-label={"删除《"+post.title+"》"} onClick={()=>onRemove(post)}>删除</button></>}</div></td>
         </tr>)}</tbody>
       </table>
     </div>
