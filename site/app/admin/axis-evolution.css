@@ -726,3 +726,49 @@
     transition:none!important;
   }
 }
+
+
+/* Final visual review: a persistent save slab covered editing fields on every
+ * screen size. Keep the footer IN FLOW; provide contextual quick-save above
+ * the form only while a real unsaved change exists. */
+.admin-shell .admin-config-main .config-footer {
+  position:static;
+  bottom:auto;
+  z-index:auto;
+  margin-top:0;
+  box-shadow:var(--admin-shadow);
+}
+.admin-shell .admin-config-main .config-footer[data-axis-save-state="saved"] .save-button {
+  background:var(--admin-control);
+  border-color:var(--admin-line);
+  color:var(--admin-muted);
+  box-shadow:none;
+}
+.admin-shell .admin-config-main .axis-config-quick-save {
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:9px 16px;
+  border:1px solid var(--admin-accent);
+  border-radius:12px;
+  background:var(--admin-accent);
+  color:#fff;
+  font-size:13px;
+  line-height:1.4;
+  font-weight:680;
+}
+.admin-shell .admin-config-main .axis-config-quick-save:disabled {
+  opacity:.56;cursor:wait;
+}
+@media(max-width:800px){
+  .admin-shell .admin-config-main .config-footer {
+    position:static;
+    bottom:auto;
+    margin-top:0;
+  }
+  .admin-shell .admin-config-main .axis-config-quick-save {
+    flex:1 1 auto;
+    min-height:44px;
+  }
+}
