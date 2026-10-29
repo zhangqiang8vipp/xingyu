@@ -1,0 +1,27 @@
+name: Probe temporary AXIS preview public URL
+on:
+  push:
+    branches: [preview/axis-public-probe-20261029]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Verify external Cloudflare preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://proc-remains-everyone-sharon.trycloudflare.com/admin"
+          for i in $(seq 1 25); do
+            code=$(curl --silent --show-error --location --output /tmp/axis-probe.html --write-out "%{http_code}" --max-time 10 "$url" || true)
+            if [ "$code" = "200" ] && grep -q "admin-" /tmp/axis-probe.html 2>/dev/null; then
+              echo "AXIS_PUBLIC_OK $url"
+              exit 0
+            fi
+            echo "Attempt $i HTTP ${code:-unavailable}"
+            sleep 3
+          done
+          echo "AXIS_PUBLIC_UNAVAILABLE $url"
+          exit 1
