@@ -1,4 +1,4 @@
-name: Temporary AXIS Workspace preview (isolated 15 minutes)
+name: Temporary AXIS Workspace preview (isolated 25 minutes)
 
 on:
   push:
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   tunnel:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: site
@@ -78,14 +78,14 @@ jobs:
           echo "host=${url#https://}" >> "$GITHUB_OUTPUT"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "::notice title=AXIS preview::$url/admin"
-          echo "**XINGYU isolated demo:** $url/admin (15-minute session)" >> "$GITHUB_STEP_SUMMARY"
+          echo "**XINGYU isolated demo:** $url/admin (25-minute session)" >> "$GITHUB_STEP_SUMMARY"
       - name: Publish link while tunnel is running
         uses: actions/upload-artifact@v4
         with:
-          name: axis-live-${{ steps.tunnel.outputs.host }}
+          name: axis-live-${{ steps.tunnel.outputs.host }}-${{ github.run_attempt }}
           path: /tmp/axis-live-url.txt
           retention-days: 1
-      - name: Keep the preview running for 15 minutes
+      - name: Keep the preview running for 25 minutes
         shell: bash
         run: |
           set -euo pipefail
@@ -97,4 +97,4 @@ jobs:
             fi
             sleep 3
           done
-          sleep 900
+          sleep 1500
