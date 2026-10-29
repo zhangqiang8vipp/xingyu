@@ -1,9 +1,6 @@
 /* XINGYU AI — scoped global assistant. The existing public navigation remains unchanged. */
 .xy-ai-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-.xy-ai-launcher{position:fixed;right:24px;bottom:24px;z-index:900;display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:0 19px 0 15px;border:1px solid rgba(255,255,255,.65);border-radius:18px;background:rgba(29,31,36,.94);color:#fff;font-size:13px;font-weight:700;letter-spacing:.005em;box-shadow:0 12px 40px rgba(20,25,40,.2),inset 0 1px rgba(255,255,255,.18);backdrop-filter:blur(22px);transition:transform .18s ease,box-shadow .18s ease}
-.xy-ai-launcher[hidden]{display:none}
-.xy-ai-launcher:hover{transform:translateY(-3px);box-shadow:0 17px 46px rgba(20,25,40,.23)}
-.xy-ai-launcher-spark{display:grid;place-items:center;width:28px;height:28px;border-radius:10px;background:linear-gradient(145deg,#7ca9f3,#416fdb);font-size:17px;color:white}
+/* The draggable AXIS logo launcher is styled in globals.css from the first paint. */
 .xy-ai-nav-trigger{display:inline-flex;align-items:center;gap:6px;flex:none;border:1px solid rgba(42,86,150,.14);border-radius:999px;background:rgba(50,109,206,.065);color:var(--blue,#0071e3);font-weight:700;font-size:12px;padding:7px 10px;white-space:nowrap}
 .xy-ai-nav-trigger:hover{background:rgba(50,109,206,.12)}
 .xy-ai-nav-trigger span{font-size:13px}
@@ -121,7 +118,6 @@
 [data-theme="dark"] .xy-ai-expand,[data-theme="dark"] .xy-ai-close{color:#b2c1d3}
 [data-theme="dark"] .xy-ai-expand:hover,[data-theme="dark"] .xy-ai-close:hover{background:#293647}
 @media(max-width:720px){
-  .xy-ai-launcher{right:15px;bottom:calc(17px + env(safe-area-inset-bottom));min-height:49px}
   .xy-ai-panel{inset:0;width:100vw;height:100dvh;border:0;border-radius:0}
   .xy-ai-panel-header{padding:0 16px;height:60px;min-height:60px}
   .xy-ai-chat--panel{height:calc(100% - 60px)}
