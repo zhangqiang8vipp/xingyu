@@ -2378,7 +2378,6 @@ html[data-theme="dark"] .xy-ai-launcher{
   background:rgba(31,32,37,.87);
   box-shadow:0 15px 42px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.09);
 }
-.xy-ai-nav-trigger{display:inline-flex;align-items:center;gap:6px;flex:none;border:1px solid rgba(42,86,150,.14);border-radius:999px;background:rgba(50,109,206,.065);color:var(--blue,#0071e3);font-weight:700;font-size:12px;padding:7px 10px;white-space:nowrap}
 @media(max-width:800px){
   .xy-ai-launcher{right:14px;bottom:calc(22px + env(safe-area-inset-bottom))}
 
@@ -2389,7 +2388,6 @@ html[data-theme="dark"] .xy-ai-launcher{
   body:has(input:focus,textarea:focus,[contenteditable="true"]:focus) .xy-ai-launcher{
     visibility:hidden;pointer-events:none;
   }
-  .xy-ai-nav-trigger{font-size:11px;padding:7px 9px}
 }
 @media(prefers-reduced-motion:reduce){.xy-ai-launcher{transition:none!important}}
 
