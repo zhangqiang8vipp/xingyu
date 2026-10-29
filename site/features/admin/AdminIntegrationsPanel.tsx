@@ -184,7 +184,7 @@ export default function AdminIntegrationsPanel({
         ))}
       </section>}
       {isPersonalAccount&&<section className="editor-section"><div className="editor-section-title"><span>02</span><div><b>个人连接</b><small>仅管理当前账号自己的访问令牌</small></div></div><p>这里沿用原后台的连接页面样式。个人令牌和客户端接入说明显示在上方；站点级连接、全站会话和撤销操作仅管理员可见。</p></section>}
-      <footer className="config-footer"><span>{message || (isPersonalAccount ? "个人连接与站点级连接分开管理，避免看到其他账号的授权数据。" : "连接成功不等于激活；只有发生真实知识空间写入后，才会出现上方变更证明。")}</span></footer>
+      <footer className="config-footer"><span role="status" aria-live="polite">{message || (isPersonalAccount ? "个人连接与站点级连接分开管理，避免看到其他账号的授权数据。" : "连接成功不等于激活；只有发生真实知识空间写入后，才会出现上方变更证明。")}</span></footer>
     </div>
   </section>;
 }
