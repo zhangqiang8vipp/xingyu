@@ -24,6 +24,14 @@ import type { AdminReaderContext, AdminReaderReturnTarget } from "@/domain/reade
 import { adminLocationHref, parseAdminLocation, type AdminLocation } from "@/domain/admin/location";
 import type { BetaActivationSignal } from "@/domain/admin/activation";
 
+// Only editable fields count as unsaved changes. Server version bumps after
+// attachment uploads must not trigger a false discard warning.
+function editorSnapshot(article:ArticleForm|null):string{
+  if(!article)return "";
+  const {title,slug,excerpt,content,categoryId,spaceId,sortOrder,status,featured,publishedAt}=article;
+  return JSON.stringify({title,slug,excerpt,content,categoryId,spaceId,sortOrder:sortOrder??0,status,featured,publishedAt:publishedAt??null});
+}
+
 const emptyForm = (categoryId = 1,spaceId:number|null=null,spacePath=""): ArticleForm => ({ title: "", slug: "", excerpt: "", content: "", categoryId, spaceId,sortOrder:0,spacePath,status: "draft", featured: false, publishedAt:null });
 
 function isSiteAdminSection(section:AdminSection){
@@ -76,6 +84,10 @@ export default function AdminClient({ categories:initialCategories, settings, co
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<ArticleForm | null>(initialArticle);
   const [message, setMessage] = useState("");
+  const [saving,setSaving]=useState(false);
+  const saveInFlightRef=useRef(false);
+  const editorBaselineRef=useRef(editorSnapshot(initialArticle));
+  const editorDirty=Boolean(form&&editorSnapshot(form)!==editorBaselineRef.current);
   const [stats,setStats]=useState(initialStats);
   const [studio,setStudio]=useState<null|"code"|"split"|"reading">(null);
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
@@ -147,6 +159,13 @@ export default function AdminClient({ categories:initialCategories, settings, co
   },[]);
 
   useEffect(()=>{
+    if(!editorDirty)return;
+    const protect=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue="";};
+    window.addEventListener("beforeunload",protect);
+    return()=>window.removeEventListener("beforeunload",protect);
+  },[editorDirty]);
+
+  useEffect(()=>{
     // Admin sections are separate workspaces. Reusing the previous document
     // scroll can hide a new section's heading and actions behind the mobile dock.
     const frame=window.requestAnimationFrame(()=>window.scrollTo(0,0));
@@ -198,6 +217,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
   }
 
   function closeEditor() {
+    if(editorDirty&&!window.confirm("这篇内容还有未保存的更改。确定放弃修改并退出吗？"))return;
     const returnTarget=readerReturnRef.current;
     readerReturnRef.current=null;
     setStudio(null);
@@ -209,7 +229,9 @@ export default function AdminClient({ categories:initialCategories, settings, co
   function openNewArticle(spaceId:number|null=null,spacePath="") {
     readerReturnRef.current=null;
     setStudio(null);
-    setForm(isPersonalAccount ? emptyForm(editableCategories[0]?.id,0,"个人知识空间") : emptyForm(categories[0]?.id,spaceId,spacePath));
+    const draft=isPersonalAccount ? emptyForm(editableCategories[0]?.id,0,"个人知识空间") : emptyForm(categories[0]?.id,spaceId,spacePath);
+    editorBaselineRef.current=editorSnapshot(draft);
+    setForm(draft);
     setMessage("");
   }
 
@@ -226,25 +248,37 @@ export default function AdminClient({ categories:initialCategories, settings, co
   }
 
   async function save() {
-    if (!form) return;
-    const response = isPersonalAccount
-      ? await fetch(form.publicId ? `/api/knowledge/posts/${encodeURIComponent(form.publicId)}` : "/api/knowledge/posts", {
-          method: form.publicId ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: form.title, slug: form.slug, category: String(form.categoryId), excerpt: form.excerpt, content_markdown: form.content, ...(form.publicId ? { expected_version: form.version } : {}) }),
-        })
-      : await fetch(form.id ? `/api/posts/${form.id}` : "/api/posts", {
-          method: form.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
-        });
-    const data = await readApiJson<{post:ArticleForm}>(response);
-    if (!response.ok) return setMessage(data.error ?? "保存失败");
-    const returnTarget=readerReturnRef.current;
-    readerReturnRef.current=null;
-    setMessage("保存成功"); setStudio(null); setForm(null);
-    window.dispatchEvent(new Event("xingyu:spaces-changed"));
-    writeLocation(currentLocation());
-    await Promise.all([load(), loadStats()]);
-    if(returnTarget)openAdminReader(returnTarget);
+    if(!form||saveInFlightRef.current)return;
+    saveInFlightRef.current=true;
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = isPersonalAccount
+        ? await fetch(form.publicId ? `/api/knowledge/posts/${encodeURIComponent(form.publicId)}` : "/api/knowledge/posts", {
+            method: form.publicId ? "PATCH" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: form.title, slug: form.slug, category: String(form.categoryId), excerpt: form.excerpt, content_markdown: form.content, ...(form.publicId ? { expected_version: form.version } : {}) }),
+          })
+        : await fetch(form.id ? `/api/posts/${form.id}` : "/api/posts", {
+            method: form.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+          });
+      const data = await readApiJson<{post:ArticleForm}>(response);
+      if (!response.ok) {setMessage(data.error ?? "保存失败，修改仍保留在编辑器里");return;}
+      const returnTarget=readerReturnRef.current;
+      readerReturnRef.current=null;
+      setMessage("保存成功"); setStudio(null); setForm(null);
+      editorBaselineRef.current="";
+      window.dispatchEvent(new Event("xingyu:spaces-changed"));
+      writeLocation(currentLocation());
+      await Promise.all([load(), loadStats()]);
+      if(returnTarget)openAdminReader(returnTarget);
+    }catch{
+      // An interrupted save must never discard the local draft.
+      setMessage("网络异常，修改仍保留在编辑器里；请检查连接后重试保存");
+    }finally{
+      saveInFlightRef.current=false;
+      setSaving(false);
+    }
   }
 
   async function loadArticle(postId:number,identifierOverride?:string){
@@ -288,7 +322,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
       setMessage("公开文章只读；你只能编辑自己的文章。");
       return;
     }
-    if(article){readerReturnRef.current=returnTarget??null;setStudio(null);setForm(article);setMessage("")}
+    if(article){readerReturnRef.current=returnTarget??null;editorBaselineRef.current=editorSnapshot(article);setStudio(null);setForm(article);setMessage("")}
   }
 
   function openAdminReader(target:AdminReaderReturnTarget){
@@ -303,6 +337,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
         window.open(`/posts/${article.publicId}/${article.slug}`, "_blank", "noopener,noreferrer");
         return;
       }
+      editorBaselineRef.current=editorSnapshot(article);
       setStudio(null);setForm(article);setMessage("");
       return;
     }
@@ -421,7 +456,7 @@ export default function AdminClient({ categories:initialCategories, settings, co
       {section==="browse" ? <AdminBrowsePanel settings={settings} categories={categories} stats={stats} category={browseCategory} visibility={browseVisibility} onCategoryChange={changeBrowseCategory} onVisibilityChange={changeBrowseVisibility} onEdit={(postId)=>void editById(postId)} onWrite={()=>openNewArticle()} onOpenArticles={()=>changeSection("articles")} onOpenSpaces={(spaceId)=>openSpaces(spaceId??null)} isPersonalAccount={isPersonalAccount} /> : section==="home" ? <AdminSettingsPanel initial={settings} readOnly={isPersonalAccount} /> : section==="articles" ? <AdminArticlesPanel brandName={settings.brandName} stats={stats} posts={posts} categories={categories} loading={loading} message={message} query={query} category={category} status={status} batch={cursorStack.length+1} hasPrevious={cursorStack.length>0} hasNext={Boolean(nextCursor)} onQueryChange={changeArticleQuery} onCategoryChange={changeArticleCategory} onStatusChange={changeArticleStatus} onNew={()=>openNewArticle()} onBrowse={(postId)=>void browseById(postId,{range:"all",query,category,status:status as "all"|"draft"|"published",source:"articles"})} onShare={setSharePost} onEdit={(postId)=>void editById(postId)} onRemove={(post)=>void remove(post)} onPrevious={previousBatch} onNext={nextBatch} isPersonalAccount={isPersonalAccount}/> : section==="files" ? <AdminFilesPanel isPersonalAccount={isPersonalAccount}/> : section==="spaces" ? <AdminSpacesPanel initialSpaceId={spaceLandingId} createOnOpen={createSpaceOnOpen} onLocationChange={changeSpaceLocation} onCreateArticle={(spaceId,spacePath)=>openNewArticle(spaceId,spacePath)} onEditArticle={(postId)=>void editById(postId)} onBrowseArticle={(postId,readerContext)=>void browseById(postId,readerContext)} onShareArticle={setSharePost} isPersonalAccount={isPersonalAccount} authorName={settings.authorName} avatarUrl={settings.avatarUrl} /> : section==="connect" ? <AdminPageEditor initial={connectPage} settings={settings} kind="connect" label="接入" readOnly={isPersonalAccount} /> : section==="integrations" ? <AdminIntegrationsPanel initial={connections} initialActivation={activation} isPersonalAccount={isPersonalAccount} /> : section==="about" ? <AdminPageEditor initial={aboutPage} settings={settings} kind="about" label="关于" readOnly={isPersonalAccount} /> : <AdminCategoriesPanel initial={isPersonalAccount?categories.filter((item)=>!item.slug.startsWith("user-")):categories} onChange={setCategories} readOnly={isPersonalAccount} />}
       </div>
 
-      {form&&<AdminArticleEditor form={form} category={selectedFormCategory} categories={isPersonalAccount?editableCategories:categories} settings={settings} message={message} previewRef={articleEditorPreviewRef} onChange={setForm} onChangeSpace={changeSpace} onClose={closeEditor} onOpenStudio={setStudio} onSharePreview={!isPersonalAccount&&form.id?()=>setSharePost({id:form.id!,title:form.title}):undefined} onSave={save} isPersonalAccount={isPersonalAccount}/>}
+      {form&&<AdminArticleEditor form={form} category={selectedFormCategory} categories={isPersonalAccount?editableCategories:categories} settings={settings} message={message} saving={saving} dirty={editorDirty} previewRef={articleEditorPreviewRef} onChange={setForm} onChangeSpace={changeSpace} onClose={closeEditor} onOpenStudio={setStudio} onSharePreview={!isPersonalAccount&&form.id?()=>setSharePost({id:form.id!,title:form.title}):undefined} onSave={save} isPersonalAccount={isPersonalAccount}/>}
       {form&&studio&&<ArticleWritingStudio draft={form} categoryName={selectedFormCategory?.name??"随笔"} categoryColor={selectedFormCategory?.color??"#8E8E93"} authorName={settings.authorName} avatarUrl={settings.avatarUrl} initialMode={studio} onChange={(content)=>setForm(current=>current?{...current,content}:current)} onPostVersionChange={(version)=>setForm(current=>current?{...current,version}:current)} onClose={()=>setStudio(null)}/>}
       <ModalPostLink controllerOnly readerScope="admin" publicId="" slug="" onEdit={(postId,returnTarget)=>void editById(postId,returnTarget)}/>
       {sharePost&&<AdminPreviewShareDialog post={sharePost} onClose={()=>setSharePost(null)}/>}
