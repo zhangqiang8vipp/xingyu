@@ -296,6 +296,23 @@ async function checkMobileProductSurfaces(browser,origin,user,rootId){
     const root=await page.goto(origin+"/admin?section=spaces",{waitUntil:"networkidle0",timeout:70000});
     assert.equal(root.status(),200,"mobile knowledge-space root accessible");
     await page.waitForSelector(".space-domain-card",{timeout:30000});
+    await page.waitForSelector(".xy-ai-launcher",{visible:true,timeout:20000});
+    const floatingAI=await page.evaluate(()=>{
+      const button=document.querySelector(".xy-ai-launcher");
+      const dock=document.querySelector(".admin-more .admin-dock");
+      const bubble=button?.getBoundingClientRect();
+      const rail=dock?.getBoundingClientRect();
+      return {logo:button?.querySelectorAll("svg.axis-mark").length??0,
+        text:button?.textContent?.trim()??"",width:bubble?.width??0,
+        bottom:bubble?.bottom??0,dockTop:rail?.top??0,
+        independent:!dock?.contains(button)};
+    });
+    assert.equal(floatingAI.logo,1,"global AI uses original 01 AXIS emblem");
+    assert.equal(floatingAI.text,"","global AI on mobile has no text taking room");
+    assert.ok(floatingAI.width<=58&&floatingAI.width>=48,"only one compact AI bubble");
+    assert.ok(floatingAI.independent&&floatingAI.bottom<=floatingAI.dockTop-8,
+      "AI bubble must not occupy or overlap the existing bottom AXIS island");
+    console.log("MOBILE_FLOATING_AXIS_AI",JSON.stringify(floatingAI));
     const card=await page.evaluate(()=>{
       const el=document.querySelector(".space-domain-card");
       const title=el.querySelector("h2");
