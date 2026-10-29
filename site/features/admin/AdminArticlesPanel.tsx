@@ -18,6 +18,7 @@ export default function AdminArticlesPanel({
   onQueryChange,
   onCategoryChange,
   onStatusChange,
+  onResetFilters,
   onNew,
   onBrowse,
   onShare,
@@ -42,6 +43,7 @@ export default function AdminArticlesPanel({
   onQueryChange:(value:string)=>void;
   onCategoryChange:(value:string)=>void;
   onStatusChange:(value:string)=>void;
+  onResetFilters:()=>void;
   onNew:()=>void;
   onBrowse:(postId:number)=>void;
   onShare:(post:{id:number;title:string})=>void;
@@ -52,11 +54,7 @@ export default function AdminArticlesPanel({
   isPersonalAccount?:boolean;
 }){
   const filtered=Boolean(query.trim()||category!=="all"||status!=="all");
-  const resetFilters=()=>{
-    onQueryChange("");
-    onCategoryChange("all");
-    onStatusChange("all");
-  };
+  const resetFilters=onResetFilters;
   return <section className="admin-main axis-admin-list-page">
     <header className="admin-header"><div><p>CONTENT</p><h1>文章管理</h1><span>{isPersonalAccount ? "沿用统一的文章管理界面；只显示自己的文章和公开文章。" : `管理、筛选并发布${brandName}的全部内容。`}</span></div><button className="new-button" onClick={onNew}>＋ 新建文章</button></header>
     {message&&<p className="form-message" role="status">{message}</p>}
