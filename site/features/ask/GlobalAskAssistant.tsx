@@ -14,6 +14,7 @@ export default function GlobalAskAssistant() {
   const [mounted, setMounted] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const lastFocus = useRef<HTMLElement | null>(null);
   const isAskPage = pathname === "/ask";
 
@@ -61,6 +62,45 @@ export default function GlobalAskAssistant() {
     };
   }, [open]);
 
+  // Keep keyboard focus inside the open modal instead of allowing Tab to
+  // reach page navigation behind its backdrop.
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const focusables = () => Array.from(panel.querySelectorAll<HTMLElement>(
+      'a[href],button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex]:not([tabindex="-1"])'
+    )).filter(element => element.getClientRects().length > 0
+      && getComputedStyle(element).visibility !== "hidden");
+
+    const keepTabInside = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const controls = focusables();
+      if (!controls.length) { event.preventDefault(); panel.focus(); return; }
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !panel.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    const keepFocusInside = (event: FocusEvent) => {
+      if (event.target instanceof Node && !panel.contains(event.target)) {
+        (focusables()[0] ?? panel).focus({ preventScroll: true });
+      }
+    };
+    document.addEventListener("keydown", keepTabInside, true);
+    document.addEventListener("focusin", keepFocusInside, true);
+    return () => {
+      document.removeEventListener("keydown", keepTabInside, true);
+      document.removeEventListener("focusin", keepFocusInside, true);
+    };
+  }, [open]);
+
   function openPanel() {
     lastFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setMounted(true);
@@ -74,7 +114,7 @@ export default function GlobalAskAssistant() {
       <link rel="stylesheet" href="/assistant.css" />
       {open ? <button className="xy-ai-backdrop" type="button" aria-label="关闭 AI 助手"
         onClick={() => setOpen(false)} /> : null}
-      <aside id="xy-ai-global-panel" className="xy-ai-panel" role="dialog"
+      <aside ref={panelRef} id="xy-ai-global-panel" tabIndex={-1} className="xy-ai-panel" role="dialog"
         aria-label="星屿 AI 知识助手" aria-modal={open ? "true" : undefined} hidden={!open}
         onClickCapture={event => {
           const target = event.target as Element;
