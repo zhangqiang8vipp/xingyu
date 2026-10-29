@@ -33,6 +33,7 @@ export default function AdminArticleSearch({
   const [query,setQuery]=useState("");
   const [scope,setScope]=useState<"all"|"public"|"private">("all");
   const [error,setError]=useState(false);
+  const [retryKey,setRetryKey]=useState(0);
   const dialogId=useId();
   const triggerRef=useRef<HTMLButtonElement>(null);
   const [rows,setRows]=useState<AdminSearchPost[]>([]);
@@ -130,7 +131,7 @@ export default function AdminArticleSearch({
       }
     },query?120:0);
     return()=>{window.clearTimeout(timer);controller.abort()};
-  },[open,query,scope,isPersonalAccount]);
+  },[open,query,scope,isPersonalAccount,retryKey]);
 
   useEffect(()=>{
     listRef.current?.querySelector<HTMLElement>(`[data-search-index="${activeIndex}"]`)
@@ -166,7 +167,7 @@ export default function AdminArticleSearch({
   };
 
   return <div ref={rootRef} className={`admin-article-search${open?" active":""}`}>
-    {!open&&<button ref={triggerRef} className="admin-article-search-trigger" type="button" disabled={disabled} onClick={beginSearch} aria-label="搜索全部文章" aria-expanded={open} aria-controls={dialogId}>
+    {!open&&<button ref={triggerRef} className="admin-article-search-trigger" type="button" disabled={disabled} onClick={beginSearch} aria-label="搜索全部文章" aria-expanded={open} aria-controls={open?dialogId:undefined}>
       <i>⌕</i><span>搜索全部文章</span><kbd>⌘K</kbd>
     </button>}
     {open&&!disabled&&
@@ -205,7 +206,7 @@ export default function AdminArticleSearch({
             <em>{post.status==="published"?(post.spaceId?"内容完成":"已发布"):"草稿"}</em>
             <strong>浏览 ↗</strong>
           </button>)}
-          {!loading&&!rows.length&&<div className="admin-article-search-empty" role="status"><i>◇</i><b>{error?"搜索暂时不可用":"没有找到相关文章"}</b><span>{error?"网络可能不稳定，请重试或稍后再查。":"换一个关键词或搜索范围试试。"}</span>{error?<button type="button" onClick={()=>setQuery((current)=>current+" ")}>重试搜索</button>:null}</div>}
+          {!loading&&!rows.length&&<div className="admin-article-search-empty" role="status"><i>◇</i><b>{error?"搜索暂时不可用":"没有找到相关文章"}</b><span>{error?"网络可能不稳定，请重试或稍后再查。":"换一个关键词或搜索范围试试。"}</span>{error?<button type="button" onClick={()=>setRetryKey((current)=>current+1)}>重试搜索</button>:null}</div>}
           {loading&&!rows.length&&<div className="admin-article-search-loading"><i/><i/><i/><span>正在检索全部文章</span></div>}
         </div>
         <footer>
