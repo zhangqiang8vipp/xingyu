@@ -92,7 +92,9 @@ test("AI launcher is one movable XINGYU AXIS logo, never a text CTA or dock item
   assert.match(bubble, /onPointerDown=\{onPointerDown\}/);
   assert.match(bubble, /onPointerMove=\{onPointerMove\}/);
   assert.match(bubble, /onPointerUp=\{endDrag\}/);
-  assert.match(bubble, /onPointerCancel=\{endDrag\}/);
+  assert.match(bubble, /onPointerCancel=\{cancelDrag\}/);
+  assert.match(bubble, /onLostPointerCapture=\{cancelDrag\}/);
+  assert.doesNotMatch(bubble, /window\.setTimeout\(\(\) => \{ ignoreClickRef/);
   assert.match(bubble, /event\.detail !== 0 && ignoreClickRef\.current/);
   assert.match(bubble, /window\.localStorage\.setItem/);
   assert.match(bubble, /setPointerCapture/);
@@ -102,5 +104,8 @@ test("AI launcher is one movable XINGYU AXIS logo, never a text CTA or dock item
   assert.match(globalStyle, /touch-action:none/);
   assert.match(globalStyle, /body:has\(\.admin-shell\) \.xy-ai-launcher/);
   assert.match(globalStyle, /\.xy-ai-launcher\[hidden\]\{display:none\}/);
+  assert.match(parent, /keepTabInside/);
+  assert.match(parent, /keepFocusInside/);
+  assert.match(panelStyle, /\.xy-ai-form textarea\{font-size:16px/);
   assert.doesNotMatch(panelStyle, /\.xy-ai-launcher-spark/);
 });
