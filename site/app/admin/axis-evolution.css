@@ -289,3 +289,440 @@
     animation:none!important;
   }
 }
+
+
+/*
+ * AXIS / FULL BACKSTAGE ERGONOMICS
+ * Same visual language across desk, tablet, phone, light and dark themes.
+ * Do not replace the original floating search, side-rail, bottom AXIS dock,
+ * Markdown writing surface or the magazine-style public blog.
+ */
+.admin-shell .axis-admin-skip {
+  position:fixed;z-index:310;top:-90px;left:50%;transform:translateX(-50%);
+  padding:11px 16px;min-height:44px;display:flex;align-items:center;
+  border:1px solid var(--admin-line-strong);border-radius:12px;
+  background:var(--admin-panel);color:var(--admin-ink);
+  box-shadow:var(--admin-shadow);
+  font-size:13px;font-weight:700;
+}
+.admin-shell .axis-admin-skip:focus{top:calc(8px + env(safe-area-inset-top))}
+.admin-shell .axis-admin-route-announcement{
+  position:absolute;width:1px;height:1px;padding:0;overflow:hidden;
+  clip-path:inset(50%);white-space:nowrap;
+}
+
+/* Page width and typography: content breathes without excessive side panels. */
+.admin-shell .admin-main:not(.admin-public-browser){
+  width:min(1250px,100%);
+  padding-inline:clamp(24px,3.25vw,54px);
+  padding-top:clamp(30px,3.25vw,50px);
+  padding-bottom:100px;
+}
+.admin-shell .admin-config-main{max-width:1100px}
+.admin-shell .admin-main:not(.admin-public-browser)>.admin-header {
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:14px 26px;
+  margin:0 0 29px;
+}
+.admin-shell .admin-main:not(.admin-public-browser)>.admin-header>div:first-child{
+  flex:1 1 350px;min-width:0;
+}
+.admin-shell .admin-main:not(.admin-public-browser)>.admin-header p{
+  margin-bottom:9px;color:var(--admin-muted);font-size:11px;line-height:1.35;
+  letter-spacing:.12em;
+}
+.admin-shell .admin-main:not(.admin-public-browser)>.admin-header h1{
+  font-size:clamp(29px,2.65vw,37px);
+  line-height:1.2;letter-spacing:-.045em;
+  overflow-wrap:anywhere;
+}
+.admin-shell .admin-main:not(.admin-public-browser)>.admin-header>div>span{
+  display:block;max-width:71ch;margin-top:10px;color:var(--admin-muted);
+  font-size:13px;line-height:1.75;letter-spacing:0;
+}
+.admin-shell .admin-main .new-button{
+  flex:none;min-height:44px;height:auto;
+  padding:10px 17px;border-radius:13px;font-size:13px;font-weight:680;
+  line-height:1.4;white-space:normal;
+}
+.admin-shell .admin-main .new-button:hover{box-shadow:0 9px 25px rgba(21,32,51,.1)}
+.admin-shell .admin-main .new-button:disabled{opacity:.5;cursor:not-allowed}
+.admin-shell .admin-main .form-message{
+  margin:13px 0 18px;padding:13px 16px;
+  border-radius:13px;border:1px solid var(--admin-line);
+  background:var(--admin-control);
+  color:var(--admin-copy);font-size:13px;line-height:1.6;
+}
+.admin-shell .admin-main :is(h1,h2,h3,p,span,b,strong,small){overflow-wrap:break-word}
+
+/* Lists and filters: one pattern for articles AND media, no new dashboard. */
+.admin-shell .axis-admin-list-page .stats.admin-real-stats{
+  margin-block:20px 21px;gap:12px;
+}
+.admin-shell .axis-admin-list-page .stats.admin-real-stats>div{
+  min-width:0;padding:18px 20px;border-radius:16px;
+}
+.axis-admin-list-page .stats.admin-real-stats span{font-size:12px;line-height:1.6}
+.axis-admin-list-page .stats.admin-real-stats b{
+  font-variant-numeric:tabular-nums;font-size:clamp(21px,2vw,27px);line-height:1.2;
+}
+.admin-shell .axis-admin-list-page .table-tools{
+  display:flex;align-items:center;flex-wrap:wrap;
+  gap:10px;margin-bottom:13px;
+}
+.admin-shell .axis-admin-list-page .table-tools .admin-search{
+  flex:1 1 280px;min-width:min(100%,230px);
+  height:auto;min-height:46px;border-radius:13px;
+}
+.admin-shell .axis-admin-list-page .table-tools :is(select,button){
+  min-height:44px;border-radius:12px;
+  color:var(--admin-copy);
+}
+.admin-shell .axis-admin-list-page .table-tools select{
+  max-width:min(100%,230px);padding:0 35px 0 13px;
+  font-size:13px;
+}
+.admin-shell .axis-admin-list-page .admin-search input{
+  min-width:0;font-size:14px;
+}
+.axis-admin-list-page .axis-table-context{
+  margin:0 0 11px;color:var(--admin-muted);font-size:12px;line-height:1.5;
+}
+.axis-admin-list-page .axis-filter-clear,
+.axis-admin-list-page .axis-file-utilities>button,
+.axis-admin-list-page .axis-inline-retry {
+  min-height:38px;padding:7px 12px;
+  border:1px solid var(--admin-line);
+  border-radius:11px;background:var(--admin-control);
+  color:var(--admin-copy);font-size:12px;font-weight:650;
+  cursor:pointer;
+}
+.axis-admin-list-page :is(.axis-filter-clear,.axis-file-utilities>button,.axis-inline-retry):hover{
+  color:var(--admin-accent);background:var(--admin-control-hover);
+}
+.axis-admin-list-page .axis-inline-retry{margin-left:8px}
+.axis-admin-list-page .axis-file-utilities{
+  display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:9px;
+  margin-left:auto;
+}
+.axis-admin-list-page .axis-file-utilities>span{
+  color:var(--admin-muted);font-size:11px;line-height:1.6;
+}
+.axis-admin-list-page .axis-file-utilities>button:disabled{opacity:.55;cursor:wait}
+.admin-shell .axis-admin-list-page .table-wrap{
+  overflow-x:auto;overscroll-behavior-x:contain;
+  border-radius:17px 17px 0 0;
+  box-shadow:var(--admin-shadow);
+}
+.axis-admin-list-page .table-wrap table{width:100%;border-collapse:collapse}
+.axis-admin-list-page .table-wrap th{
+  padding:15px 17px;color:var(--admin-muted);
+  font-size:11px;line-height:1.4;letter-spacing:.045em;
+}
+.axis-admin-list-page .table-wrap td{
+  padding:17px;line-height:1.6;vertical-align:middle;
+  border-color:var(--admin-line);
+  color:var(--admin-copy);font-size:13px;
+}
+.axis-admin-list-page .table-wrap tr{transition:background .16s}
+.axis-admin-list-page .table-wrap tbody tr:hover{background:var(--admin-control)}
+.axis-admin-list-page .table-wrap .title-cell{min-width:190px;max-width:380px}
+.axis-admin-list-page .table-wrap .title-cell b{
+  display:block;color:var(--admin-ink);font-size:13px;line-height:1.55;
+}
+.axis-admin-list-page .table-wrap .title-cell small{
+  display:block;max-width:320px;color:var(--admin-muted);line-height:1.5;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.axis-admin-list-page .table-wrap .row-actions{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+}
+.axis-admin-list-page .table-wrap .row-actions :is(button,a){
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:36px;padding:7px 11px;line-height:1.25;
+  border-radius:9px;font-size:12px;white-space:nowrap;
+}
+.axis-admin-list-page .table-wrap .table-empty{
+  padding:55px 22px;color:var(--admin-muted);text-align:center;
+  font-size:13px;line-height:1.7;
+}
+.axis-admin-list-page .table-footer{
+  min-height:60px;gap:14px;border-radius:0 0 16px 16px;
+}
+.axis-admin-list-page .table-footer button{
+  min-width:44px;min-height:44px;
+}
+
+/* Home, About, Connect and AI all reuse the original editor sections. */
+.admin-shell .admin-config-main .config-form{display:grid;gap:18px}
+.admin-shell .admin-config-main .config-form .editor-section{
+  padding:clamp(21px,2.15vw,30px);
+  border-radius:20px;
+}
+.admin-shell .admin-config-main .editor-section-title{
+  margin-bottom:21px;gap:13px;
+}
+.admin-shell .admin-config-main .editor-section-title b{
+  font-size:15px;line-height:1.45;letter-spacing:-.015em;
+}
+.admin-shell .admin-config-main .editor-section-title small{
+  margin-top:3px;display:block;max-width:65ch;
+  font-size:12px;line-height:1.6;
+}
+.admin-shell .admin-config-main .form-row{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+}
+.admin-shell .admin-config-main .config-form label:not(.check){
+  min-width:0;font-size:12px;line-height:1.55;font-weight:670;
+}
+.admin-shell .admin-config-main .config-form :is(input:not([type="color"]),textarea,select){
+  width:100%;min-width:0;min-height:44px;
+  font-size:14px;line-height:1.6;border-radius:12px;
+}
+.admin-shell .admin-config-main .config-form textarea{
+  min-height:96px;padding:12px 14px;resize:vertical;
+}
+.admin-shell .admin-config-main .config-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:14px;
+  min-height:72px;padding:16px 18px;
+  border:1px solid var(--admin-line);border-radius:16px;
+  background:var(--admin-glass);
+}
+.admin-shell .admin-config-main .config-footer>span{
+  flex:1 1 230px;min-width:0;max-width:70ch;
+  color:var(--admin-muted);font-size:12px;line-height:1.6;
+}
+.admin-shell .admin-config-main .config-footer .save-button{
+  min-height:44px;min-width:138px;padding:10px 16px;
+  font-size:13px;font-weight:670;border-radius:12px;
+}
+.admin-shell .admin-config-main .config-footer .save-button:disabled{
+  opacity:.52;cursor:not-allowed;box-shadow:none;
+}
+.admin-shell .admin-config-main .config-header-actions{
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+}
+.admin-shell .admin-config-main .config-header-actions :is(.config-preview-link,.config-live){
+  min-height:44px;display:flex;align-items:center;justify-content:center;
+}
+.admin-shell .admin-config-main .about-admin-preview,
+.admin-shell .admin-config-main .hero-title-config-preview{
+  min-width:0;overflow:hidden;
+}
+.admin-shell .admin-config-main .integration-card{
+  padding:clamp(16px,1.8vw,23px);gap:13px;border-radius:16px;
+}
+.admin-shell .admin-config-main .integration-sessions li{
+  padding:14px 0 0;gap:15px;flex-wrap:wrap;
+}
+.admin-shell .admin-config-main .integration-card :is(b,strong){
+  font-size:14px;line-height:1.5;
+}
+.admin-shell .admin-config-main .integration-card :is(span,em){
+  font-size:12px;line-height:1.65;
+}
+.admin-shell .admin-config-main .activation-steps li{
+  min-height:68px;gap:14px;
+}
+.admin-shell .admin-config-main .activation-overview button{
+  min-height:42px;
+}
+
+/* Categories: inline creation instead of the blocking prompt() dialog. */
+.admin-shell .axis-category-fieldset{
+  margin:0;padding:0;border:0;min-width:0;
+}
+.admin-shell .axis-category-create{
+  margin:0 0 20px;padding:18px;
+  display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;
+  border:1px solid var(--admin-line);border-radius:17px;
+  background:var(--admin-panel);box-shadow:var(--admin-shadow);
+}
+.axis-category-create label{
+  width:100%;color:var(--admin-copy);font-size:12px;font-weight:700;
+}
+.axis-category-create input{
+  flex:1 1 220px;min-width:0;min-height:44px;
+  padding:10px 13px;
+  border:1px solid var(--admin-line-strong);border-radius:12px;
+  color:var(--admin-ink);background:var(--admin-panel-raised);
+  font-size:14px;
+}
+.axis-category-create .new-button{min-width:112px}
+.admin-shell .category-manager{gap:15px}
+.admin-shell .category-manager article{
+  min-width:0;padding:20px;border-radius:17px;
+}
+.admin-shell .category-manager article header{
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+}
+.admin-shell .category-manager article header b{
+  min-width:0;font-size:15px;line-height:1.5;
+}
+.admin-shell .category-manager article label{font-size:12px;line-height:1.6}
+.admin-shell .category-manager article :is(input:not([type="color"]),select){
+  min-height:44px;min-width:0;font-size:14px;
+}
+.admin-shell .category-manager article footer{
+  display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;
+}
+.admin-shell .category-manager article footer button{
+  min-height:40px;padding:8px 14px;
+  font-size:12px;border-radius:10px;
+}
+.admin-shell .category-manager article footer button:disabled{
+  opacity:.48;cursor:not-allowed;
+}
+.admin-shell .category-manager article .axis-category-dirty{
+  margin-left:auto;padding:4px 9px;flex:none;
+  border-radius:999px;
+  background:var(--admin-accent-soft);color:var(--admin-accent);
+  font-size:11px;font-weight:700;
+}
+.admin-shell .axis-category-empty{
+  margin:20px 0;padding:30px 20px;
+  border:1px dashed var(--admin-line-strong);border-radius:16px;
+  color:var(--admin-muted);font-size:13px;line-height:1.7;text-align:center;
+}
+.admin-shell .category-manager-message{
+  margin-top:15px;color:var(--admin-muted);
+  font-size:12px;line-height:1.7;
+}
+
+/* Readable and forgiving interactions in the whole backstage. */
+.admin-shell .admin-main :is(button,a,select,[role="button"],[role="link"]){
+  -webkit-tap-highlight-color:transparent;
+}
+.admin-shell :is(.admin-main,.admin-workspace) :is(button,a,input,select,textarea,[tabindex="0"]):focus-visible{
+  outline:2px solid var(--admin-accent);outline-offset:3px;
+}
+.admin-shell :is(.admin-main,.admin-workspace) :is(button,a,input,select,textarea):disabled{
+  cursor:not-allowed;
+}
+.admin-shell .admin-main .editor-section p,
+.admin-shell .admin-main .activation-next p,
+.admin-shell .admin-main .config-form p{
+  line-height:1.75;
+}
+.admin-shell .admin-main :is(.row-actions,.config-footer,.table-tools) button{
+  transition:background .17s ease,border-color .17s ease,box-shadow .17s ease;
+}
+
+@media (min-width:801px) and (max-width:1160px) {
+  .admin-shell .admin-main:not(.admin-public-browser){
+    padding-inline:clamp(22px,2.8vw,35px);
+  }
+  .admin-shell .axis-admin-list-page .table-wrap td{padding:13px}
+  .admin-shell .admin-config-main .form-row{gap:12px}
+}
+@media (max-width:800px) {
+  .admin-shell .admin-main:not(.admin-public-browser){
+    padding:27px 18px calc(122px + env(safe-area-inset-bottom));
+  }
+  .admin-shell .admin-main:not(.admin-public-browser)>.admin-header{
+    gap:13px;margin-bottom:19px;
+  }
+  .admin-shell .admin-main:not(.admin-public-browser)>.admin-header>div:first-child{
+    flex:1 1 210px;
+  }
+  .admin-shell .admin-main:not(.admin-public-browser)>.admin-header h1{
+    font-size:clamp(25px,6vw,31px);
+  }
+  .admin-shell .admin-main:not(.admin-public-browser)>.admin-header>div>span{
+    display:block!important;margin-top:7px;font-size:12px;line-height:1.6;
+  }
+  .admin-shell .admin-main:not(.admin-public-browser)>.admin-header .new-button{
+    min-height:44px;
+  }
+  .admin-shell .axis-admin-list-page .stats.admin-real-stats{
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;
+  }
+  .admin-shell .axis-admin-list-page .stats.admin-real-stats>div{
+    min-width:0;padding:14px 16px;
+  }
+  .admin-shell .axis-admin-list-page .table-tools{
+    gap:8px;align-items:stretch;
+  }
+  .admin-shell .axis-admin-list-page .table-tools .admin-search{
+    flex:1 0 100%;min-width:0;
+  }
+  .admin-shell .axis-admin-list-page .table-tools select{
+    flex:1 1 calc(50% - 6px);
+    max-width:none;min-width:0;
+  }
+  .admin-shell .axis-admin-list-page .axis-filter-clear{
+    flex:1 0 100%;
+  }
+  .admin-shell .axis-admin-list-page .axis-file-utilities{
+    width:100%;justify-content:flex-start;margin:0;
+  }
+  .admin-shell .axis-admin-list-page .table-wrap{
+    border-radius:16px 16px 0 0;
+  }
+  .admin-shell .axis-admin-list-page .table-wrap td{
+    padding:12px 14px;
+  }
+  .admin-shell .axis-admin-list-page .table-wrap .row-actions :is(button,a){
+    min-height:44px;padding:8px 12px;
+  }
+  .admin-shell .axis-admin-list-page .table-footer{
+    padding:13px 14px;
+  }
+  .admin-shell .admin-config-main .form-row{
+    grid-template-columns:minmax(0,1fr);
+    gap:0;
+  }
+  .admin-shell .admin-config-main .config-form .editor-section{
+    padding:18px;
+  }
+  .admin-shell .admin-config-main .config-form :is(input:not([type="color"]),textarea,select){
+    font-size:16px;
+  }
+  .admin-shell .admin-config-main .config-footer{
+    align-items:stretch;
+    padding:13px 15px;
+    border-radius:14px;
+  }
+  .admin-shell .admin-config-main .config-footer>span{
+    flex:1 0 100%;
+  }
+  .admin-shell .admin-config-main .config-footer .save-button{
+    width:100%;min-height:46px;
+  }
+  .admin-shell .admin-config-main .config-header-actions{
+    width:100%;justify-content:flex-start;
+  }
+  .admin-shell .admin-config-main .integration-sessions li{
+    flex-direction:column;align-items:stretch;
+  }
+  .admin-shell .admin-config-main .integration-sessions li button{
+    min-height:44px;
+  }
+  .admin-shell .axis-category-create{align-items:stretch;padding:15px}
+  .axis-category-create input,.axis-category-create .new-button{
+    flex:1 0 100%;width:100%;min-height:44px;
+  }
+  .admin-shell .category-manager article{padding:16px}
+  .admin-shell .category-manager article footer button{
+    min-height:44px;
+  }
+}
+@media (max-width:390px) {
+  .admin-shell .admin-main:not(.admin-public-browser){
+    padding-inline:14px;
+  }
+  .admin-shell .admin-main:not(.admin-public-browser)>.admin-header>div:first-child{
+    flex:1 1 180px;
+  }
+  .admin-shell .category-manager article footer button{
+    flex:1 1 auto;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  .admin-shell .admin-main :is(.row-actions,.config-footer,.table-tools) button,
+  .axis-admin-list-page .table-wrap tr {
+    transition:none!important;
+  }
+}
