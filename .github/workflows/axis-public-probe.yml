@@ -13,7 +13,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          url="https://proc-remains-everyone-sharon.trycloudflare.com/admin"
+          url="https://furnishings-dev-candy-setup.trycloudflare.com/admin"
           for i in $(seq 1 25); do
             code=$(curl --silent --show-error --location --output /tmp/axis-probe.html --write-out "%{http_code}" --max-time 10 "$url" || true)
             if [ "$code" = "200" ] && grep -q "admin-" /tmp/axis-probe.html 2>/dev/null; then
