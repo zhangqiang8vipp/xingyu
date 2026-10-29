@@ -81,6 +81,37 @@ function getBounds(button: HTMLButtonElement): Bounds {
   return { left, right, top, bottom };
 }
 
+/** Choose a clear launch spot only for the *initial* position. User drags
+ * always win. A whole knowledge card is a clickable link, so a 52px bubble
+ * should not sit on its primary tap surface by default. */
+function coversAction(point: Point, button: HTMLButtonElement): boolean {
+  const box = { left: point.x - 3, right: point.x + SIZE + 3,
+    top: point.y - 3, bottom: point.y + SIZE + 3 };
+  for (const element of document.querySelectorAll<HTMLElement>(
+    'a[href],button,[role="link"],[role="button"]'
+  )) {
+    if (element === button || button.contains(element) || element.contains(button)) continue;
+    if (!visible(element) || getComputedStyle(element).pointerEvents === "none") continue;
+    const rect = element.getBoundingClientRect();
+    if (box.left < rect.right && box.right > rect.left
+      && box.top < rect.bottom && box.bottom > rect.top) return true;
+  }
+  return false;
+}
+
+function clearDefault(point: Point, bounds: Bounds, button: HTMLButtonElement): Point {
+  if (!mobile() || !coversAction(point, button)) return point;
+  const steps = Math.ceil((bounds.bottom - bounds.top) / 12);
+  for (let step = 1; step <= steps; step++) {
+    for (const direction of [-1, 1]) {
+      const candidate = { x: point.x,
+        y: clamp(point.y + direction * step * 12, bounds.top, bounds.bottom) };
+      if (!coversAction(candidate, button)) return candidate;
+    }
+  }
+  return point; // Never displace a control offscreen in a very small viewport.
+}
+
 function within(point: Point, bounds: Bounds): Point {
   return {
     x: clamp(point.x, bounds.left, bounds.right),
@@ -141,6 +172,7 @@ export default function DraggableAxisLauncher({
   const ignoreClickRef = useRef(false);
   const pointRef = useRef<Point | null>(null);
   const fractionalRef = useRef<RelativePoint | null>(null);
+  const manuallyPlacedRef = useRef(false);
   const [position, setPosition] = useState<Point | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -155,23 +187,38 @@ export default function DraggableAxisLauncher({
     const arrange = () => {
       if (dragRef.current) return;
       const bounds = getBounds(button);
-      const saved = loadPosition() ?? fractionalRef.current;
+      const saved = loadPosition();
+      const manual = saved ?? (manuallyPlacedRef.current ? fractionalRef.current : null);
       const current = button.getBoundingClientRect();
-      const next = saved
-        ? absolute(saved, bounds)
+      const suggestion = fractionalRef.current
+        ? absolute(fractionalRef.current, bounds)
         : within({ x: current.left, y: current.top }, bounds);
+      const next = manual ? absolute(manual, bounds) : clearDefault(suggestion, bounds, button);
       fractionalRef.current = relative(next, bounds);
       place(next);
     };
-    const frame = window.requestAnimationFrame(arrange);
-    window.addEventListener("resize", arrange);
-    window.visualViewport?.addEventListener("resize", arrange);
-    window.visualViewport?.addEventListener("scroll", arrange);
+    let frame = 0;
+    const schedule = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(arrange);
+    };
+    schedule();
+    window.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("scroll", schedule);
+    // SPA content and the admin dock can mount after this root component.
+    // Recheck only unchosen defaults; don't move a deliberately placed logo.
+    const observer = new MutationObserver(() => {
+      if (!manuallyPlacedRef.current && !loadPosition()) schedule();
+    });
+    observer.observe(document.querySelector(".admin-workspace") ?? document.querySelector("main")
+      ?? document.body, { childList: true, subtree: true });
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", arrange);
-      window.visualViewport?.removeEventListener("resize", arrange);
-      window.visualViewport?.removeEventListener("scroll", arrange);
+      observer.disconnect();
+      window.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("scroll", schedule);
     };
   }, [route, hidden]);
 
@@ -210,6 +257,7 @@ export default function DraggableAxisLauncher({
       const latest = within(pointRef.current ?? drag.from, bounds);
       const fraction = relative(latest, bounds);
       fractionalRef.current = fraction;
+      manuallyPlacedRef.current = true;
       persist(fraction);
       ignoreClickRef.current = true;
       // A delayed synthetic touch click must still be ignored. The next
@@ -247,6 +295,7 @@ export default function DraggableAxisLauncher({
     const next = within({ x: box.left + dx, y: box.top + dy }, bounds);
     place(next);
     fractionalRef.current = relative(next, bounds);
+    manuallyPlacedRef.current = true;
     persist(fractionalRef.current);
   }
 
