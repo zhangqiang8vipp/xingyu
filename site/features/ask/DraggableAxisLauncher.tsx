@@ -84,29 +84,40 @@ function getBounds(button: HTMLButtonElement): Bounds {
 /** Choose a clear launch spot only for the *initial* position. User drags
  * always win. A whole knowledge card is a clickable link, so a 52px bubble
  * should not sit on its primary tap surface by default. */
-function coversAction(point: Point, button: HTMLButtonElement): boolean {
-  const box = { left: point.x - 3, right: point.x + SIZE + 3,
-    top: point.y - 3, bottom: point.y + SIZE + 3 };
+function activeActionRects(button: HTMLButtonElement): DOMRect[] {
+  const rects: DOMRect[] = [];
   for (const element of document.querySelectorAll<HTMLElement>(
     'a[href],button,[role="link"],[role="button"]'
   )) {
     if (element === button || button.contains(element) || element.contains(button)) continue;
-    if (!visible(element) || getComputedStyle(element).pointerEvents === "none") continue;
     const rect = element.getBoundingClientRect();
-    if (box.left < rect.right && box.right > rect.left
-      && box.top < rect.bottom && box.bottom > rect.top) return true;
+    if (!rect.width || !rect.height) continue;
+    const style = getComputedStyle(element);
+    if (style.display === "none" || style.visibility === "hidden"
+      || style.pointerEvents === "none") continue;
+    rects.push(rect);
   }
-  return false;
+  return rects;
+}
+
+function coversAction(point: Point, rects: DOMRect[]): boolean {
+  const box = { left: point.x - 3, right: point.x + SIZE + 3,
+    top: point.y - 3, bottom: point.y + SIZE + 3 };
+  return rects.some(rect => box.left < rect.right && box.right > rect.left
+    && box.top < rect.bottom && box.bottom > rect.top);
 }
 
 function clearDefault(point: Point, bounds: Bounds, button: HTMLButtonElement): Point {
-  if (!mobile() || !coversAction(point, button)) return point;
+  if (!mobile()) return point;
+  // One layout read per action, not one per attempted candidate location.
+  const rects = activeActionRects(button);
+  if (!coversAction(point, rects)) return point;
   const steps = Math.ceil((bounds.bottom - bounds.top) / 12);
   for (let step = 1; step <= steps; step++) {
     for (const direction of [-1, 1]) {
       const candidate = { x: point.x,
         y: clamp(point.y + direction * step * 12, bounds.top, bounds.bottom) };
-      if (!coversAction(candidate, button)) return candidate;
+      if (!coversAction(candidate, rects)) return candidate;
     }
   }
   return point; // Never displace a control offscreen in a very small viewport.
