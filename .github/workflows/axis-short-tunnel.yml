@@ -1,0 +1,84 @@
+name: Temporary AXIS Workspace preview (isolated 15 minutes)
+
+on:
+  push:
+    branches:
+      - preview/axis-short-tunnel-20261029
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axis-temporary-preview
+  cancel-in-progress: true
+
+jobs:
+  tunnel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.18.0'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install immutable dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Build actual preview branch (no remote binding)
+        run: npm run build
+      - name: Start test-isolated Worker and fixture-only D1
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup node scripts/temporary-axis-preview.mjs > /tmp/axis-preview.log 2>&1 &
+          echo "$!" > /tmp/axis-preview.pid
+          ready=0
+          for i in $(seq 1 90); do
+            if grep -q 'AXIS_PREVIEW_READY' /tmp/axis-preview.log; then ready=1; break; fi
+            if ! kill -0 "$(cat /tmp/axis-preview.pid)" 2>/dev/null; then
+              tail -n 60 /tmp/axis-preview.log; exit 1
+            fi
+            sleep 2
+          done
+          if [ "$ready" != 1 ]; then tail -n 60 /tmp/axis-preview.log; exit 1; fi
+          curl --fail --silent --show-error --max-time 30 http://127.0.0.1:8789/admin -o /tmp/axis-admin.html
+          if ! grep -q 'admin-' /tmp/axis-admin.html; then
+            echo "::error::Admin UI not detected"; head -c 300 /tmp/axis-admin.html; exit 1
+          fi
+          echo "Isolated real Worker admin responded successfully."
+      - name: Open short-lived Cloudflare tunnel (no Cloudflare account or production secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-delay 2 \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o /tmp/cloudflared
+          chmod +x /tmp/cloudflared
+          /tmp/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8789 > /tmp/axis-tunnel.log 2>&1 &
+          echo "$!" > /tmp/axis-tunnel.pid
+          url=""
+          for i in $(seq 1 45); do
+            url="$(grep -Eo 'https://[a-z0-9-]+[.]trycloudflare[.]com' /tmp/axis-tunnel.log | head -1 || true)"
+            if [ -n "$url" ]; then break; fi
+            if ! kill -0 "$(cat /tmp/axis-tunnel.pid)" 2>/dev/null; then
+              tail -n 50 /tmp/axis-tunnel.log; exit 1
+            fi
+            sleep 2
+          done
+          if [ -z "$url" ]; then tail -n 80 /tmp/axis-tunnel.log; exit 1; fi
+          echo "::notice title=AXIS preview URL::$url/admin"
+          echo "## XINGYU AXIS 2.0 temporary preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Open:** $url/admin" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Fixture-only data, no production bindings, tunnel closes after 15 minutes." >> "$GITHUB_STEP_SUMMARY"
+          curl --fail --silent --show-error --max-time 35 "$url/admin" -o /tmp/axis-tunnel-response.html
+          echo "TUNNEL_READY $url/admin"
+          sleep 900
+          echo "Temporary preview time elapsed; stopping tunnel."
