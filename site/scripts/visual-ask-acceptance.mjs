@@ -171,6 +171,10 @@ async function check(browser,origin,label,width,height,dark) {
       return Boolean(panel?.contains(document.activeElement));
     });
     assert.ok(trap,label+" dialog keeps keyboard focus away from page navigation");
+    await page.focus(".xy-ai-form textarea");
+    await page.keyboard.press("Tab");
+    assert.ok(await page.$eval(".xy-ai-panel",panel=>panel.contains(document.activeElement)),
+      label+" Tab must wrap within the assistant, not escape to the background");
     if(width<=720){
       const inputSize=await page.$eval(".xy-ai-form textarea",element=>
         parseFloat(getComputedStyle(element).fontSize));
@@ -255,6 +259,7 @@ try{
     args:["--no-sandbox","--disable-dev-shm-usage","--disable-gpu"]});
   await check(browser,proxy.origin,"desktop",1440,900,false);
   await check(browser,proxy.origin,"mobile",390,844,false);
+  await check(browser,proxy.origin,"compact",320,700,false);
   await check(browser,proxy.origin,"dark",1440,900,true);
 }finally{
   if(browser)await browser.close();
