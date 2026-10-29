@@ -18,7 +18,7 @@ type NavItem = {
 const NAV_GROUPS: Array<{ id: string; label: string; items: NavItem[] }> = [
   {
     id: "content",
-    label: "创作与知识",
+    label: "内容",
     items: [
       { section: "browse", icon: "◉", label: "浏览", count: (stats) => stats.total + stats.privateArticles, dock: true },
       { section: "articles", icon: "▤", label: "文章", count: (stats) => stats.total, dock: true },
@@ -28,7 +28,7 @@ const NAV_GROUPS: Array<{ id: string; label: string; items: NavItem[] }> = [
   },
   {
     id: "site",
-    label: "站点设置",
+    label: "站点",
     items: [
       { section: "home", icon: "⌂", label: "首页" },
       { section: "about", icon: "○", label: "关于" },
@@ -37,7 +37,7 @@ const NAV_GROUPS: Array<{ id: string; label: string; items: NavItem[] }> = [
   },
   {
     id: "connect",
-    label: "AI 与协作",
+    label: "连接",
     items: [
       { section: "connect", icon: "↗", label: "接入" },
       { section: "integrations", icon: "◎", label: "AI 连接" },
