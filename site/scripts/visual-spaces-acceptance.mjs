@@ -297,6 +297,15 @@ async function checkMobileProductSurfaces(browser,origin,user,rootId){
     assert.equal(root.status(),200,"mobile knowledge-space root accessible");
     await page.waitForSelector(".space-domain-card",{timeout:30000});
     await page.waitForSelector(".xy-ai-launcher",{visible:true,timeout:20000});
+    await page.waitForFunction(()=>{
+      const rect=document.querySelector(".xy-ai-launcher")?.getBoundingClientRect();
+      if(!rect)return false;
+      return [...document.querySelectorAll(".space-domain-card")].every(card=>{
+        const other=card.getBoundingClientRect();
+        return rect.right+2<=other.left||rect.left>=other.right+2
+          ||rect.bottom+2<=other.top||rect.top>=other.bottom+2;
+      });
+    },{timeout:8000});
     const floatingAI=await page.evaluate(()=>{
       const button=document.querySelector(".xy-ai-launcher");
       const dock=document.querySelector(".admin-more .admin-dock");
