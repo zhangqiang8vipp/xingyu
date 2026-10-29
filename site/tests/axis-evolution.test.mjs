@@ -43,7 +43,7 @@ test("writing modes use the same real preview and protect unsaved drafts", () =>
   assert.match(client, /网络异常，修改仍保留在编辑器里/);
   for (const mode of ["code", "split", "reading"])
     assert.ok(editor.includes('onOpenStudio("' + mode + '")'), "editor one-click mode " + mode);
-  assert.match(editor, /dirty=\{editorDirty\}/);
+  assert.match(client, /dirty=\{editorDirty\}/);
   assert.match(editor, /aria-busy=\{saving\}/);
   assert.match(studio, /<ArticleFrontstage/);
   assert.match(studio, /aria-pressed=\{mode==="reading"\}/);
