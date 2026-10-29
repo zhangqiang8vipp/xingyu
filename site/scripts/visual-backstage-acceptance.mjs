@@ -234,7 +234,7 @@ async function verifyEditor(page,origin,profile){
   assert.equal(launcherDuringWriting.visibility,"hidden",
     "AI floating logo must retreat during focused writing");
   assert.equal(launcherDuringWriting.events,"none");
-  const modes=await page.$eval(".axis-writing-view-modes button",buttons=>
+  const modes=await page.$$eval(".axis-writing-view-modes button",buttons=>
     buttons.map(button=>button.textContent.trim()));
   assert.equal(modes.length,3,"writing retains source / split / reading");
   assert.ok(modes.join(" ").includes("源码")&&modes.join(" ").includes("分屏")
