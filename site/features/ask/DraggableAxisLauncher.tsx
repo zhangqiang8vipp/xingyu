@@ -54,6 +54,11 @@ function getBounds(button: HTMLButtonElement): Bounds {
   let bottom = offsetTop + height - safeBottom - SIZE - EDGE;
 
   if (mobile()) {
+    // Admin panels may mount their dock after the global assistant is placed.
+    // Reserve its safe-area rail immediately, even before the dock is in DOM.
+    if (document.querySelector(".admin-shell")) {
+      bottom = Math.min(bottom, offsetTop + height - safeBottom - SIZE - 104);
+    }
     const navigation = document.querySelector<HTMLElement>(
       ".admin-workspace-bar, .admin-sidebar, .site-nav nav"
     );
