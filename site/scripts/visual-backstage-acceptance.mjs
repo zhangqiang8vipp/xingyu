@@ -149,6 +149,19 @@ async function verifyPage(page,profile,section){
     if(m.inputSize!==null)assert.ok(m.inputSize>=16,
       profile.id+" "+section+" forms must not trigger Safari zoom");
   }
+  if(profile.width<=800 && ["home","about","connect"].includes(section)){
+    // A floating AI icon must not cover an editable label or field on phone.
+    // The initial placement may adjust once its form content mounts.
+    await page.waitForFunction(()=>{
+      const bubble=document.querySelector(".xy-ai-launcher")?.getBoundingClientRect();
+      if(!bubble)return false;
+      return [...document.querySelectorAll(".admin-config-main .config-form label")].every(element=>{
+        const rect=element.getBoundingClientRect();
+        return bubble.left>=rect.right+2||bubble.right+2<=rect.left
+          ||bubble.top>=rect.bottom+2||bubble.bottom+2<=rect.top;
+      });
+    },{timeout:6500});
+  }
   return m;
 }
 
