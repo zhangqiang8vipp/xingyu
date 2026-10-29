@@ -1,6 +1,7 @@
 "use client";
 
 import "@/app/admin/admin.css";
+import "@/app/admin/axis-evolution.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import AdminSettingsPanel, { type SiteSettingsForm } from "./AdminSettingsPanel";
