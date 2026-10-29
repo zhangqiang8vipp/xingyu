@@ -3,6 +3,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import AxisMark from "@/features/navigation/AxisMark";
+import DraggableAxisLauncher from "./DraggableAxisLauncher";
 
 const AskChat = lazy(() => import("./AskChat"));
 
@@ -68,12 +69,7 @@ export default function GlobalAskAssistant() {
 
   if (isAskPage) return null;
   return <>
-    <button className="xy-ai-launcher" type="button"
-      aria-label="打开星屿 AI 助手" aria-haspopup="dialog"
-      aria-expanded={open} aria-controls="xy-ai-global-panel" hidden={open} onClick={openPanel}>
-      <span className="xy-ai-launcher-spark" aria-hidden="true">✦</span>
-      <span>询问 AI</span>
-    </button>
+    <DraggableAxisLauncher hidden={open} expanded={open} onActivate={openPanel} route={pathname} />
     {mounted ? <>
       <link rel="stylesheet" href="/assistant.css" />
       {open ? <button className="xy-ai-backdrop" type="button" aria-label="关闭 AI 助手"
