@@ -127,7 +127,31 @@ async function check(browser,origin,label,width,height,dark) {
       await page.keyboard.up("Shift");
       const keyboardX=await page.$eval(".xy-ai-launcher",button=>button.getBoundingClientRect().left);
       assert.ok(keyboardX<restored.x-10,"focused button must also be movable by keyboard");
-      console.log("PASS AXIS AI logo drag + restore + keyboard positioning",JSON.stringify(restored));
+
+      // Rotation must clamp the saved position to the *current* safe visible
+      // area rather than leaving the bubble offscreen or under the nav island.
+      await page.setViewport({width:640,height:375,deviceScaleFactor:1});
+      await page.waitForFunction(()=>{
+        const button=document.querySelector(".xy-ai-launcher");
+        const rect=button?.getBoundingClientRect();
+        return Boolean(rect&&rect.left>=0&&rect.right<=innerWidth
+          &&rect.top>=0&&rect.bottom<=innerHeight);
+      },{timeout:8000});
+      const rotated=await page.evaluate(()=>{
+        const bubble=document.querySelector(".xy-ai-launcher").getBoundingClientRect();
+        const nav=document.querySelector(".site-nav nav")?.getBoundingClientRect();
+        return {left:bubble.left,top:bubble.top,right:bubble.right,bottom:bubble.bottom,
+          navBottom:nav?.bottom??0};
+      });
+      assert.ok(rotated.top>=rotated.navBottom+8,
+        "landscape bubble must not overlap the AXIS navigation island");
+      await page.screenshot({path:resolve(output,"ask-logo-launcher-landscape.png"),animations:"disabled"});
+      await page.setViewport({width,height,deviceScaleFactor:1});
+      await page.waitForFunction(()=>{
+        const bubble=document.querySelector(".xy-ai-launcher")?.getBoundingClientRect();
+        return Boolean(bubble&&bubble.right<=innerWidth&&bubble.bottom<=innerHeight);
+      },{timeout:8000});
+      console.log("PASS AXIS AI logo drag + reload + landscape + keyboard",JSON.stringify(rotated));
     }
     // Simulate a long article in the real browser without relying on external content.
     await page.evaluate(()=>{
@@ -141,7 +165,21 @@ async function check(browser,origin,label,width,height,dark) {
     await page.click(".xy-ai-launcher");
     await page.waitForSelector(".xy-ai-panel:not([hidden]) .xy-ai-composer",{visible:true,timeout:25000});
     assert.equal(await page.evaluate(()=>window.scrollY),0,label+" opening from top must not scroll page");
-    await page.click(".xy-ai-close");
+    const trap=await page.evaluate(()=>{
+      document.querySelector(".site-nav a")?.focus();
+      const panel=document.querySelector(".xy-ai-panel");
+      return Boolean(panel?.contains(document.activeElement));
+    });
+    assert.ok(trap,label+" dialog keeps keyboard focus away from page navigation");
+    if(width<=720){
+      const inputSize=await page.$eval(".xy-ai-form textarea",element=>
+        parseFloat(getComputedStyle(element).fontSize));
+      assert.ok(inputSize>=16,"phone question input avoids iOS focus zoom");
+    }
+    await page.keyboard.press("Escape");
+    await page.waitForSelector(".xy-ai-launcher:not([hidden])",{visible:true,timeout:10000});
+    await page.waitForFunction(()=>document.activeElement?.classList.contains("xy-ai-launcher"),
+      {timeout:5000});
     await page.waitForSelector(".xy-ai-launcher:not([hidden])",{visible:true,timeout:10000});
     await page.evaluate(()=>window.scrollTo(0,460));
     const expectedScroll=await page.evaluate(()=>window.scrollY);
