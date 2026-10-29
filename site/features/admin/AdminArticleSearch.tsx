@@ -117,7 +117,8 @@ export default function AdminArticleSearch({
             };
           }));
         } else {
-          const params=new URLSearchParams({scope,q:query,pageSize:"20",status:"all",category:"all"});
+          const params=new URLSearchParams({scope:"all",q:query,pageSize:"20",status:"all",category:"all"});
+          if(scope!=="all")params.set("scope",scope);
           const response=await fetch(`/api/posts?${params}`,{signal:controller.signal,cache:"no-store"});
           if(!response.ok)throw new Error("search unavailable");
           const data=await readApiJson<{rows:AdminSearchPost[]}>(response);
