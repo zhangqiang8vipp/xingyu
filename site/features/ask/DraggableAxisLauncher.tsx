@@ -87,7 +87,7 @@ function getBounds(button: HTMLButtonElement): Bounds {
 function activeActionRects(button: HTMLButtonElement): DOMRect[] {
   const rects: DOMRect[] = [];
   for (const element of document.querySelectorAll<HTMLElement>(
-    'a[href],button,[role="link"],[role="button"]'
+    'a[href],button,input,textarea,select,label,[contenteditable="true"],[role="link"],[role="button"]'
   )) {
     if (element === button || button.contains(element) || element.contains(button)) continue;
     const rect = element.getBoundingClientRect();
