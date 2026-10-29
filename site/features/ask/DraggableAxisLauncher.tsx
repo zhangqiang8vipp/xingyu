@@ -146,7 +146,7 @@ export default function DraggableAxisLauncher({
 
   useEffect(() => {
     const button = buttonRef.current;
-    if (!button) return;
+    if (!button || hidden) return;
     const arrange = () => {
       if (dragRef.current) return;
       const bounds = getBounds(button);
@@ -168,7 +168,7 @@ export default function DraggableAxisLauncher({
       window.visualViewport?.removeEventListener("resize", arrange);
       window.visualViewport?.removeEventListener("scroll", arrange);
     };
-  }, [route]);
+  }, [route, hidden]);
 
   function onPointerDown(event: PointerEvent<HTMLButtonElement>) {
     if (event.button !== 0 || !event.isPrimary) return;
@@ -235,7 +235,7 @@ export default function DraggableAxisLauncher({
     ref={buttonRef}
     type="button"
     className={"xy-ai-launcher" + (dragging ? " is-dragging" : "")}
-    aria-label="打开星屿 AI 助手；可拖动调整位置"
+    aria-label="打开星屿 AI 助手；可拖动，或按住 Shift 加方向键移动位置"
     title="星屿 AI · 轻点打开，拖动调整位置"
     aria-haspopup="dialog"
     aria-expanded={expanded}
