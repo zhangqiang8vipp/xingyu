@@ -1,0 +1,285 @@
+/*
+ * XINGYU / AXIS experience evolution.
+ *
+ * This is an additive ergonomics layer on the existing product. It does not
+ * replace the 01 AXIS brand, the mobile floating islands, the reader layout,
+ * or the original --admin-* token system.
+ */
+
+/* Clear focus makes keyboard navigation feel as deliberate as touch. */
+.admin-shell :is(button,a,input,select,textarea,[tabindex="0"]):focus-visible,
+.writing-studio :is(button,a):focus-visible {
+  outline:2px solid var(--admin-accent);
+  outline-offset:3px;
+}
+.admin-sidebar nav :is(button,a):focus-visible,
+.admin-dock :is(button,a):focus-visible {
+  outline-offset:1px;
+}
+.admin-main .admin-header > div > span {
+  max-width:66ch;
+  font-size:13px;
+  line-height:1.7;
+}
+.admin-main :is(.table-wrap td,.table-tools,.form-message,.config-form label) {
+  line-height:1.6;
+}
+.admin-main .table-wrap td { padding-top:13px; padding-bottom:13px; }
+.admin-main .table-wrap th { font-size:12px; letter-spacing:.025em; }
+
+/* Keep the original global search island and shortcut. The scopes appear
+ * only *after* the island opens, never as a second competing search bar. */
+.admin-article-search-dialog .axis-search-scopes {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  padding:9px 13px;
+  border-bottom:1px solid var(--admin-line);
+}
+.axis-search-scopes button {
+  flex:none;
+  min-height:35px;
+  padding:0 12px;
+  border:1px solid transparent;
+  border-radius:999px;
+  color:var(--admin-muted);
+  background:transparent;
+  font-size:12px;
+  font-weight:650;
+  cursor:pointer;
+  transition:background .18s ease,color .18s ease,border-color .18s ease;
+}
+.axis-search-scopes button:hover,
+.axis-search-scopes button:focus-visible {
+  color:var(--admin-ink);
+  background:var(--admin-control);
+}
+.axis-search-scopes button.active {
+  color:var(--admin-accent);
+  border-color:var(--admin-line);
+  background:var(--admin-control);
+}
+.admin-article-search-dialog .admin-article-search-results button { min-height:53px; }
+.admin-article-search-dialog .admin-article-search-results small {
+  line-height:1.55;
+  overflow-wrap:anywhere;
+}
+.admin-article-search-empty button {
+  min-height:40px;
+  margin-top:12px;
+  padding:0 15px;
+  border:1px solid var(--admin-line-strong);
+  border-radius:12px;
+  background:var(--admin-control);
+  color:var(--admin-ink);
+  font-size:12px;
+  font-weight:650;
+}
+
+/* The published blog remains the focus of browse. Technical diagnostics
+ * become a calm, optional disclosure instead of a dashboard. */
+.admin-public-browser .axis-runtime-disclosure {
+  width:min(1100px,calc(100% - 48px));
+  margin:14px auto 20px!important;
+  overflow:hidden;
+  border:1px solid var(--admin-line);
+  border-radius:16px;
+  background:var(--admin-glass);
+  box-shadow:0 8px 32px rgba(28,34,46,.045);
+  color:var(--admin-copy);
+}
+.axis-runtime-disclosure > summary {
+  min-height:54px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:10px 17px;
+  cursor:pointer;
+  list-style:none;
+  font-size:12px;
+}
+.axis-runtime-disclosure > summary::-webkit-details-marker { display:none; }
+.axis-runtime-label {
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  color:var(--admin-ink);
+  font-weight:700;
+}
+.axis-runtime-label i {
+  width:7px;height:7px;
+  border-radius:50%;
+  background:var(--admin-accent);
+  box-shadow:0 0 0 4px var(--admin-accent-soft);
+}
+.axis-runtime-disclosure > summary > strong {
+  padding:5px 10px;
+  border-radius:999px;
+  background:var(--admin-control);
+  color:var(--admin-muted);
+  font-size:11px;
+  font-weight:700;
+}
+.axis-runtime-disclosure .axis-runtime-hint {
+  margin-left:auto;
+  color:var(--admin-muted);
+  font-size:11px;
+}
+.axis-runtime-hint b {
+  display:inline-block;
+  margin-left:4px;
+  transition:transform .18s;
+}
+.axis-runtime-disclosure[open] .axis-runtime-hint b { transform:rotate(180deg); }
+.axis-runtime-body {
+  display:grid;
+  justify-items:start;
+  gap:9px;
+  padding:14px 17px 17px;
+  border-top:1px solid var(--admin-line);
+}
+.axis-runtime-body p { margin:0; font-size:12px; line-height:1.65; }
+.axis-runtime-body small { color:var(--admin-muted); font-size:11px; }
+.axis-runtime-body button {
+  min-height:38px;
+  padding:0 13px;
+  border:1px solid var(--admin-line-strong);
+  border-radius:11px;
+  background:var(--admin-control);
+  color:var(--admin-ink);
+  font-size:12px;
+  cursor:pointer;
+}
+
+/* Writer: use the SAME Markdown editor and SAME frontstage preview.
+ * Make modes explicit, and do not confuse "preview completed" with "saved". */
+.editor-panel .axis-writing-view-modes {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:7px;
+  margin:12px 0 16px;
+}
+.axis-writing-view-modes button {
+  min-height:40px;
+  padding:0 14px;
+  border:1px solid var(--admin-line-strong);
+  border-radius:12px;
+  color:var(--admin-copy);
+  background:var(--admin-control);
+  font-size:12px;
+  font-weight:670;
+  line-height:1.3;
+  cursor:pointer;
+}
+.axis-writing-view-modes button:hover {
+  border-color:var(--admin-accent);
+  color:var(--admin-accent);
+}
+.axis-writing-view-modes button.writing-launch {
+  display:inline-flex;
+  flex:none;
+  height:40px;
+  margin:0;
+  padding:0 14px;
+  border-color:var(--admin-line);
+  border-radius:12px;
+  color:var(--admin-accent);
+  background:var(--admin-accent-soft);
+  font-size:12px;
+}
+.editor-panel .axis-editor-save-state {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  color:var(--admin-muted);
+  font-size:12px;
+  line-height:1.5;
+}
+.axis-editor-save-state i {
+  flex:none;
+  width:7px;height:7px;
+  border-radius:50%;
+  background:var(--admin-accent);
+  opacity:.75;
+}
+.editor-panel .editor-footer :is(button):disabled { opacity:.5; cursor:wait; }
+.writing-studio .writing-mode-switch button[aria-pressed="true"] {
+  color:var(--admin-ink);
+  background:var(--admin-panel);
+  box-shadow:0 3px 12px rgba(0,0,0,.07);
+}
+
+/* Knowledge remains spatial: card keyboard activation and the actual space
+ * tree get visible focus without introducing new pages or a second UI kit. */
+.space-domain-card[role="link"],
+.space-child-grid article[role="link"] { cursor:pointer; }
+.space-domain-card[role="link"]:focus-visible,
+.space-child-grid article[role="link"]:focus-visible {
+  outline:2px solid var(--admin-accent);
+  outline-offset:4px;
+}
+.space-article-list article b,
+.space-article-group-title strong { line-height:1.5; }
+.space-article-list article small,
+.space-content-intro span { font-size:12px; line-height:1.6; }
+.space-article-list article p { font-size:13px; line-height:1.7; }
+.space-tree-node>button[aria-current="page"] { color:var(--admin-accent); }
+.space-breadcrumb :is(button,span) { line-height:1.55; }
+
+@media(max-width:800px){
+  /* Mobile AXIS top and bottom islands remain exactly where they belong. */
+  .admin-main .admin-header > div > span { font-size:12px; }
+  .admin-public-browser .axis-runtime-disclosure {
+    width:calc(100% - 24px);
+    margin-top:10px!important;
+  }
+  .axis-runtime-disclosure > summary { min-height:48px; padding:9px 13px; gap:9px; }
+  .axis-runtime-disclosure > summary > strong { font-size:10px; }
+  .axis-runtime-disclosure .axis-runtime-hint { font-size:10px; }
+  .admin-article-search-dialog .axis-search-scopes {
+    gap:4px;
+    padding:9px 10px;
+    overflow-x:auto;
+  }
+  .axis-search-scopes button { min-height:44px; padding:0 11px; white-space:nowrap; }
+  .admin-article-search-dialog input,
+  .admin-main .space-tree-panel input,
+  .admin-main input:not([type="checkbox"]),
+  .admin-main textarea,
+  .admin-main select { font-size:16px; }
+  .editor-panel .axis-writing-view-modes {
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:7px;
+  }
+  .axis-writing-view-modes button,
+  .axis-writing-view-modes button.writing-launch {
+    width:100%;
+    min-width:0;
+    min-height:44px;
+    height:44px;
+    padding:0 8px;
+    justify-content:center;
+    font-size:12px;
+  }
+  .editor-panel .editor-footer { flex-wrap:wrap; row-gap:8px; }
+  .editor-panel .axis-editor-save-state {
+    width:100%;
+    min-height:22px;
+    display:flex!important;
+    font-size:11px;
+  }
+  .space-domain-card[role="link"]:focus-visible,
+  .space-child-grid article[role="link"]:focus-visible { outline-offset:2px; }
+}
+@media(prefers-reduced-motion:reduce){
+  .axis-search-scopes button,
+  .axis-runtime-hint b,
+  .axis-writing-view-modes button,
+  .space-domain-card[role="link"],
+  .space-child-grid article[role="link"] {
+    transition:none!important;
+    animation:none!important;
+  }
+}
