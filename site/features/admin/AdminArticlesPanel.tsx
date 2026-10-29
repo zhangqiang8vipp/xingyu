@@ -53,12 +53,12 @@ export default function AdminArticlesPanel({
 }){
   return <section className="admin-main">
     <header className="admin-header"><div><p>CONTENT</p><h1>文章管理</h1><span>{isPersonalAccount ? "沿用统一的文章管理界面；只显示自己的文章和公开文章。" : `管理、筛选并发布${brandName}的全部内容。`}</span></div><button className="new-button" onClick={onNew}>＋ 新建文章</button></header>
-    {message&&<p className="form-message" role="alert">{message}</p>}
+    {message&&<p className="form-message" role="status">{message}</p>}
     <div className="stats admin-real-stats"><div><span>全部文章</span><b>{stats.total.toLocaleString()}</b></div><div><span>已发布</span><b>{stats.published.toLocaleString()}</b></div><div><span>草稿</span><b>{stats.drafts.toLocaleString()}</b></div><div><span>总阅读量</span><b>{stats.views.toLocaleString()}</b></div></div>
     <div className="table-tools">
-      <div className="admin-search"><span>⌕</span><input value={query} onChange={(event)=>onQueryChange(event.target.value)} placeholder="全文搜索标题、摘要或正文"/></div>
-      <select value={category} onChange={(event)=>onCategoryChange(event.target.value)}><option value="all">全部分类</option>{categories.map((item)=><option key={item.id} value={item.slug}>{item.name}</option>)}</select>
-      <select value={status} onChange={(event)=>onStatusChange(event.target.value)}><option value="all">全部状态</option><option value="published">已发布</option><option value="draft">草稿</option></select>
+      <div className="admin-search"><span>⌕</span><input value={query} onChange={(event)=>onQueryChange(event.target.value)} placeholder="全文搜索标题、摘要或正文" aria-label="搜索文章标题、摘要或正文"/></div>
+      <select aria-label="按分类筛选文章" value={category} onChange={(event)=>onCategoryChange(event.target.value)}><option value="all">全部分类</option>{categories.map((item)=><option key={item.id} value={item.slug}>{item.name}</option>)}</select>
+      <select aria-label="按发布状态筛选文章" value={status} onChange={(event)=>onStatusChange(event.target.value)}><option value="all">全部状态</option><option value="published">已发布</option><option value="draft">草稿</option></select>
     </div>
     <div className="table-wrap">
       <table><thead><tr><th>文章</th><th>分类</th><th>状态</th><th>浏览</th><th>发布时间</th><th>操作</th></tr></thead>
@@ -72,6 +72,6 @@ export default function AdminArticlesPanel({
         </tr>)}</tbody>
       </table>
     </div>
-    <div className="table-footer"><span>游标分页 · 第 {batch} 批{posts.length?` · 当前 ${posts.length} 篇`:""}</span><div><button disabled={!hasPrevious} onClick={onPrevious}>←</button><button disabled={!hasNext} onClick={onNext}>→</button></div></div>
+    <div className="table-footer"><span>游标分页 · 第 {batch} 批{posts.length?` · 当前 ${posts.length} 篇`:""}</span><div><button type="button" aria-label="上一批文章" disabled={!hasPrevious} onClick={onPrevious}>←</button><button type="button" aria-label="下一批文章" disabled={!hasNext} onClick={onNext}>→</button></div></div>
   </section>;
 }
