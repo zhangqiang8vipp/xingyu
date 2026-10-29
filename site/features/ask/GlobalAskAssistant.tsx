@@ -57,8 +57,14 @@ export default function GlobalAskAssistant() {
     return () => {
       active = false;
       document.body.style.overflow = before;
-      if (lastFocus.current?.isConnected)
-        lastFocus.current.focus({ preventScroll: true });
+      const previous = lastFocus.current;
+      // The focus trap unregisters in the same effect cleanup cycle. Restore
+      // only after that, otherwise it can pull focus back into a hidden panel.
+      window.requestAnimationFrame(() => {
+        if (previous?.isConnected && !document.querySelector(".xy-ai-panel:not([hidden])")) {
+          previous.focus({ preventScroll: true });
+        }
+      });
     };
   }, [open]);
 
