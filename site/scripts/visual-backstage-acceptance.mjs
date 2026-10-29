@@ -197,14 +197,16 @@ async function verifyArticleReset(page,origin){
     query:document.querySelector(".axis-admin-list-page .admin-search input")?.value,
     status:document.querySelector(".axis-admin-list-page select[aria-label='按发布状态筛选文章']")?.value,
     category:document.querySelector(".axis-admin-list-page select[aria-label='按分类筛选文章']")?.value,
-    url:new URL(window.location.href).searchParams,
+    urlQuery:new URL(window.location.href).searchParams.get("q"),
+    urlStatus:new URL(window.location.href).searchParams.get("status"),
+    urlCategory:new URL(window.location.href).searchParams.get("category"),
   }));
   assert.equal(cleared.query,"");
   assert.equal(cleared.status,"all");
   assert.equal(cleared.category,"all");
-  assert.equal(cleared.url.get("q")??"","");
-  assert.equal(cleared.url.get("status")??"all","all");
-  assert.equal(cleared.url.get("category")??"all","all");
+  assert.equal(cleared.urlQuery??"","");
+  assert.equal(cleared.urlStatus??"all","all");
+  assert.equal(cleared.urlCategory??"all","all");
   console.log("PASS article filtering reset: state and URL agree");
 }
 
