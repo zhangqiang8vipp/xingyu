@@ -55,7 +55,7 @@ export default function AdminFilesPanel({ isPersonalAccount = false }: { isPerso
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [load]);
 
-  return <section className="admin-main">
+  return <section className="admin-main axis-admin-list-page">
     <header className="admin-header">
       <div>
         <p>FILES</p>
