@@ -108,7 +108,10 @@ export default function GlobalAskAssistant() {
   }, [open]);
 
   function openPanel() {
-    lastFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // Pointer activation does not focus buttons consistently on mobile Safari.
+    // Always return focus to the AXIS logo that actually opened this dialog.
+    lastFocus.current = document.querySelector<HTMLButtonElement>(".xy-ai-launcher")
+      ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     setMounted(true);
     setOpen(true);
   }
