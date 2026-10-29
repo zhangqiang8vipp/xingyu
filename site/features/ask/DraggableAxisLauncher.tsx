@@ -207,11 +207,25 @@ export default function DraggableAxisLauncher({
       fractionalRef.current = fraction;
       persist(fraction);
       ignoreClickRef.current = true;
-      // The synthetic click from the released pointer must not open the chat.
-      window.setTimeout(() => { ignoreClickRef.current = false; }, 120);
+      // A delayed synthetic touch click must still be ignored. The next
+      // actual pointerdown resets this flag, allowing the next tap to open.
     }
     dragRef.current = null;
     setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function cancelDrag(event: PointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    // iOS can cancel a gesture when the page loses focus, rotates, or
+    // starts native scrolling. Never save a half-completed drag.
+    place(drag.from);
+    dragRef.current = null;
+    setDragging(false);
+    ignoreClickRef.current = drag.moved;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -236,7 +250,7 @@ export default function DraggableAxisLauncher({
     type="button"
     className={"xy-ai-launcher" + (dragging ? " is-dragging" : "")}
     aria-label="打开星屿 AI 助手；可拖动，或按住 Shift 加方向键移动位置"
-    title="星屿 AI · 轻点打开，拖动调整位置"
+    aria-description="轻点打开对话；拖动移动位置；Shift 加方向键也可调整位置"
     aria-haspopup="dialog"
     aria-expanded={expanded}
     aria-controls="xy-ai-global-panel"
@@ -245,7 +259,9 @@ export default function DraggableAxisLauncher({
     onPointerDown={onPointerDown}
     onPointerMove={onPointerMove}
     onPointerUp={endDrag}
-    onPointerCancel={endDrag}
+    onPointerCancel={cancelDrag}
+    onLostPointerCapture={cancelDrag}
+    onContextMenu={event => event.preventDefault()}
     onKeyDown={moveWithKeyboard}
     onClick={event => {
       if (event.detail !== 0 && ignoreClickRef.current) {
