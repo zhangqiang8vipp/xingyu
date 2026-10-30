@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { readApiJson } from "@/app/api-response";
 
 export type AdminSearchPost = {
@@ -31,6 +31,11 @@ export default function AdminArticleSearch({
 }){
   const [open,setOpen]=useState(false);
   const [query,setQuery]=useState("");
+  const [scope,setScope]=useState<"all"|"public"|"private">("all");
+  const [error,setError]=useState(false);
+  const [retryKey,setRetryKey]=useState(0);
+  const dialogId=useId();
+  const triggerRef=useRef<HTMLButtonElement>(null);
   const [rows,setRows]=useState<AdminSearchPost[]>([]);
   const [loading,setLoading]=useState(false);
   const [activeIndex,setActiveIndex]=useState(0);
@@ -40,6 +45,8 @@ export default function AdminArticleSearch({
   const beginSearch=useCallback(()=>{
     if(disabled)return;
     setQuery("");
+    setScope("all");
+    setError(false);
     setRows([]);
     setActiveIndex(0);
     setOpen(true);
@@ -60,7 +67,12 @@ export default function AdminArticleSearch({
   useEffect(()=>{
     if(!open||disabled)return;
     const timer=window.setTimeout(()=>inputRef.current?.focus(),0);
-    const closeOnEscape=(event:KeyboardEvent)=>{if(event.key==="Escape")setOpen(false)};
+    const closeOnEscape=(event:KeyboardEvent)=>{
+      if(event.key==="Escape"){
+        setOpen(false);
+        window.requestAnimationFrame(()=>triggerRef.current?.focus());
+      }
+    };
     const closeOnOutside=(event:PointerEvent)=>{
       if(!rootRef.current?.contains(event.target as Node))setOpen(false);
     };
@@ -79,43 +91,58 @@ export default function AdminArticleSearch({
     const timer=window.setTimeout(async()=>{
       setLoading(true);
       try{
+        setError(false);
         if (isPersonalAccount) {
-          const suffix = "&q=" + encodeURIComponent(query);
-          const [mineResponse, publicResponse] = await Promise.all([
-            fetch("/api/knowledge/posts?type=mine&limit=50" + suffix, { signal: controller.signal, cache: "no-store" }),
-            fetch("/api/knowledge/posts?type=public&limit=50" + suffix, { signal: controller.signal, cache: "no-store" }),
-          ]);
-          if (!mineResponse.ok || !publicResponse.ok) return;
-          const [mineData, publicData] = await Promise.all([
-            readApiJson<{posts:Record<string,unknown>[]}>(mineResponse),
-            readApiJson<{posts:Record<string,unknown>[]}>(publicResponse),
-          ]);
-          const personal = (mineData.posts ?? []).map((post) => ({ id:Number(post.id), publicId:String(post.publicId), title:String(post.title), slug:String(post.slug), excerpt:String(post.excerpt??""), status:"draft" as const, categoryName:"个人文章", categoryColor:null, updatedAt:String(post.updatedAt??""), spaceId:Number(post.spaceId??0), spacePath:"个人知识空间", visibility:"personal" as const }));
-          const publicPosts = (publicData.posts ?? []).map((post) => ({ id:Number(post.id), publicId:String(post.publicId), title:String(post.title), slug:String(post.slug), excerpt:String(post.excerpt??""), status:"published" as const, categoryName:typeof post.categoryName==="string"?post.categoryName:null, categoryColor:typeof post.categoryColor==="string"?post.categoryColor:null, updatedAt:String(post.updatedAt??post.publishedAt??""), spaceId:null, spacePath:null, visibility:"public" as const }));
-          setRows([...personal, ...publicPosts].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).slice(0,20));
+          // Use one server-paginated, permission-scoped query. Avoid merging
+          // two independent lists which can silently hide newer entries.
+          const type=scope==="public"?"public":scope==="private"?"mine":"all";
+          const params=new URLSearchParams({type,limit:"20",q:query});
+          const response=await fetch(`/api/knowledge/posts?${params}`,{
+            signal:controller.signal,cache:"no-store"
+          });
+          if(!response.ok)throw new Error("search unavailable");
+          const data=await readApiJson<{posts:Record<string,unknown>[]}>(response);
+          setRows((data.posts??[]).map((post)=>{
+            const visibility=post.visibility==="public"?"public" as const:"personal" as const;
+            return {
+              id:Number(post.id),publicId:String(post.publicId),title:String(post.title),
+              slug:String(post.slug??""),excerpt:String(post.excerpt??""),
+              status:visibility==="public"?"published" as const:"draft" as const,
+              categoryName:typeof post.categoryName==="string"?post.categoryName:null,
+              categoryColor:typeof post.categoryColor==="string"?post.categoryColor:null,
+              updatedAt:String(post.updatedAt??""),
+              spaceId:visibility==="public"?null:Number(post.spaceId??0)||null,
+              spacePath:visibility==="public"?null:"个人知识空间",
+              visibility,
+            };
+          }));
         } else {
           const params=new URLSearchParams({scope:"all",q:query,pageSize:"20",status:"all",category:"all"});
-          const response=await fetch(`/api/posts?${params}`,{signal:controller.signal});
-          if(!response.ok)return;
+          if(scope!=="all")params.set("scope",scope);
+          const response=await fetch(`/api/posts?${params}`,{signal:controller.signal,cache:"no-store"});
+          if(!response.ok)throw new Error("search unavailable");
           const data=await readApiJson<{rows:AdminSearchPost[]}>(response);
           setRows(data.rows??[]);
         }
         setActiveIndex(0);
       }catch(error){
-        if(!(error instanceof DOMException&&error.name==="AbortError"))setRows([]);
+        if(!(error instanceof DOMException&&error.name==="AbortError")){setRows([]);setError(true);}
       }finally{
         if(!controller.signal.aborted)setLoading(false);
       }
     },query?120:0);
     return()=>{window.clearTimeout(timer);controller.abort()};
-  },[open,query,isPersonalAccount]);
+  },[open,query,scope,isPersonalAccount,retryKey]);
 
   useEffect(()=>{
     listRef.current?.querySelector<HTMLElement>(`[data-search-index="${activeIndex}"]`)
       ?.scrollIntoView({block:"nearest"});
   },[activeIndex]);
 
-  const close=()=>setOpen(false);
+  const close=()=>{
+    setOpen(false);
+    window.requestAnimationFrame(()=>triggerRef.current?.focus());
+  };
   const browse=(postId:number,publicId?:string)=>{
     close();
     onBrowse(postId,publicId);
@@ -141,22 +168,27 @@ export default function AdminArticleSearch({
   };
 
   return <div ref={rootRef} className={`admin-article-search${open?" active":""}`}>
-    {!open&&<button className="admin-article-search-trigger" type="button" disabled={disabled} onClick={beginSearch} aria-label="搜索全部文章">
+    {!open&&<button ref={triggerRef} className="admin-article-search-trigger" type="button" disabled={disabled} onClick={beginSearch} aria-label="搜索全部文章" aria-expanded={open} aria-controls={open?dialogId:undefined}>
       <i>⌕</i><span>搜索全部文章</span><kbd>⌘K</kbd>
     </button>}
     {open&&!disabled&&
-      <section className="admin-article-search-dialog" role="dialog" aria-label="搜索全部文章">
+      <section id={dialogId} className="admin-article-search-dialog" role="dialog" aria-label="搜索全部文章">
         <header>
           <i>⌕</i>
           <input ref={inputRef} value={query} onChange={(event)=>setQuery(event.target.value)} onKeyDown={onKeyDown} placeholder="搜索标题、摘要、正文或 Slug" aria-label="搜索全部文章"/>
           {query&&<button type="button" onClick={()=>setQuery("")} aria-label="清空搜索">×</button>}
           <kbd>ESC</kbd>
         </header>
+        <div className="axis-search-scopes" role="group" aria-label="搜索范围">
+          {([["all","全部内容"],["public","公开文章"],["private","知识空间"]] as const).map(([key,label])=>
+            <button key={key} type="button" aria-pressed={scope===key} className={scope===key?"active":undefined} onClick={()=>setScope(key)}>{label}</button>
+          )}
+        </div>
         <div className="admin-article-search-meta">
           <span>{query?`搜索“${query}”`:"最近编辑"}</span>
           <b>{loading?"检索中":`${rows.length} 个结果`}</b>
         </div>
-        <div className="admin-article-search-results" ref={listRef} role="listbox" aria-label="文章搜索结果">
+        <div className="admin-article-search-results" ref={listRef} role="listbox" aria-label="文章搜索结果" aria-busy={loading}>
           {rows.map((post,index)=><button
             type="button"
             role="option"
@@ -175,12 +207,12 @@ export default function AdminArticleSearch({
             <em>{post.status==="published"?(post.spaceId?"内容完成":"已发布"):"草稿"}</em>
             <strong>浏览 ↗</strong>
           </button>)}
-          {!loading&&!rows.length&&<div className="admin-article-search-empty"><i>◇</i><b>没有找到相关文章</b><span>换一个关键词，或检查标题与正文内容。</span></div>}
+          {!loading&&!rows.length&&<div className="admin-article-search-empty" role="status"><i>◇</i><b>{error?"搜索暂时不可用":"没有找到相关文章"}</b><span>{error?"网络可能不稳定，请重试或稍后再查。":"换一个关键词或搜索范围试试。"}</span>{error?<button type="button" onClick={()=>setRetryKey((current)=>current+1)}>重试搜索</button>:null}</div>}
           {loading&&!rows.length&&<div className="admin-article-search-loading"><i/><i/><i/><span>正在检索全部文章</span></div>}
         </div>
         <footer>
           <span><kbd>↑</kbd><kbd>↓</kbd> 选择　<kbd>Enter</kbd> 正式浏览</span>
-          <span>公开与私有共 {articleCount.toLocaleString()} 篇 · 最多展示 20 条</span>
+          <span>可访问内容 {articleCount.toLocaleString()} 篇 · 最多展示 20 条</span>
         </footer>
       </section>
     }

@@ -121,12 +121,15 @@ test("both the global launcher and full page use the same accessible assistant U
 
 test("floating assistant cannot scroll the parent page and only the launcher remains",()=>{
   const panel=readFileSync(new URL("../features/ask/GlobalAskAssistant.tsx",import.meta.url),"utf8");
+  const launcher=readFileSync(new URL("../features/ask/DraggableAxisLauncher.tsx",import.meta.url),"utf8");
   const chat=readFileSync(new URL("../features/ask/AskChat.tsx",import.meta.url),"utf8");
   const nav=readFileSync(new URL("../features/navigation/nav/NavTools.tsx",import.meta.url),"utf8");
   const globalStyles=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
   assert.match(panel,/focus\(\{ preventScroll: true \}\)/);
   assert.match(panel,/hidden=\{open\}/);
-  assert.match(panel,/aria-controls="xy-ai-global-panel"/);
+  assert.match(panel,/<DraggableAxisLauncher/);
+  assert.match(launcher,/aria-controls="xy-ai-global-panel"/);
+  assert.match(launcher,/onPointerDown=\{onPointerDown\}/);
   assert.match(chat,/threadRef\.current/);
   assert.match(chat,/thread\.scrollTo\(/);
   assert.doesNotMatch(chat,/\.scrollIntoView\(/,"scrollIntoView may scroll the main document too");

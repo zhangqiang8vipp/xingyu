@@ -74,6 +74,7 @@ function NavButton({
     type="button"
     data-icon={item.icon}
     title={item.label}
+    aria-current={selected?"page":undefined}
     className={selected ? "selected" : undefined}
     onClick={() => onSelect(item.section)}
   >

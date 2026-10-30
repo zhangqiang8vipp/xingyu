@@ -243,6 +243,14 @@ export const personalAccessTokens = sqliteTable("personal_access_tokens", {
   index("personal_access_tokens_user_idx").on(table.userId, table.createdAt, table.id),
 ]);
 
+/** Local aliases are not verified identities from ChatGPT, Google or Gemini. */
+export const oauthConnectionLabels = sqliteTable("oauth_connection_labels", {
+  clientId: text("client_id").notNull(),
+  subject: text("subject").notNull(),
+  label: text("label").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, t => [primaryKey({columns:[t.clientId,t.subject]})]);
+
 export const oauthClients = sqliteTable("oauth_clients", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   clientId: text("client_id").notNull(),

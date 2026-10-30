@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { HomeLivePreview } from "./AdminLivePreview";
 import { readApiJson } from "@/app/api-response";
+import { useUnsavedAdminForm } from "./useUnsavedAdminForm";
 
 export type SiteSettingsForm = {
   brandName:string; brandLatin:string; authorName:string; avatarUrl:string; tagline:string; description:string;
@@ -12,24 +13,74 @@ export type SiteSettingsForm = {
 
 export default function AdminSettingsPanel({ initial, readOnly = false }: { initial: SiteSettingsForm; readOnly?: boolean }) {
   const [form, setForm] = useState(initial);
+  const [saved, setSaved] = useState(initial);
   const [message, setMessage] = useState("");
+  const dirty = JSON.stringify(form) !== JSON.stringify(saved);
+  useUnsavedAdminForm(dirty);
   const [saving, setSaving] = useState(false);
   const [uploading,setUploading]=useState(false);
   const [preview,setPreview]=useState(false);
+  const formRef=useRef<HTMLFormElement>(null);
+
+  useEffect(()=>{
+    const onSaveShortcut=(event:KeyboardEvent)=>{
+      if(!(event.metaKey||event.ctrlKey)||event.key.toLowerCase()!=="s"
+        ||event.altKey||event.shiftKey)return;
+      event.preventDefault();
+      if(!readOnly&&!saving&&!uploading&&dirty)formRef.current?.requestSubmit();
+    };
+    window.addEventListener("keydown",onSaveShortcut);
+    return()=>window.removeEventListener("keydown",onSaveShortcut);
+  },[readOnly,saving,uploading,dirty]);
   const field = (key: keyof SiteSettingsForm, value: string | number) => setForm((current) => ({ ...current, [key]:value }));
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (readOnly) return;
-    setSaving(true); setMessage("");
-    const response = await fetch("/api/settings", { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(form) });
-    const data = await readApiJson<{settings:SiteSettingsForm}>(response); setSaving(false);
-    if (!response.ok) return setMessage(data.error ?? "保存失败");
-    setForm(data.settings); setMessage("设置已保存，前台刷新后立即生效");
+    if (readOnly || saving || uploading || !dirty) return;
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/settings", {
+        method:"PATCH", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(form),
+      });
+      const data = await readApiJson<{settings:SiteSettingsForm}>(response);
+      if (!response.ok || !data.settings) {
+        setMessage(data.error ?? "保存失败，修改仍保留在页面中");
+        return;
+      }
+      setSaved(data.settings);
+      setForm(data.settings);
+      setMessage("已保存 · 前台刷新后生效");
+    } catch {
+      setMessage("网络异常，未保存的修改仍在页面中，请重试");
+    } finally {
+      setSaving(false);
+    }
   }
-  async function uploadAvatar(file:File){setUploading(true);const body=new FormData();body.set("file",file);const response=await fetch("/api/media",{method:"POST",body});const data=await readApiJson<{url:string}>(response);setUploading(false);if(!response.ok)return setMessage(data.error??"头像上传失败");field("avatarUrl",data.url);setMessage("头像已上传，请保存站点设置")}
+  async function uploadAvatar(file:File) {
+    if (readOnly || uploading) return;
+    setUploading(true);
+    setMessage("");
+    try {
+      const body=new FormData();
+      body.set("file",file);
+      const response=await fetch("/api/media",{method:"POST",body});
+      const data=await readApiJson<{url:string}>(response);
+      if(!response.ok || !data.url) {
+        setMessage(data.error??"头像上传失败，请重试");
+        return;
+      }
+      field("avatarUrl",data.url);
+      setMessage("头像上传成功 · 请保存站点设置");
+    } catch {
+      setMessage("上传中断，请检查网络后重试");
+    } finally {
+      setUploading(false);
+    }
+  }
   return <><section className="admin-main admin-config-main">
-    <header className="admin-header"><div><p>HOME EXPERIENCE</p><h1>首页设置</h1><span>集中维护品牌、首页构图和搜索引擎展示内容。</span></div><div className="config-header-actions"><div className="config-live"><i /><span>数据库同步</span></div><button className="config-preview-link" type="button" onClick={()=>setPreview(true)}>即时预览 <b>↗</b></button></div></header>
-    <form className="config-form" onSubmit={save}><fieldset disabled={readOnly} style={{border:0,padding:0,margin:0,minWidth:0}}>
+    <header className="admin-header"><div><p>HOME EXPERIENCE</p><h1>首页设置</h1><span>集中维护品牌、首页构图和搜索引擎展示内容。</span></div><div className="config-header-actions"><div className="config-live" role="status"><i /><span>{saving?"正在保存":dirty?"有未保存更改":"设置已同步"}</span></div><button className="config-preview-link" type="button" onClick={()=>setPreview(true)}>即时预览 <b>↗</b></button>{dirty&&!readOnly&&<button className="axis-config-quick-save" type="button" onClick={()=>formRef.current?.requestSubmit()} disabled={saving||uploading}>{saving?"保存中…":"保存更改"}</button>}</div></header>
+    <form ref={formRef} className="config-form" onSubmit={save}><fieldset disabled={readOnly} style={{border:0,padding:0,margin:0,minWidth:0}}>
       <section className="editor-section"><div className="editor-section-title"><span>01</span><div><b>品牌身份</b><small>所有页面共用，不再重复写死</small></div></div>
         <div className="form-row"><label>中文名称<input value={form.brandName} onChange={e=>field("brandName",e.target.value)} /></label><label>英文名称<input value={form.brandLatin} onChange={e=>field("brandLatin",e.target.value)} /></label></div>
         <div className="form-row"><label>作者名称<input value={form.authorName} onChange={e=>field("authorName",e.target.value)} /></label><label>头像地址<input value={form.avatarUrl} onChange={e=>field("avatarUrl",e.target.value)} /></label></div>
@@ -50,7 +101,7 @@ export default function AdminSettingsPanel({ initial, readOnly = false }: { init
         <label>SEO 标题<input value={form.seoTitle} onChange={e=>field("seoTitle",e.target.value)} /></label>
         <label>SEO 描述<textarea rows={3} value={form.seoDescription} onChange={e=>field("seoDescription",e.target.value)} /></label>
       </section>
-      </fieldset>{readOnly&&<p className="form-message">站点设置仅管理员可以修改；当前账号可查看原版页面与配置。</p>}<footer className="config-footer"><span>{message || (readOnly ? "只读查看 · 站点设置由管理员维护" : "修改会保存到站点数据库")}</span><button disabled={saving||readOnly} className="save-button">{saving ? "正在保存…" : "保存站点设置"}<i>→</i></button></footer>
+      </fieldset>{readOnly&&<p className="form-message">站点设置仅管理员可以修改；当前账号可查看原版页面与配置。</p>}<footer className="config-footer" data-axis-save-state={saving?"saving":dirty?"dirty":"saved"}><span role="status" aria-live="polite">{message || (readOnly ? "只读查看 · 站点设置由管理员维护" : dirty?"有未保存的修改，请保存后离开":"所有修改均已保存")}</span><button disabled={saving||uploading||readOnly||!dirty} aria-busy={saving} className="save-button">{saving ? "正在保存…" : "保存站点设置"}<i>→</i></button></footer>
     </form>
   </section>{preview&&<HomeLivePreview settings={form} onClose={()=>setPreview(false)}/>}</>;
 }

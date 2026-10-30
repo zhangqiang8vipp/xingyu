@@ -28,6 +28,8 @@ export default function AdminArticleEditor({
   categories,
   settings,
   message,
+  saving=false,
+  dirty=false,
   previewRef,
   onChange,
   onChangeSpace,
@@ -42,11 +44,13 @@ export default function AdminArticleEditor({
   categories:AdminCategory[];
   settings:SiteSettingsForm;
   message:string;
+  saving?:boolean;
+  dirty?:boolean;
   previewRef:RefObject<HTMLDivElement|null>;
   onChange:Dispatch<SetStateAction<ArticleForm|null>>;
   onChangeSpace:(choice:SpaceChoice|null)=>void;
   onClose:()=>void;
-  onOpenStudio:(mode:"split"|"reading")=>void;
+  onOpenStudio:(mode:"code"|"split"|"reading")=>void;
   onSharePreview?:()=>void;
   onSave:()=>Promise<void>;
   isPersonalAccount?:boolean;
@@ -80,7 +84,12 @@ export default function AdminArticleEditor({
         </section>
 
         <section className="editor-section writing-section">
-          <div className="editor-section-title"><span>02</span><div><b>正文内容</b><small>专注写作，右侧同步预览</small></div><button className="writing-launch" type="button" onClick={()=>onOpenStudio("split")}><i>↗</i> 打开沉浸写作</button></div>
+          <div className="editor-section-title"><span>02</span><div><b>正文内容</b><small>从写作到真实前台预览，保持同一份草稿</small></div></div>
+          <div className="axis-writing-view-modes" role="group" aria-label="写作视图">
+            <button type="button" onClick={()=>onOpenStudio("code")} aria-label="打开纯源码写作模式">源码</button>
+            <button className="writing-launch" type="button" onClick={()=>onOpenStudio("split")} aria-label="打开沉浸分屏写作模式">分屏写作 ↗</button>
+            <button type="button" onClick={()=>onOpenStudio("reading")} aria-label="打开真实前台阅读预览">阅读预览</button>
+          </div>
           <div className="md-field"><div className="md-field-head"><span>Markdown</span><span className="paste-status">输入 / 查看指令 · Ctrl+V 粘贴图片 · 右侧实时预览</span></div><div ref={previewRef} className="article-editor-workspace">
             <VditorEditor value={form.content} onChange={(content)=>onChange((current)=>current?{...current,content}:current)} previewMode="editor" attachments postId={form.id} postVersion={form.version} onPostVersionChange={(version)=>onChange((current)=>current?{...current,version}:current)}/>
             <div className="article-editor-preview"><div className="article-editor-preview-label"><i/>真实前台预览 <span>未保存内容实时同步</span></div><ArticleFrontstage draft={form} categoryName={category?.name??"随笔"} categoryColor={category?.color??"#8E8E93"} authorName={settings.authorName} avatarUrl={settings.avatarUrl}/></div>
@@ -93,10 +102,10 @@ export default function AdminArticleEditor({
           {form.spaceId&&<label>浏览顺序（仅与本空间直属文章比较，数字越小越靠前）<input type="number" step="1" value={form.sortOrder??0} onChange={(event)=>onChange({...form,sortOrder:Number(event.target.value)})}/></label>}
           {!form.spaceId&&<label className="check"><input type="checkbox" checked={form.featured} onChange={(event)=>onChange({...form,featured:event.target.checked})}/><span><b>设为精选文章</b><small>优先展示在首页首张大卡片</small></span></label>}</>}
         </section>
-        {message&&<p className="form-message">{message}</p>}
+        {message&&<p className="form-message" role="status">{message}</p>}
       </div>
 
-      <footer className="editor-footer"><span>⌘ Enter 快速保存</span><div><button type="button" onClick={onClose}>取消</button><button className="save-button" type="submit">{isPersonalAccount ? "保存到个人知识空间" : form.spaceId?(form.status==="published"?"保存完成内容":"保存空间草稿"):form.status==="published"?"保存并发布":"保存草稿"}<i>→</i></button></div></footer>
+      <footer className="editor-footer"><span className="axis-editor-save-state" role="status"><i aria-hidden="true"/> {saving?"正在保存，请勿关闭":dirty?"修改尚未保存 · ⌘ Enter 快速保存":"保存时提交本次修改"}</span><div><button type="button" onClick={onClose} disabled={saving}>取消</button><button className="save-button" type="submit" disabled={saving} aria-busy={saving}>{saving?"保存中…":isPersonalAccount ? "保存到个人知识空间" : form.spaceId?(form.status==="published"?"保存完成内容":"保存空间草稿"):form.status==="published"?"保存并发布":"保存草稿"}<i>→</i></button></div></footer>
     </form>
   </div>;
 }

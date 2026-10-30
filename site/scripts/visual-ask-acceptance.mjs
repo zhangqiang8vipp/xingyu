@@ -75,6 +75,84 @@ async function check(browser,origin,label,width,height,dark) {
     await page.waitForSelector(".xy-ai-launcher",{visible:true,timeout:20000});
     assert.equal(await page.evaluate(()=>document.querySelectorAll(".xy-ai-nav-trigger").length),0,
       label+" no redundant top Ask AI button");
+    const launcher=await page.$eval(".xy-ai-launcher",button=>{
+      const rect=button.getBoundingClientRect();
+      return {
+        x:rect.left,y:rect.top,width:rect.width,height:rect.height,
+        right:rect.right,bottom:rect.bottom,
+        text:button.textContent.trim(),
+        logos:button.querySelectorAll("svg.axis-mark").length,
+        touchAction:getComputedStyle(button).touchAction,
+      };
+    });
+    assert.equal(launcher.text,"",label+" floating assistant has no visible label");
+    assert.equal(launcher.logos,1,label+" exactly one original XINGYU emblem");
+    assert.ok(launcher.width>=48&&launcher.width<=58&&launcher.height>=48&&launcher.height<=58,
+      label+" AI launcher has a compact touch target");
+    assert.ok(launcher.x>=0&&launcher.y>=0&&launcher.right<=width+1&&launcher.bottom<=height+1,
+      label+" AI launcher stays on-screen");
+
+    if(width<=720){
+      await page.screenshot({path:resolve(output,"ask-logo-launcher-mobile.png"),animations:"disabled"});
+      assert.equal(launcher.touchAction,"none","touch drag must not scroll the page");
+      const start={x:launcher.x+launcher.width/2,y:launcher.y+launcher.height/2};
+      await page.mouse.move(start.x,start.y);
+      await page.mouse.down();
+      await page.mouse.move(start.x-112,start.y-116,{steps:10});
+      await page.mouse.up();
+      const dragged=await page.$eval(".xy-ai-launcher",button=>{
+        const box=button.getBoundingClientRect();
+        return {x:box.left,y:box.top,open:document.querySelector(".xy-ai-panel:not([hidden])")!==null,
+          stored:window.localStorage.getItem("xingyu:axis-ai-launcher:v1:mobile")};
+      });
+      assert.ok(Math.abs(dragged.x-launcher.x)>70&&Math.abs(dragged.y-launcher.y)>70,
+        "dragging AXIS AI logo must reposition it");
+      assert.equal(dragged.open,false,"drag and release must NOT open the assistant");
+      assert.ok(dragged.stored,"mobile launcher remembers the final position");
+      await page.reload({waitUntil:"networkidle0",timeout:70000});
+      await page.waitForSelector(".xy-ai-launcher",{visible:true,timeout:20000});
+      await page.waitForFunction(()=>{
+        const box=document.querySelector(".xy-ai-launcher")?.getBoundingClientRect();
+        return Boolean(box&&box.left<300&&box.top<740);
+      },{timeout:5000});
+      const restored=await page.$eval(".xy-ai-launcher",button=>{
+        const box=button.getBoundingClientRect();
+        return {x:box.left,y:box.top};
+      });
+      assert.ok(Math.abs(restored.x-dragged.x)<=4&&Math.abs(restored.y-dragged.y)<=4,
+        "mobile bubble position should survive a reload");
+      await page.focus(".xy-ai-launcher");
+      await page.keyboard.down("Shift");
+      await page.keyboard.press("ArrowLeft");
+      await page.keyboard.up("Shift");
+      const keyboardX=await page.$eval(".xy-ai-launcher",button=>button.getBoundingClientRect().left);
+      assert.ok(keyboardX<restored.x-10,"focused button must also be movable by keyboard");
+
+      // Rotation must clamp the saved position to the *current* safe visible
+      // area rather than leaving the bubble offscreen or under the nav island.
+      await page.setViewport({width:640,height:375,deviceScaleFactor:1});
+      await page.waitForFunction(()=>{
+        const button=document.querySelector(".xy-ai-launcher");
+        const rect=button?.getBoundingClientRect();
+        return Boolean(rect&&rect.left>=0&&rect.right<=innerWidth
+          &&rect.top>=0&&rect.bottom<=innerHeight);
+      },{timeout:8000});
+      const rotated=await page.evaluate(()=>{
+        const bubble=document.querySelector(".xy-ai-launcher").getBoundingClientRect();
+        const nav=document.querySelector(".site-nav nav")?.getBoundingClientRect();
+        return {left:bubble.left,top:bubble.top,right:bubble.right,bottom:bubble.bottom,
+          navBottom:nav?.bottom??0};
+      });
+      assert.ok(rotated.top>=rotated.navBottom+8,
+        "landscape bubble must not overlap the AXIS navigation island");
+      await page.screenshot({path:resolve(output,"ask-logo-launcher-landscape.png"),animations:"disabled"});
+      await page.setViewport({width,height,deviceScaleFactor:1});
+      await page.waitForFunction(()=>{
+        const bubble=document.querySelector(".xy-ai-launcher")?.getBoundingClientRect();
+        return Boolean(bubble&&bubble.right<=innerWidth&&bubble.bottom<=innerHeight);
+      },{timeout:8000});
+      console.log("PASS AXIS AI logo drag + reload + landscape + keyboard",JSON.stringify(rotated));
+    }
     // Simulate a long article in the real browser without relying on external content.
     await page.evaluate(()=>{
       const spacer=document.createElement("div");
@@ -87,7 +165,25 @@ async function check(browser,origin,label,width,height,dark) {
     await page.click(".xy-ai-launcher");
     await page.waitForSelector(".xy-ai-panel:not([hidden]) .xy-ai-composer",{visible:true,timeout:25000});
     assert.equal(await page.evaluate(()=>window.scrollY),0,label+" opening from top must not scroll page");
-    await page.click(".xy-ai-close");
+    const trap=await page.evaluate(()=>{
+      document.querySelector(".site-nav a")?.focus();
+      const panel=document.querySelector(".xy-ai-panel");
+      return Boolean(panel?.contains(document.activeElement));
+    });
+    assert.ok(trap,label+" dialog keeps keyboard focus away from page navigation");
+    await page.focus(".xy-ai-form textarea");
+    await page.keyboard.press("Tab");
+    assert.ok(await page.$eval(".xy-ai-panel",panel=>panel.contains(document.activeElement)),
+      label+" Tab must wrap within the assistant, not escape to the background");
+    if(width<=720){
+      const inputSize=await page.$eval(".xy-ai-form textarea",element=>
+        parseFloat(getComputedStyle(element).fontSize));
+      assert.ok(inputSize>=16,"phone question input avoids iOS focus zoom");
+    }
+    await page.keyboard.press("Escape");
+    await page.waitForSelector(".xy-ai-launcher:not([hidden])",{visible:true,timeout:10000});
+    await page.waitForFunction(()=>document.activeElement?.classList.contains("xy-ai-launcher"),
+      {timeout:5000});
     await page.waitForSelector(".xy-ai-launcher:not([hidden])",{visible:true,timeout:10000});
     await page.evaluate(()=>window.scrollTo(0,460));
     const expectedScroll=await page.evaluate(()=>window.scrollY);
@@ -163,6 +259,7 @@ try{
     args:["--no-sandbox","--disable-dev-shm-usage","--disable-gpu"]});
   await check(browser,proxy.origin,"desktop",1440,900,false);
   await check(browser,proxy.origin,"mobile",390,844,false);
+  await check(browser,proxy.origin,"compact",320,700,false);
   await check(browser,proxy.origin,"dark",1440,900,true);
 }finally{
   if(browser)await browser.close();

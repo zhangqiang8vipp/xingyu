@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { readApiJson } from "@/app/api-response";
+import { useUnsavedAdminForm } from "./useUnsavedAdminForm";
 
 type QaModelConfig = {
   model:string;
@@ -21,6 +22,9 @@ const INITIAL:QaModelConfig={
 
 export default function AdminAskModelPanel() {
   const [settings,setSettings]=useState<QaModelConfig>(INITIAL);
+  const [saved,setSaved]=useState<QaModelConfig>(INITIAL);
+  const dirty=JSON.stringify(settings)!==JSON.stringify(saved);
+  useUnsavedAdminForm(dirty);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [testing,setTesting]=useState(false);
@@ -38,6 +42,7 @@ export default function AdminAskModelPanel() {
         if(controller.signal.aborted)return;
         if(!response.ok||!data.config)throw new Error(data.error??"无法加载模型设置");
         setSettings(data.config);
+        setSaved(data.config);
       }catch(error){
         if(!controller.signal.aborted)setMessage(error instanceof Error?error.message:"无法读取模型设置");
       }finally{if(!controller.signal.aborted)setLoading(false);}
@@ -47,6 +52,7 @@ export default function AdminAskModelPanel() {
 
   async function save(event:FormEvent){
     event.preventDefault();
+    if(loading||saving||testing||!dirty)return;
     setSaving(true);setMessage("");setTestResult(null);
     try {
       const response=await fetch("/api/admin/ask-config",{
@@ -56,6 +62,7 @@ export default function AdminAskModelPanel() {
       const data=await readApiJson<{config:QaModelConfig}>(response);
       if(!response.ok||!data.config)throw new Error(data.error??"模型设置保存失败");
       setSettings(data.config);
+      setSaved(data.config);
       setMessage("已保存。下一次 AI 回答将立即使用新模型，无需重新部署。");
     }catch(error){setMessage(error instanceof Error?error.message:"模型设置保存失败");}
     finally{setSaving(false);}
@@ -124,13 +131,13 @@ export default function AdminAskModelPanel() {
         </div>
       </fieldset>
       <div className="config-footer" style={{marginTop:16}}>
-        <span role="status">{loading?"正在读取当前设置…":message||"测试会向 OpenRouter 发送一条公开的模拟问答，不含真实私人文章。"}</span>
+        <span role="status">{loading?"正在读取当前设置…":message||(dirty?"有未保存的模型参数修改 · 测试不会自动保存":"模型设置已同步 · 测试只使用公开模拟问题，不含私人文章")}</span>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <button className="activation-refresh" type="button"
             disabled={loading||saving||testing} onClick={()=>void testConnection()}>
             {testing?"正在测试…":"测试当前模型"}
           </button>
-          <button className="save-button" type="submit" disabled={loading||saving||testing}>
+          <button className="save-button" type="submit" disabled={loading||saving||testing||!dirty} aria-busy={saving}>
             {saving?"正在保存…":"保存模型设置"}<i>→</i>
           </button>
         </div>

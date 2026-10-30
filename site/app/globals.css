@@ -2344,11 +2344,52 @@ html[data-theme="dark"] .xy-ai-panel{background:#181f29}
 @media(max-width:720px){.xy-ai-panel{inset:0;width:100vw;height:100dvh}}
 
 /* Critical, tiny launcher chrome. The full assistant panel stylesheet is loaded only on use. */
+/* AXIS assistant: one movable logo. */
 .xy-ai-launcher[hidden]{display:none}
-.xy-ai-launcher{position:fixed;right:24px;bottom:24px;z-index:900;display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:0 19px 0 15px;border:1px solid rgba(255,255,255,.65);border-radius:18px;background:rgba(29,31,36,.94);color:white;font-size:13px;font-weight:700;box-shadow:0 12px 40px rgba(20,25,40,.2)}
-.xy-ai-launcher-spark{display:grid;place-items:center;width:28px;height:28px;border-radius:10px;background:#487bd2;color:white;font-size:17px}
-.xy-ai-nav-trigger{display:inline-flex;align-items:center;gap:6px;flex:none;border:1px solid rgba(42,86,150,.14);border-radius:999px;background:rgba(50,109,206,.065);color:var(--blue,#0071e3);font-weight:700;font-size:12px;padding:7px 10px;white-space:nowrap}
-@media(max-width:720px){.xy-ai-launcher{right:15px;bottom:calc(17px + env(safe-area-inset-bottom));min-height:49px}.xy-ai-nav-trigger{font-size:11px;padding:7px 9px}}
+.xy-ai-launcher{
+  --xy-ai-safe-top:env(safe-area-inset-top,0px);
+  --xy-ai-safe-bottom:env(safe-area-inset-bottom,0px);
+  position:fixed;z-index:900;
+  right:18px;bottom:calc(20px + env(safe-area-inset-bottom));
+  display:grid;place-items:center;
+  width:52px;height:52px;min-width:52px;min-height:52px;
+  padding:0;border:1px solid rgba(255,255,255,.86);border-radius:18px;
+  background:rgba(249,250,253,.86);
+  color:#25262b;
+  box-shadow:0 10px 34px rgba(20,25,40,.15),inset 0 1px rgba(255,255,255,.8);
+  backdrop-filter:blur(22px) saturate(165%);
+  -webkit-backdrop-filter:blur(22px) saturate(165%);
+  touch-action:none;user-select:none;-webkit-user-select:none;
+  cursor:grab;
+  transition:box-shadow .18s ease,background .18s ease;
+}
+.xy-ai-launcher .axis-mark{
+  display:block;width:29px;height:29px;
+  pointer-events:none;
+}
+.xy-ai-launcher:hover{
+  box-shadow:0 15px 40px rgba(20,25,40,.19),inset 0 1px rgba(255,255,255,.82);
+}
+.xy-ai-launcher.is-dragging{cursor:grabbing;box-shadow:0 19px 52px rgba(20,25,40,.21),0 0 0 3px rgba(10,132,255,.09)}
+.xy-ai-launcher:focus-visible{outline:2px solid var(--blue,#0071e3);outline-offset:4px}
+html[data-theme="dark"] .xy-ai-launcher{
+  color:#f1f2f4;
+  border-color:rgba(255,255,255,.16);
+  background:rgba(31,32,37,.87);
+  box-shadow:0 15px 42px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.09);
+}
+@media(max-width:800px){
+  .xy-ai-launcher{right:14px;bottom:calc(22px + env(safe-area-inset-bottom))}
+
+  body:has(.admin-shell) .xy-ai-launcher{
+    bottom:calc(104px + env(safe-area-inset-bottom));
+  }
+
+  body:has(input:focus,textarea:focus,[contenteditable="true"]:focus) .xy-ai-launcher{
+    visibility:hidden;pointer-events:none;
+  }
+}
+@media(prefers-reduced-motion:reduce){.xy-ai-launcher{transition:none!important}}
 
 /* On phones, search and the compact menu are two equal touch targets inside the same AXIS island. */
 @media(max-width:700px){

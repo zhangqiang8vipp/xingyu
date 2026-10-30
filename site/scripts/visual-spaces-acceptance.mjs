@@ -296,6 +296,32 @@ async function checkMobileProductSurfaces(browser,origin,user,rootId){
     const root=await page.goto(origin+"/admin?section=spaces",{waitUntil:"networkidle0",timeout:70000});
     assert.equal(root.status(),200,"mobile knowledge-space root accessible");
     await page.waitForSelector(".space-domain-card",{timeout:30000});
+    await page.waitForSelector(".xy-ai-launcher",{visible:true,timeout:20000});
+    await page.waitForFunction(()=>{
+      const rect=document.querySelector(".xy-ai-launcher")?.getBoundingClientRect();
+      if(!rect)return false;
+      return [...document.querySelectorAll(".space-domain-card")].every(card=>{
+        const other=card.getBoundingClientRect();
+        return rect.right+2<=other.left||rect.left>=other.right+2
+          ||rect.bottom+2<=other.top||rect.top>=other.bottom+2;
+      });
+    },{timeout:8000});
+    const floatingAI=await page.evaluate(()=>{
+      const button=document.querySelector(".xy-ai-launcher");
+      const dock=document.querySelector(".admin-more .admin-dock");
+      const bubble=button?.getBoundingClientRect();
+      const rail=dock?.getBoundingClientRect();
+      return {logo:button?.querySelectorAll("svg.axis-mark").length??0,
+        text:button?.textContent?.trim()??"",width:bubble?.width??0,
+        bottom:bubble?.bottom??0,dockTop:rail?.top??0,
+        independent:!dock?.contains(button)};
+    });
+    assert.equal(floatingAI.logo,1,"global AI uses original 01 AXIS emblem");
+    assert.equal(floatingAI.text,"","global AI on mobile has no text taking room");
+    assert.ok(floatingAI.width<=58&&floatingAI.width>=48,"only one compact AI bubble");
+    assert.ok(floatingAI.independent&&floatingAI.bottom<=floatingAI.dockTop-8,
+      "AI bubble must not occupy or overlap the existing bottom AXIS island");
+    console.log("MOBILE_FLOATING_AXIS_AI",JSON.stringify(floatingAI));
     const card=await page.evaluate(()=>{
       const el=document.querySelector(".space-domain-card");
       const title=el.querySelector("h2");
@@ -309,6 +335,15 @@ async function checkMobileProductSurfaces(browser,origin,user,rootId){
     assert.ok(card.titleSize>=20&&card.descriptionSize>=12&&card.actionWidth>=44,
       "mobile knowledge cards have proper hierarchy and 44px actions");
     assert.ok(card.scrollOverflow<=2,"knowledge root fits phone viewport");
+    const rootIslandLayout=await page.evaluate(()=>{
+      const search=document.querySelector(".admin-workspace-bar .admin-article-search-trigger");
+      const heading=document.querySelector(".spaces-root .admin-header h1");
+      const searchRect=search?.getBoundingClientRect();
+      const headingRect=heading?.getBoundingClientRect();
+      return {searchBottom:searchRect?.bottom??0,headingTop:headingRect?.top??0};
+    });
+    assert.ok(rootIslandLayout.searchBottom>0&&rootIslandLayout.headingTop>=rootIslandLayout.searchBottom+8,
+      "mobile floating search must not overlap knowledge-space root heading");
     await page.screenshot({path:resolve(dir,"mobile-axis-spaces-dark.png"),animations:"disabled"});
     await page.click(".space-domain-card .space-card-actions>button");
     await page.waitForSelector(".space-card-actions>div[role=menu]",{timeout:5000});
@@ -338,6 +373,14 @@ async function checkMobileProductSurfaces(browser,origin,user,rootId){
     })));
     assert.ok(scopes.length>=2&&scopes.every(x=>x.size>=12&&x.height>=44),
       "space scope tabs are legible touch targets");
+    const detailIslandLayout=await page.evaluate(()=>{
+      const search=document.querySelector(".admin-workspace-bar .admin-article-search-trigger");
+      const heading=document.querySelector(".space-page-header h1");
+      return {searchBottom:search?.getBoundingClientRect().bottom??0,
+        headingTop:heading?.getBoundingClientRect().top??0};
+    });
+    assert.ok(detailIslandLayout.searchBottom>0&&detailIslandLayout.headingTop>=detailIslandLayout.searchBottom+8,
+      "mobile floating search must not obscure current knowledge-space title");
     await page.screenshot({path:resolve(dir,"mobile-axis-space-detail-light.png"),animations:"disabled"});
     x.assertClean();
     console.log("PASS mobile AXIS: account/space root/detail, touch sheets and light/dark");

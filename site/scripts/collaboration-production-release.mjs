@@ -60,7 +60,7 @@ function validate(mode, metaFile, migrationFile, shapeFile) {
   const config = JSON.parse(readFileSync(path.join(ROOT, "wrangler.production.jsonc"), "utf8"));
   const bootstrap = readFileSync(path.join(ROOT, "db", "bootstrap.ts"), "utf8");
   const expected = validateProductionConfig(config, bootstrap);
-  requireCondition(expected.schemaVersion === "26", "release must target schema 26");
+  requireCondition(expected.schemaVersion === "26", "one-time schema-26 release is obsolete for Worker schema 27; apply the separate additive migration before a new deployment");
   const metaRows = rows(metaFile);
   requireCondition(metaRows.length === 3, "expected exactly three identity markers");
   const meta = new Map(metaRows.map(row => [String(row.key), String(row.value)]));

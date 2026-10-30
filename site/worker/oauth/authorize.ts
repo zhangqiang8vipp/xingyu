@@ -22,6 +22,7 @@ import { isAuthorizationCodeResponse, readAuthorizeParams } from "./authorize-pa
 import { shouldAcceptRedirect } from "./redirect-policy";
 import { OAuthError, oauthLog } from "./errors";
 import { newAuthorizationCode } from "./tokens";
+import {rememberAuthorizedConnectionLabel} from "@/db/oauth-connection-registry";
 import { identityFromRequest, userSubject } from "@/server/auth/identity-session";
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -96,6 +97,7 @@ export async function handleAuthorize(request: Request) {
     resource: checked.resource,
     grantedScopes: scopeListText(checked.scopes),
   });
+  await rememberAuthorizedConnectionLabel(checked.clientId,subject,params.get("connection_label"));
   oauthLog("oauth.consent.granted", {
     client_id: checked.clientId,
     subject,

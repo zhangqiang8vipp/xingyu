@@ -1,0 +1,89 @@
+name: One-time AXIS production release (schema 27)
+
+# No push deployment. Production writes require BOTH typed confirmations and
+# the existing protected CLOUDFLARE GitHub Environment.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RELEASE-AXIS-27 to approve the reviewed Worker version"
+        required: true
+        type: string
+      migrate:
+        description: "Type D1-SCHEMA-27 to authorize the additive D1 migration"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: xingyu-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify exact main commit, complete CI and production config
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - name: Require main and two explicit confirmations
+        working-directory: .
+        env:
+          RELEASE_CONFIRM: ${{ inputs.confirm }}
+          MIGRATE_CONFIRM: ${{ inputs.migrate }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" || "$RELEASE_CONFIRM" != "RELEASE-AXIS-27" || "$MIGRATE_CONFIRM" != "D1-SCHEMA-27" ]]; then
+            echo "::error::Select main and enter both exact release confirmation phrases."
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.18.0
+      - name: Verify complete CI for this exact main-branch SHA
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-production-ci.mjs
+      - name: Validate strict Cloudflare production resources
+        run: node scripts/verify-production-deploy.mjs config
+      - name: Validate additive migration release guard tests
+        run: node --test tests/axis-schema-27-release.test.mjs
+
+  release:
+    name: Protected D1 schema 27 and Cloudflare Worker deployment
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    environment:
+      name: CLOUDFLARE
+      url: https://zhangwansen.click
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.18.0
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install exact locked dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Preflight, Time Travel recovery point, additive migration, deployment, smoke
+        env:
+          RELEASE_CONFIRM: ${{ inputs.confirm }}
+          MIGRATE_CONFIRM: ${{ inputs.migrate }}
+          PRODUCTION_DEPLOY_ENABLED: ${{ vars.PRODUCTION_DEPLOY_ENABLED }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_WRITE_LOGS: "false"
+        run: bash scripts/axis-schema-27-release.sh
