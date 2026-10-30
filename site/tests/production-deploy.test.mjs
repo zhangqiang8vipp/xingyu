@@ -9,7 +9,7 @@ const bootstrap = readFileSync(new URL("../db/bootstrap.ts", import.meta.url), "
 const expected = validateProductionConfig(config, bootstrap);
 
 test("production deploy config refuses wrong environment, database or schema mode", () => {
-  assert.equal(expected.schemaVersion, "26");
+  assert.equal(expected.schemaVersion, "27");
   assert.equal(expected.instanceId, "production:xingyu-blog");
   assert.throws(() => validateProductionConfig({ ...config, vars: { ...config.vars, APP_ENV: "beta" } }, bootstrap));
   assert.throws(() => validateProductionConfig({ ...config, vars: { ...config.vars, DB_SCHEMA_MODE: "legacy-bootstrap" } }, bootstrap));

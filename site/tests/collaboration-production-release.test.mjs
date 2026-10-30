@@ -44,33 +44,21 @@ const fullShape = [
   ...tables.map(name => ({type: "table", name})),
   ...triggers.map(name => ({type: "trigger", name})),
 ];
-test("production release guard accepts exactly schema 25 and migration 0024 pending", () => {
-  assert.equal(migrations.length, 25);
-  assert.equal(migrations.at(-1), "0024_space_collaboration_revisions.sql");
-  const {result, output} = fixture("preflight", "25", migrations.slice(0, -1));
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(output, "needs_migration=true\n");
+test("obsolete schema-26 one-time release cannot accidentally deploy schema-27 Worker", () => {
+  assert.ok(migrations.includes("0025_oauth_connection_labels.sql"));
+  const samples=[
+    ["preflight","25",migrations.slice(0,-1)],
+    ["preflight","26",migrations.slice(0,-1)],
+    ["preflight","27",migrations],
+    ["postapply","26",migrations],
+    ["postdeploy","27",migrations],
+  ];
+  for(const [mode,version,inventory] of samples){
+    const {result}=fixture(mode,version,inventory,fullShape);
+    assert.notEqual(result.status,0,"old collaboration workflow must fail closed: "+mode+"/"+version);
+    assert.match(result.stderr,/schema-26.*schema 27|release must target schema 26/i);
+  }
 });
-test("production release guard accepts idempotent verified schema 26", () => {
-  const {result, output} = fixture("preflight", "26", migrations, fullShape);
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(output, "needs_migration=false\n");
-});
-test("production release guard rejects missing prior migration before any write", () => {
-  const {result} = fixture("preflight", "25", migrations.slice(0, -2));
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /migration count differs/);
-});
-test("post-migration shape validation requires original schema marker to remain 25", () => {
-  assert.equal(fixture("postapply", "25", migrations, fullShape).result.status, 0);
-  assert.notEqual(fixture("postapply", "26", migrations, fullShape).result.status, 0);
-});
-test("post-deploy gate rejects missing revision triggers and wrong schema marker", () => {
-  assert.equal(fixture("postdeploy", "26", migrations, fullShape).result.status, 0);
-  assert.notEqual(fixture("postdeploy", "25", migrations, fullShape).result.status, 0);
-  assert.notEqual(fixture("postdeploy", "26", migrations, fullShape.filter(x => x.name !== "document_revision_post_update")).result.status, 0);
-});
-
 
 test("production dispatch evaluates GitHub expressions instead of passing them as literal strings", () => {
   const workflow = readFileSync(path.join(site, "..", ".github", "workflows", "release-collaboration-2026-10-26.yml"), "utf8");
