@@ -125,7 +125,8 @@ export default function AdminIntegrationsPanel({
   }
 
   const activeConnections=connections.filter(item=>item.kind==="oauth"&&item.status==="connected");
-  const inactiveConnections=connections.filter(item=>item.kind==="oauth"&&item.status!=="connected");
+  const inactiveConnections=connections.filter(item=>item.kind==="oauth"&&
+    (item.status!=="connected"||item.sessions.some(session=>session.status==="revoked")));
   const legacyHistory=connections.find(item=>item.kind==="legacy"&&item.sessions.length>0);
   const inactiveTotal=inactiveConnections.length+(legacyHistory?1:0);
 
@@ -141,15 +142,16 @@ export default function AdminIntegrationsPanel({
           <strong>{connection.name}</strong>
           <span>{connection.registeredName?"客户端自报："+connection.registeredName:"未知客户端"}
             {" · "}{connection.redirectHosts?.length
-              ?"登记回调："+connection.redirectHosts.join("、"):"未登记回调域名"}</span>
+              ?"登记回调："+connection.redirectHosts.join("、"):"未登记回调域名"}
+            {" · 客户端 ID："+connection.id.slice(0,17)+(connection.id.length>17?"…":"")}</span>
           <small>应用信息来自客户端注册，不能证明 ChatGPT、Gemini 或 Google 的登录账号。</small>
         </div>
         <div className="axis-connection-actions">
           <span className={inactive?"axis-connection-state inactive":"axis-connection-state"}>
-            {inactive?(connection.status==="revoked"?"已撤销":"未曾授权"):"已授权"}
+            {inactive?(connection.status==="connected"?"部分已撤销":connection.status==="revoked"?"已撤销":"未曾授权"):"已授权"}
           </span>
           <button type="button" disabled={Boolean(busy)} onClick={()=>startRename(connection)}>改应用备注</button>
-          {inactive&&<button type="button" disabled={Boolean(busy)} onClick={()=>void cleanup(connection)}>清理记录</button>}
+          {inactive&&connection.status!=="connected"&&<button type="button" disabled={Boolean(busy)} onClick={()=>void cleanup(connection)}>清理记录</button>}
         </div>
       </header>
       {editKey===groupKey&&<form className="axis-connection-rename" onSubmit={event=>{
