@@ -8,6 +8,8 @@ export type AdminMcpSession = {
   grantedAt: string | null;
   lastUsedAt: string | null;
   tokenCount: number;
+  /** Authenticated Xingyu account only; NOT ChatGPT/Gemini email. */
+  xingyuAccount: string | null;
 };
 
 export type AdminMcpConnection = {
@@ -20,6 +22,8 @@ export type AdminMcpConnection = {
   lastUsedLabel: string | null;
   revocable: boolean;
   sessions: AdminMcpSession[];
+  registeredName?: string;
+  redirectHosts?: string[];
 };
 
 export type AdminStats={
