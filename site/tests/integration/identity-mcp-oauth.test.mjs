@@ -103,6 +103,20 @@ test("MCP OAuth login and consent are separate; code, refresh and revocation rem
     const owned=(await ownedConnections.json()).connections;
     assert.equal(owned.length,1);
     assert.equal(owned[0].clientId,"chatgpt-xingyu");
+    assert.equal(owned[0].clientName,"ChatGPT 测试工作号",
+      "authorization-screen nickname is visible to the authorizing Xingyu account");
+    const renamedMine=await jsonRequest(h,"/api/identity/connections",{
+      method:"PATCH",cookie:alice.cookie,
+      body:{client_id:"chatgpt-xingyu",label:"我自己的 ChatGPT 连接"},
+    });
+    assert.equal(renamedMine.status,200,await renamedMine.clone().text());
+    const renamedList=await jsonRequest(h,"/api/identity/connections",{cookie:alice.cookie});
+    assert.equal((await renamedList.json()).connections[0].clientName,"我自己的 ChatGPT 连接");
+    const wrongOwner=await jsonRequest(h,"/api/identity/connections",{
+      method:"PATCH",cookie:bob.cookie,
+      body:{client_id:"chatgpt-xingyu",label:"不可修改别人的连接"},
+    });
+    assert.equal(wrongOwner.status,404,"another Xingyu user cannot edit the owner's grant");
     const otherConnections=await jsonRequest(h,"/api/identity/connections",{cookie:bob.cookie});
     assert.equal((await otherConnections.json()).connections.length,0);
 
