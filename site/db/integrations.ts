@@ -173,11 +173,11 @@ export async function cleanupInactiveMcpConnections(clientId?:string,subject?:st
     "AND NOT EXISTS (SELECT 1 FROM oauth_consents c WHERE c.client_id=oauth_connection_labels.client_id AND c.subject=oauth_connection_labels.subject)"
   ).run();
   const now=Math.floor(Date.now()/1000);
-  // First-party registered ChatGPT/Grok callbacks must remain configured.
-  // Only self-registered DCR clients with no active sessions or authorization
-  // codes can be removed.
+  // Built-in ChatGPT/Grok callbacks always remain configured. Explicit cleanup
+  // may prune any other unused client only after verifying that it has zero
+  // consents, valid credentials and pending authorization codes.
   const deleted=await db.prepare(
-    "DELETE FROM oauth_clients WHERE client_id LIKE 'xy_dcr_%' AND (? IS NULL OR client_id=?) "+
+    "DELETE FROM oauth_clients WHERE client_id NOT IN ('chatgpt-xingyu','grok-xingyu') AND (? IS NULL OR client_id=?) "+
     "AND NOT EXISTS (SELECT 1 FROM oauth_consents c WHERE c.client_id=oauth_clients.client_id) "+
     "AND NOT EXISTS (SELECT 1 FROM oauth_access_tokens a WHERE a.client_id=oauth_clients.client_id AND a.revoked_at IS NULL AND a.expires_at>?) "+
     "AND NOT EXISTS (SELECT 1 FROM oauth_refresh_tokens r WHERE r.client_id=oauth_clients.client_id AND r.revoked_at IS NULL AND r.used_at IS NULL AND r.expires_at>? AND r.absolute_expires_at>?) "+
