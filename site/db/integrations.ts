@@ -62,7 +62,11 @@ export async function listMcpConnections(): Promise<McpConnection[]> {
   const accounts = new Map(loginRows.map(row=>["user:"+row.userId,row.email?row.name+" · "+row.email:row.name]));
   const usage = new Map(usageRows.map((row) => [`${row.clientId}\0${row.subject}`, row]));
 
-  const oauthConnections = clients.map((client) => {
+  // Pre-seeded integrations are available in the connection guide, not as fake "pending connections".
+  const oauthConnections = clients.filter(client=>
+    !["chatgpt-xingyu","grok-xingyu"].includes(client.clientId)
+    || consents.some(item=>item.clientId===client.clientId)
+  ).map((client) => {
     const clientConsents = consents.filter((item) => item.clientId === client.clientId);
     const sessions: McpSession[] = clientConsents.map((consent) => {
       const grantedAt = consent.grantedAt ? new Date(consent.grantedAt * 1000).toISOString() : null;
