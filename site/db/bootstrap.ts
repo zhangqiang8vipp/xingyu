@@ -12,7 +12,7 @@ import { assertStoredInstanceIdentity, requireRuntimeInstanceIdentity } from "./
 let ready: Promise<void> | null = null;
 
 /** 当前 worker 期望的 D1 schema 版本，供健康检查与迁移门禁共用。 */
-export const schemaVersion = "26";
+export const schemaVersion = "27";
 
 const requiredUniqueIndexes = {
   attachments_object_key_uidx: { table: "attachments", columns: ["object_key"] },
@@ -51,7 +51,7 @@ const requiredMigrationObjects = {
   table: [
     "admin_login_attempts", "app_meta", "attachment_cleanup_queue", "attachments", "categories",
     "content_pages", "email_verifications", "identity_login_limits", "mcp_activity", "personal_access_tokens", "oauth_access_tokens", "oauth_authorization_codes", "oauth_clients",
-    "oauth_consents", "oauth_rate_limits", "oauth_refresh_tokens", "post_preview_tokens",
+    "oauth_consents", "oauth_connection_labels", "oauth_rate_limits", "oauth_refresh_tokens", "post_preview_tokens",
     "post_slug_history", "post_views", "posts", "posts_fts", "public_cache_state", "site_memberships", "site_settings", "spaces", "user_credentials", "user_identities", "user_sessions", "users", "view_request_limits", "workspaces", "workspace_memberships", "workspace_invitations", "organizations", "organization_memberships", "organization_invitations", "organization_units", "organization_unit_memberships", "teams", "team_memberships", "organization_workspaces", "workspace_team_grants", "space_access_policies", "space_principal_grants", "space_collaboration_settings", "space_collaboration_members", "space_collaboration_invites", "document_revisions", "document_merge_proposals",
   ],
   index: [...Object.keys(requiredUniqueIndexes), "personal_access_tokens_user_idx", "workspace_memberships_user_idx", "workspace_invitations_workspace_idx", "organization_memberships_user_idx", "organization_invitations_org_idx", "organization_units_tree_idx", "organization_unit_memberships_user_idx", "teams_org_idx", "team_memberships_user_idx", "organization_workspaces_org_idx", "workspace_team_grants_team_idx", "space_access_policies_workspace_idx", "space_principal_grants_principal_idx", "space_collaboration_members_user_idx", "space_collaboration_invites_space_idx", "document_revisions_space_idx", "document_merge_proposals_post_idx", "email_verifications_user_idx", "posts_workspace_updated_idx", "spaces_workspace_parent_idx", "attachments_workspace_idx", "categories_workspace_idx", "mcp_workspace_activity_idx"],
@@ -513,6 +513,13 @@ async function initialize() {
       granted_scopes TEXT NOT NULL,
       granted_at INTEGER NOT NULL,
       revoked_at INTEGER
+    )`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS oauth_connection_labels (
+      client_id TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      label TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (client_id, subject)
     )`),
     d1.prepare(`CREATE TABLE IF NOT EXISTS oauth_rate_limits (
       identifier TEXT PRIMARY KEY,
