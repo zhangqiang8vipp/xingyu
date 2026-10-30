@@ -105,7 +105,7 @@ async function verifyPage(page,profile,section){
   const m=await page.evaluate(section=>{
     const root=document.querySelector(".admin-shell");
     const content=document.querySelector(".admin-workspace");
-    const search=document.querySelector(".admin-workspace-bar .admin-article-search-trigger");
+    const search=document.querySelector(".admin-shell > .admin-search-island .admin-article-search-trigger");
     const dock=document.querySelector(".admin-more .admin-dock");
     const heading=document.querySelector(".admin-main > .admin-header h1");
     const top=search?.getBoundingClientRect();
@@ -175,6 +175,78 @@ async function verifyPage(page,profile,section){
     },{timeout:6500});
   }
   return m;
+}
+
+
+async function verifyFloatingSearch(page,origin,profile){
+  await open(page,origin,"connect",".page-config-form .about-admin-preview");
+  const closed=await page.evaluate(()=>{
+    const island=document.querySelector(".admin-shell > .admin-search-island");
+    const pill=island?.querySelector(".admin-article-search-trigger");
+    const rect=pill?.getBoundingClientRect();
+    return {
+      island:!!island,position:island?getComputedStyle(island).position:null,
+      pill:{width:rect?.width??0,height:rect?.height??0,top:rect?.top??-1},
+      toolbar:!!document.querySelector(".admin-workspace-bar"),
+    };
+  });
+  assert.ok(closed.island&&!closed.toolbar&&closed.position==="fixed",
+    profile.id+" AXIS search must stay in one fixed floating island: "+JSON.stringify(closed));
+  assert.ok(closed.pill.width>24&&closed.pill.width<=230&&closed.pill.top>=0&&closed.pill.top<=55,
+    profile.id+" original compact pill must remain visible: "+JSON.stringify(closed));
+  await page.screenshot({path:resolve(dir,"axis-search-closed-"+profile.id+".png"),animations:"disabled"});
+
+  await page.click(".admin-shell > .admin-search-island .admin-article-search-trigger");
+  await page.waitForSelector(".admin-search-island .admin-article-search-dialog",{visible:true,timeout:9000});
+  await page.waitForFunction(()=>document.activeElement?.matches(".admin-article-search-dialog input"),{timeout:5000});
+  await page.waitForFunction(()=>
+    getComputedStyle(document.querySelector(".admin-article-search-results")).height!=="0px",
+    {timeout:5000});
+  const opened=await page.evaluate(()=>{
+    const island=document.querySelector(".admin-search-island");
+    const panel=island.querySelector(".admin-article-search-dialog");
+    const scopes=panel.querySelector(".axis-search-scopes");
+    const status=panel.querySelector(".admin-article-search-meta");
+    const results=panel.querySelector(".admin-article-search-results");
+    const footer=panel.querySelector("footer");
+    const input=panel.querySelector("input");
+    const toBox=element=>{
+      const {left,right,top,bottom,width,height}=element.getBoundingClientRect();
+      return {left,right,top,bottom,width,height};
+    };
+    const panelBox=toBox(panel);
+    return {
+      panel:panelBox,
+      scopes:toBox(scopes),status:toBox(status),results:toBox(results),footer:toBox(footer),
+      visible:panel.checkVisibility(),
+      inputFocused:document.activeElement===input,
+      inputOutline:getComputedStyle(input).outlineStyle,
+      gridRows:getComputedStyle(panel).gridTemplateRows,
+      veil:getComputedStyle(document.body,"::after").content,
+      horizontalOverflow:document.documentElement.scrollWidth-innerWidth,
+      viewport:{width:innerWidth,height:innerHeight},
+    };
+  });
+  assert.ok(opened.visible&&opened.inputFocused&&opened.panel.height>=250,
+    profile.id+" floating search must have a full readable panel: "+JSON.stringify(opened));
+  assert.ok(opened.panel.left>=-1&&opened.panel.right<=profile.width+1&&
+    opened.panel.top>=0&&opened.panel.bottom<=profile.height-52,
+    profile.id+" floating search stays in viewport, away from bottom island: "+JSON.stringify(opened));
+  assert.ok(opened.scopes.top>=opened.panel.top&&opened.status.top>=opened.scopes.bottom-1&&
+    opened.results.top>=opened.status.bottom-1&&opened.results.height>=100&&
+    opened.footer.top>=opened.results.bottom-1&&opened.footer.bottom<=opened.panel.bottom+1,
+    profile.id+" all five search zones must be visible and ordered: "+JSON.stringify(opened));
+  assert.equal(opened.inputOutline,"none",profile.id+" input must not show a rectangular focus outline");
+  assert.equal(opened.veil,'""',profile.id+" subtle search veil must separate content");
+  assert.ok(opened.horizontalOverflow<=2,
+    profile.id+" expanded floating island must not cause horizontal scrolling");
+  await page.screenshot({path:resolve(dir,"axis-search-open-"+profile.id+".png"),animations:"disabled"});
+
+  await page.keyboard.press("Escape");
+  await page.waitForSelector(".admin-search-island .admin-article-search-trigger",{visible:true,timeout:7000});
+  assert.ok(await page.$eval(".admin-search-island .admin-article-search-trigger",element=>
+    document.activeElement===element),"escape must restore focus to floating island");
+  console.log("PASS "+profile.id+" real Worker AXIS floating search, opened screenshot and focus");
 }
 
 async function verifyUnsavedNavigation(page,origin){
@@ -285,6 +357,7 @@ async function checkProfile(browser,origin,cookie,profile){
       await page.screenshot({path:resolve(dir,"axis-"+profile.id+"-"+section+".png"),
         animations:"disabled"});
     }
+    await verifyFloatingSearch(page,origin,profile);
     if(profile.id==="desktop"){
       await verifyUnsavedNavigation(page,origin);
       await verifyArticleReset(page,origin);
