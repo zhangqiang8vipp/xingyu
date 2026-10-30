@@ -34,6 +34,9 @@ export default function AdminIntegrationsPanel({
   const [activation, setActivation] = useState(initialActivation);
   const [message, setMessage] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [editKey, setEditKey] = useState<string|null>(null);
+  const [editName, setEditName] = useState("");
 
   async function refresh() {
     setRefreshing(true);
@@ -61,19 +64,135 @@ export default function AdminIntegrationsPanel({
     }
   }
 
-  async function revoke(connection: AdminMcpConnection, session?: AdminMcpSession) {
-    const who = session?.label ?? connection.name;
-    if (!window.confirm("撤销后，" + who + " 必须重新连接才能访问星屿。确认撤销吗？")) return;
-    const response = await fetch("/api/integrations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "revoke", clientId: connection.id, subject: session?.subject }),
-    });
-    const data = await readApiJson<{ connections: AdminMcpConnection[]; activation: BetaActivationSignal }>(response);
-    if (!response.ok) return setMessage(data.error ?? "撤销失败");
-    setConnections(data.connections ?? []);
-    if (data.activation) setActivation(data.activation);
-    setMessage(who + " 已撤销");
+
+  async function revoke(connection:AdminMcpConnection,session?:AdminMcpSession){
+    const who=session?.label??connection.name;
+    if(!window.confirm("撤销后，"+who+" 必须重新授权才能访问星屿。确认撤销吗？"))return;
+    setBusy("revoke");setMessage("");
+    try{
+      const response=await fetch("/api/integrations",{method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({action:"revoke",clientId:connection.id,subject:session?.subject})});
+      const data=await readApiJson<{connections:AdminMcpConnection[];activation:BetaActivationSignal}>(response);
+      if(!response.ok)throw Error(data.error??"撤销失败");
+      setConnections(data.connections??[]);
+      if(data.activation)setActivation(data.activation);
+      setMessage(who+" 已撤销，已从有效连接列表移至历史记录");
+    }catch(error){setMessage(error instanceof Error?error.message:"撤销失败，请重试");}
+    finally{setBusy("");}
+  }
+
+  function startRename(connection:AdminMcpConnection,session?:AdminMcpSession){
+    setEditKey(connection.id+"#"+(session?.subject??""));
+    setEditName(session?.label??connection.name);
+  }
+
+  async function saveRename(connection:AdminMcpConnection,session?:AdminMcpSession){
+    const label=editName.trim();
+    if(!label||label.length>40){setMessage("连接名称须为 1–40 个字符");return;}
+    setBusy("rename");setMessage("");
+    try{
+      const response=await fetch("/api/integrations",{method:"PATCH",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({clientId:connection.id,subject:session?.subject,label})});
+      const data=await readApiJson<{connections:AdminMcpConnection[]}>(response);
+      if(!response.ok)throw Error(data.error??"重命名失败");
+      setConnections(data.connections??[]);
+      setEditKey(null);
+      setMessage("名称已保存。只是星屿内的备注，不会改变 AI 平台的实际账号。");
+    }catch(error){setMessage(error instanceof Error?error.message:"重命名失败");}
+    finally{setBusy("");}
+  }
+
+  async function cleanup(connection?:AdminMcpConnection,session?:AdminMcpSession){
+    const target=session?.label??connection?.name??"所有无效记录";
+    const warning=connection
+      ?"清理“"+target+"”的失效授权记录？正在授权的连接不会受到影响。"
+      :"清理所有已撤销授权和未授权的动态注册客户端？不会撤销或删除任何有效连接。";
+    if(!window.confirm(warning))return;
+    setBusy("cleanup");setMessage("");
+    try{
+      const response=await fetch("/api/integrations",{method:"DELETE",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({clientId:connection?.id,subject:session?.subject})});
+      const data=await readApiJson<{cleaned:{revokedGrants:number;unusedClients:number};connections:AdminMcpConnection[]}>(response);
+      if(!response.ok)throw Error(data.error??"清理失败");
+      setConnections(data.connections??[]);
+      setMessage("已清理 "+(data.cleaned?.revokedGrants??0)+" 条撤销授权、"+
+        (data.cleaned?.unusedClients??0)+" 个未授权动态客户端；有效授权未变。");
+    }catch(error){setMessage(error instanceof Error?error.message:"清理失败");}
+    finally{setBusy("");}
+  }
+
+  const activeConnections=connections.filter(item=>item.kind==="oauth"&&item.status==="connected");
+  const inactiveConnections=connections.filter(item=>item.kind==="oauth"&&item.status!=="connected");
+  const legacyHistory=connections.find(item=>item.kind==="legacy"&&item.sessions.length>0);
+  const inactiveTotal=inactiveConnections.length+(legacyHistory?1:0);
+
+  function renderConnection(connection:AdminMcpConnection,inactive:boolean){
+    const sessions=inactive
+      ? connection.sessions.filter(item=>item.status==="revoked")
+      : connection.sessions.filter(item=>item.status==="connected");
+    const groupKey=connection.id+"#";
+    return <article className="axis-connection-row" key={connection.id}>
+      <header className="axis-connection-heading">
+        <div className="axis-connection-name">
+          <small>{inactive?"历史客户端":"已授权应用"}</small>
+          <strong>{connection.name}</strong>
+          <span>{connection.registeredName?"客户端自报："+connection.registeredName:"未知客户端"}
+            {" · "}{connection.redirectHosts?.length
+              ?"登记回调："+connection.redirectHosts.join("、"):"未登记回调域名"}</span>
+          <small>应用信息来自客户端注册，不能证明 ChatGPT、Gemini 或 Google 的登录账号。</small>
+        </div>
+        <div className="axis-connection-actions">
+          <span className={inactive?"axis-connection-state inactive":"axis-connection-state"}>
+            {inactive?(connection.status==="revoked"?"已撤销":"未曾授权"):"已授权"}
+          </span>
+          <button type="button" disabled={Boolean(busy)} onClick={()=>startRename(connection)}>改应用备注</button>
+          {inactive&&<button type="button" disabled={Boolean(busy)} onClick={()=>void cleanup(connection)}>清理记录</button>}
+        </div>
+      </header>
+      {editKey===groupKey&&<form className="axis-connection-rename" onSubmit={event=>{
+        event.preventDefault();void saveRename(connection);
+      }}>
+        <label>应用显示备注<input autoFocus maxLength={40} value={editName}
+          onChange={event=>setEditName(event.target.value)}/></label>
+        <button type="submit" disabled={Boolean(busy)||!editName.trim()}>保存</button>
+        <button type="button" onClick={()=>setEditKey(null)}>取消</button>
+      </form>}
+      {sessions.length>0&&<ul className="axis-connection-grants">
+        {sessions.map(session=><li key={connection.id+":"+session.subject}>
+          <div>
+            <div className="axis-connection-grant-title">
+              <b>{session.label}</b>
+              <button type="button" disabled={Boolean(busy)}
+                onClick={()=>startRename(connection,session)}>修改备注</button>
+              {!inactive&&<button type="button" className="axis-connection-danger"
+                disabled={Boolean(busy)} onClick={()=>void revoke(connection,session)}>撤销授权</button>}
+              {inactive&&<button type="button" disabled={Boolean(busy)}
+                onClick={()=>void cleanup(connection,session)}>清理此条</button>}
+            </div>
+            <p><strong>授权的星屿账号：</strong>{session.xingyuAccount??"早期授权或账号资料不可核对"}
+              {" · "}并非 ChatGPT / Gemini 账号信息</p>
+            <p>权限：{session.scopes.map(scope=>SCOPE_LABELS[scope]).filter(Boolean).join(" · ")||"基础访问"}</p>
+            {session.scopes.includes("xingyu.publish")&&<em>含线上发布权限</em>}
+            <p>授权于 {formatTime(session.grantedAt)||"未知"} ·
+              最近实际调用 {formatTime(session.lastUsedAt)||"尚无记录"}
+              {" · "}{session.tokenCount} 个有效短期令牌</p>
+          </div>
+          {editKey===connection.id+"#"+session.subject&&<form
+            className="axis-connection-rename" onSubmit={event=>{
+              event.preventDefault();void saveRename(connection,session);
+            }}>
+            <label>本次授权备注<input autoFocus maxLength={40} value={editName}
+              onChange={event=>setEditName(event.target.value)}/></label>
+            <button type="submit" disabled={Boolean(busy)||!editName.trim()}>保存</button>
+            <button type="button" onClick={()=>setEditKey(null)}>取消</button>
+          </form>}
+        </li>)}
+      </ul>}
+      {!sessions.length&&<p className="axis-connection-no-grants">尚无有效的星屿账号授权。</p>}
+    </article>;
   }
 
   const write = activation.privateWrite;
@@ -156,32 +275,46 @@ export default function AdminIntegrationsPanel({
         </article> : null}
       </section>}
 
-      {!isPersonalAccount&&<section className="editor-section">
-        <div className="editor-section-title"><span>02</span><div><b>连接详情</b><small>查看哪些 AI 当前还能访问星屿，也可以撤销单次连接</small></div></div>
-        {connections.map((connection) => (
-          <article className="integration-card" key={connection.id}>
-            <div>
-              <small>{connection.kind === "legacy" ? "旧版连接" : "账号连接"}</small>
-              <b>{displayActivationConnectionName(connection)}</b>
-              <span>状态：{statusLabel(connection.status)}{connection.sessions.filter((session) => session.status === "connected").length > 1 ? " · " + connection.sessions.filter((session) => session.status === "connected").length + " 个有效连接" : ""}</span>
-            </div>
-            {connection.sessions.length === 0
-              ? <small>等待连接</small>
-              : <ul className="integration-sessions">
-                {connection.sessions.map((session) => <li key={connection.id + ":" + session.subject}>
-                  <div>
-                    <strong>{session.label}</strong>
-                    <span>可做：{session.scopes.map((scope) => SCOPE_LABELS[scope]).filter(Boolean).join(" · ") || "基础访问"}</span>
-                    {session.scopes.includes("xingyu.publish") && <em>含线上发布权限</em>}
-                    <span>连接于 {formatTime(session.grantedAt) || "未知"} · 最后使用 {formatTime(session.lastUsedAt) || "尚未使用"}</span>
-                  </div>
-                  {connection.kind === "oauth" && session.status === "connected"
-                    ? <button type="button" onClick={() => void revoke(connection, session)}>撤销此连接</button>
-                    : <small>{session.status === "revoked" ? "已撤销" : connection.kind === "legacy" ? "请在服务端停用旧版连接" : "已结束"}</small>}
-                </li>)}
-              </ul>}
-          </article>
-        ))}
+
+      {!isPersonalAccount&&<section className="editor-section axis-connection-manager" aria-label="AI 授权连接管理">
+        <div className="editor-section-title"><span>02</span><div>
+          <b>连接详情</b>
+          <small>默认只显示已授权连接。应用自报信息与真正的星屿授权账号分别列出，历史记录可折叠清理。</small>
+        </div></div>
+        <div className="axis-connection-summary">
+          <div><strong>{activeConnections.length}</strong><span>个已授权客户端</span></div>
+          <div><strong>{inactiveTotal}</strong><span>个历史 / 未授权客户端</span></div>
+          <button type="button" disabled={refreshing||Boolean(busy)} onClick={()=>void refresh()}>
+            {refreshing?"刷新中…":"刷新连接"}
+          </button>
+        </div>
+        {activeConnections.length
+          ? <div className="axis-connection-list">{activeConnections.map(connection=>renderConnection(connection,false))}</div>
+          : <p className="axis-connection-empty">暂无有效 OAuth 授权。新连接在授权后才会出现在这里，单纯注册不会占据列表。</p>}
+        {inactiveTotal>0&&<details className="axis-connection-history">
+          <summary>历史与待清理记录 · {inactiveTotal} 个 <span>展开查看</span></summary>
+          <div className="axis-connection-history-controls">
+            <p>已撤销授权与仅注册的客户端不会自动变成有效连接。清理不会影响仍在授权的客户端。</p>
+            <button type="button" disabled={Boolean(busy)} onClick={()=>void cleanup()}>
+              {busy==="cleanup"?"正在清理…":"清理全部无效记录"}
+            </button>
+          </div>
+          <div className="axis-connection-list">
+            {inactiveConnections.map(connection=>renderConnection(connection,true))}
+            {legacyHistory&&<article className="axis-connection-row">
+              <header className="axis-connection-heading"><div className="axis-connection-name">
+                <small>旧版环境密钥 · 历史调用</small>
+                <strong>{displayActivationConnectionName(legacyHistory)}</strong>
+                <span>最后记录 {formatTime(legacyHistory.lastUsedAt)||"未知"}。
+                  历史调用不代表密钥目前仍有效；请在服务端轮换或停用。</span>
+              </div></header>
+            </article>}
+          </div>
+        </details>}
+        <p className="axis-connection-disclosure">
+          星屿能核实的是谁用星屿账号完成授权；OAuth 客户端不会向星屿提供其 ChatGPT、Gemini 或 Google 登录邮箱。
+          若要关联远端账号，需要对方平台另行提供明确的身份授权能力。
+        </p>
       </section>}
       {isPersonalAccount&&<section className="editor-section"><div className="editor-section-title"><span>02</span><div><b>个人连接</b><small>仅管理当前账号自己的访问令牌</small></div></div><p>这里沿用原后台的连接页面样式。个人令牌和客户端接入说明显示在上方；站点级连接、全站会话和撤销操作仅管理员可见。</p></section>}
       <footer className="config-footer"><span role="status" aria-live="polite">{message || (isPersonalAccount ? "个人连接与站点级连接分开管理，避免看到其他账号的授权数据。" : "连接成功不等于激活；只有发生真实知识空间写入后，才会出现上方变更证明。")}</span></footer>
