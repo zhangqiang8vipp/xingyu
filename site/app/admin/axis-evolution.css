@@ -40,6 +40,7 @@
   height:min(440px,calc(100dvh - 108px));
   max-height:calc(100dvh - 108px);
   min-height:0;
+  background:var(--admin-panel); /* Text behind the island must never bleed through. */
   grid-template-rows:50px auto 27px minmax(0,1fr) 38px;
   border-radius:20px;
 }
