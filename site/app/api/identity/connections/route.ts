@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { identityFromRequest, userSubject } from "@/server/auth/identity-session";
 import { revokeConsent } from "@/db/oauth";
+import {setConnectionNickname} from "@/db/oauth-connection-registry";
 
 const headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
 export async function GET(request:Request){
@@ -8,8 +9,10 @@ export async function GET(request:Request){
   if(!identity)return Response.json({error:"请先登录"},{status:401,headers});
   const subject=userSubject(identity.userId);
   const rows=await env.DB.prepare(
-    "SELECT c.client_id AS clientId,cl.client_name AS clientName,c.resource,c.granted_scopes AS scopes,c.granted_at AS grantedAt "+
+    "SELECT c.client_id AS clientId,COALESCE(NULLIF(n.label,''),cl.client_name) AS clientName, "+
+    "cl.client_name AS registeredName,c.resource,c.granted_scopes AS scopes,c.granted_at AS grantedAt "+
     "FROM oauth_consents c JOIN oauth_clients cl ON cl.client_id=c.client_id "+
+    "LEFT JOIN oauth_connection_labels n ON n.client_id=c.client_id AND n.subject=c.subject "+
     "WHERE c.subject=? AND c.revoked_at IS NULL ORDER BY c.granted_at DESC"
   ).bind(subject).all();
   return Response.json({connections:rows.results??[]},{headers});
@@ -28,4 +31,26 @@ export async function DELETE(request:Request){
   if(!exists)return Response.json({error:"连接不存在"},{status:404,headers});
   await revokeConsent(clientId,subject);
   return Response.json({ok:true},{headers});
+}
+
+export async function PATCH(request:Request){
+  if(request.headers.get("origin")!==new URL(request.url).origin)
+    return Response.json({error:"请求来源无效"},{status:403,headers});
+  const identity=await identityFromRequest(request);
+  if(!identity)return Response.json({error:"请先登录"},{status:401,headers});
+  if(Number(request.headers.get("content-length")??0)>2048)
+    return Response.json({error:"请求体过大"},{status:413,headers});
+  const body=await request.json().catch(()=>({})) as {client_id?:unknown;label?:unknown};
+  if(typeof body.client_id!=="string"||typeof body.label!=="string")
+    return Response.json({error:"连接名称或客户端无效"},{status:400,headers});
+  const subject=userSubject(identity.userId);
+  const existing=await env.DB.prepare("SELECT 1 FROM oauth_consents WHERE client_id=? AND subject=? AND revoked_at IS NULL LIMIT 1")
+    .bind(body.client_id,subject).first();
+  if(!existing)return Response.json({error:"无权修改此连接"},{status:404,headers});
+  try{
+    await setConnectionNickname(body.client_id,subject,body.label);
+    return Response.json({ok:true},{headers});
+  }catch(error){
+    return Response.json({error:error instanceof Error?error.message:"无法保存连接名称"},{status:400,headers});
+  }
 }
