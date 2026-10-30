@@ -922,3 +922,8 @@ body:has(.admin-shell .space-document-frontstage) .xy-ai-launcher{
 @media(prefers-reduced-motion:reduce){
   .axis-connection-manager *{scroll-behavior:auto}
 }
+
+/* Connect management is the reason for this page. Authorized clients now
+ * appear before the lower-priority model, PAT and setup panels. The existing
+ * AXIS panel, font, search island and route stay intact. */
+.admin-shell .activation-config > .axis-connection-manager{order:-1}

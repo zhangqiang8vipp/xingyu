@@ -279,6 +279,9 @@ async function checkProfile(browser,origin,cookie,profile){
       await open(page,origin,section,selector);
       const metrics=await verifyPage(page,profile,section);
       console.log("BACKSTAGE",profile.id,section,JSON.stringify(metrics));
+      if(section==="integrations"){
+        await page.$eval(".axis-connection-manager",element=>element.scrollIntoView({block:"center"}));
+      }
       await page.screenshot({path:resolve(dir,"axis-"+profile.id+"-"+section+".png"),
         animations:"disabled"});
     }
