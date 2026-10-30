@@ -171,3 +171,21 @@ test("list surfaces offer reversible, contextual operations without inventing mo
   assert.doesNotMatch(categories,/prompt\(/);
   assert.match(categories,/网络异常/);
 });
+
+
+test("global search is the original fixed AXIS island, never a sticky toolbar or collapsed grid",()=>{
+  const client=read("features/admin/AdminClient.tsx");
+  const css=read("app/admin/axis-evolution.css");
+  const visual=read("scripts/visual-backstage-acceptance.mjs");
+  assert.match(client, /className="admin-search-island"/);
+  assert.doesNotMatch(client, /className="admin-workspace-bar"/);
+  assert.match(css, /grid-template-rows:50px auto 27px minmax\(0,1fr\) 38px/);
+  assert.match(css, /background:var\(--admin-panel\); \/\* Text behind the island/);
+  assert.match(css, /\.admin-article-search-results\s*\{\s*min-height:0/);
+  assert.match(visual, /axis-search-open-/);
+  assert.match(visual, /async function verifyFloatingSearch/);
+  assert.doesNotMatch(visual, /\.admin-workspace-bar \.admin-article-search-trigger/, "visual screenshots use the real floating island");
+  const spaces=read("scripts/visual-spaces-acceptance.mjs");
+  assert.doesNotMatch(spaces, /admin-workspace-bar/, "knowledge-space screenshots use the real floating island");
+  assert.match(read("features/admin/AdminArticleSearch.tsx"), /returnFocusRef/, "Escape focus return waits for React remount");
+});

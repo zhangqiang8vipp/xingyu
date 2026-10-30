@@ -28,7 +28,60 @@
 .admin-main .table-wrap th { font-size:12px; letter-spacing:.025em; }
 
 /* Keep the original global search island and shortcut. The scopes appear
- * only *after* the island opens, never as a second competing search bar. */
+ * only *after* the island opens, never as a second competing search bar.
+ *
+ * The five visible zones need FIVE explicit grid tracks: header, scopes,
+ * status, results and footer. Without a definite height the implicit results
+ * track collapses under overflow:hidden, exactly the cropped-search bug. */
+.admin-shell > .admin-search-island {
+  pointer-events:auto;
+}
+.admin-search-island .admin-article-search-dialog {
+  height:min(440px,calc(100dvh - 108px));
+  max-height:calc(100dvh - 108px);
+  min-height:0;
+  background:var(--admin-panel); /* Text behind the island must never bleed through. */
+  grid-template-rows:50px auto 27px minmax(0,1fr) 38px;
+  border-radius:20px;
+}
+.admin-search-island .admin-article-search-results {
+  min-height:0;
+  overscroll-behavior:contain;
+}
+.admin-shell .admin-search-island .admin-article-search-dialog > header input:focus-visible {
+  outline:none;
+  outline-offset:0;
+}
+.admin-shell .admin-search-island .admin-article-search-dialog:focus-within {
+  border-color:color-mix(in srgb,var(--admin-accent) 25%,var(--admin-line-strong));
+  box-shadow:0 32px 90px rgba(0,0,0,.24),0 0 0 2px color-mix(in srgb,var(--admin-accent) 12%,transparent);
+}
+/* A subtle veil makes the search panel read as one floating island instead
+ * of translucent text over the underlying page. It never steals clicks. */
+body:has(.admin-search-island .admin-article-search.active)::after {
+  content:"";
+  position:fixed;
+  z-index:44;
+  inset:0;
+  pointer-events:none;
+  background:rgba(16,20,31,.14);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+}
+@media(max-width:800px) {
+  body:has(.admin-search-island .admin-article-search.active)::after {
+    z-index:81;
+    background:rgba(16,20,31,.24);
+  }
+  .admin-search-island .admin-article-search-dialog {
+    height:min(440px,calc(100dvh - 108px));
+    grid-template-rows:50px auto 26px minmax(0,1fr) 40px;
+    border-radius:18px;
+  }
+}
+html[data-theme="dark"] body:has(.admin-search-island .admin-article-search.active)::after {
+  background:rgba(0,0,0,.34);
+}
 .admin-article-search-dialog .axis-search-scopes {
   display:flex;
   align-items:center;

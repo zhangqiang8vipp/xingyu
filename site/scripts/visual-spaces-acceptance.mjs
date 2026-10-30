@@ -336,7 +336,7 @@ async function checkMobileProductSurfaces(browser,origin,user,rootId){
       "mobile knowledge cards have proper hierarchy and 44px actions");
     assert.ok(card.scrollOverflow<=2,"knowledge root fits phone viewport");
     const rootIslandLayout=await page.evaluate(()=>{
-      const search=document.querySelector(".admin-workspace-bar .admin-article-search-trigger");
+      const search=document.querySelector(".admin-shell > .admin-search-island .admin-article-search-trigger");
       const heading=document.querySelector(".spaces-root .admin-header h1");
       const searchRect=search?.getBoundingClientRect();
       const headingRect=heading?.getBoundingClientRect();
@@ -374,7 +374,7 @@ async function checkMobileProductSurfaces(browser,origin,user,rootId){
     assert.ok(scopes.length>=2&&scopes.every(x=>x.size>=12&&x.height>=44),
       "space scope tabs are legible touch targets");
     const detailIslandLayout=await page.evaluate(()=>{
-      const search=document.querySelector(".admin-workspace-bar .admin-article-search-trigger");
+      const search=document.querySelector(".admin-shell > .admin-search-island .admin-article-search-trigger");
       const heading=document.querySelector(".space-page-header h1");
       return {searchBottom:search?.getBoundingClientRect().bottom??0,
         headingTop:heading?.getBoundingClientRect().top??0};

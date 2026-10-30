@@ -36,6 +36,7 @@ export default function AdminArticleSearch({
   const [retryKey,setRetryKey]=useState(0);
   const dialogId=useId();
   const triggerRef=useRef<HTMLButtonElement>(null);
+  const returnFocusRef=useRef(false);
   const [rows,setRows]=useState<AdminSearchPost[]>([]);
   const [loading,setLoading]=useState(false);
   const [activeIndex,setActiveIndex]=useState(0);
@@ -56,7 +57,7 @@ export default function AdminArticleSearch({
     const shortcut=(event:KeyboardEvent)=>{
       if(!disabled&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){
         event.preventDefault();
-        if(open)setOpen(false);
+        if(open){returnFocusRef.current=true;setOpen(false);}
         else beginSearch();
       }
     };
@@ -64,13 +65,22 @@ export default function AdminArticleSearch({
     return()=>window.removeEventListener("keydown",shortcut);
   },[beginSearch,disabled,open]);
 
+  // Wait until the trigger has actually re-mounted after closing the dialog.
+  // A requestAnimationFrame scheduled before React commits can lose the focus.
+  useEffect(()=>{
+    if(open||!returnFocusRef.current)return;
+    returnFocusRef.current=false;
+    const frame=window.requestAnimationFrame(()=>triggerRef.current?.focus());
+    return()=>window.cancelAnimationFrame(frame);
+  },[open]);
+
   useEffect(()=>{
     if(!open||disabled)return;
     const timer=window.setTimeout(()=>inputRef.current?.focus(),0);
     const closeOnEscape=(event:KeyboardEvent)=>{
       if(event.key==="Escape"){
+        returnFocusRef.current=true;
         setOpen(false);
-        window.requestAnimationFrame(()=>triggerRef.current?.focus());
       }
     };
     const closeOnOutside=(event:PointerEvent)=>{
@@ -140,8 +150,8 @@ export default function AdminArticleSearch({
   },[activeIndex]);
 
   const close=()=>{
+    returnFocusRef.current=true;
     setOpen(false);
-    window.requestAnimationFrame(()=>triggerRef.current?.focus());
   };
   const browse=(postId:number,publicId?:string)=>{
     close();
