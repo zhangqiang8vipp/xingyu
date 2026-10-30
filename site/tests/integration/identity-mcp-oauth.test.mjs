@@ -29,6 +29,7 @@ async function submitConsent(harness,cookie,params,token){
   const payload=new URLSearchParams(params);
   payload.set("consent_token",token);
   payload.set("decision","allow");
+  payload.set("connection_label","ChatGPT 测试工作号");
   return harness.dispatch("/oauth/authorize",{
     method:"POST",redirect:"manual",
     headers:{cookie,origin:harness.origin,"Content-Type":"application/x-www-form-urlencoded"},
@@ -58,6 +59,10 @@ test("MCP OAuth login and consent are separate; code, refresh and revocation rem
 
     const allowed=await submitConsent(h,alice.cookie,params,signed);
     assert.equal(allowed.status,302);
+    const labelRecord=await h.db.prepare("SELECT label FROM oauth_connection_labels WHERE client_id=? AND subject=?")
+      .bind("chatgpt-xingyu","user:"+alice.id).first();
+    assert.equal(labelRecord?.label,"ChatGPT 测试工作号",
+      "OAuth consent page nickname must persist separately from immutable user subject");
     const location=new URL(allowed.headers.get("location")??"");
     assert.equal(location.origin,new URL(callback).origin);
     assert.equal(location.searchParams.get("state"),params.get("state"));
