@@ -784,3 +784,141 @@ body:has(.admin-shell .space-document-frontstage) .xy-ai-launcher{
   visibility:hidden;
   pointer-events:none;
 }
+
+
+/* OAuth connection manager: no giant card for every abandoned registration.
+ * The live grant is primary; unconsented and revoked records stay collapsed.
+ * The registration name is self-declared, the authorizing Xingyu user is known.
+ */
+.admin-shell .axis-connection-manager{min-width:0}
+.axis-connection-summary{
+  display:flex;align-items:center;flex-wrap:wrap;gap:13px;
+  margin:3px 0 17px;padding:14px 16px;
+  border:1px solid var(--admin-line);border-radius:14px;background:var(--admin-control);
+}
+.axis-connection-summary>div{display:flex;align-items:baseline;gap:7px}
+.axis-connection-summary>div+div{padding-left:15px;border-left:1px solid var(--admin-line)}
+.axis-connection-summary strong{color:var(--admin-ink);font-size:22px;font-variant-numeric:tabular-nums}
+.axis-connection-summary span{color:var(--admin-muted);font-size:12px}
+.axis-connection-summary>button{
+  margin-left:auto;min-height:38px;padding:0 14px;border:1px solid var(--admin-line-strong);
+  border-radius:11px;background:var(--admin-panel);color:var(--admin-copy);font-size:12px;
+}
+.axis-connection-list{
+  display:grid;gap:10px;min-width:0;
+}
+.axis-connection-row{
+  min-width:0;padding:16px 19px;border:1px solid var(--admin-line);
+  border-radius:15px;background:var(--admin-panel);
+}
+.axis-connection-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:15px}
+.axis-connection-name{display:grid;gap:5px;min-width:0;flex:1 1 280px}
+.axis-connection-name>small{
+  color:var(--admin-muted);font-size:11px;line-height:1.55;font-weight:550;
+}
+.axis-connection-name>strong{
+  color:var(--admin-ink);font-size:16px;font-weight:720;line-height:1.45;
+  overflow-wrap:anywhere;
+}
+.axis-connection-name>span{
+  color:var(--admin-copy);font-size:12px;line-height:1.6;overflow-wrap:anywhere;
+}
+.axis-connection-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+.axis-connection-state{
+  display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:5px 10px;
+  border-radius:999px;background:var(--admin-accent-soft);color:var(--admin-accent);
+  font-size:11px;font-weight:680;white-space:nowrap;
+}
+.axis-connection-state.inactive{color:var(--admin-muted);background:var(--admin-control)}
+.axis-connection-manager :is(.axis-connection-actions,.axis-connection-grant-title,.axis-connection-rename,.axis-connection-history-controls) button{
+  min-height:38px;padding:7px 12px;border:1px solid var(--admin-line-strong);
+  border-radius:10px;color:var(--admin-copy);background:var(--admin-control);
+  font-size:12px;font-weight:660;white-space:nowrap;
+}
+.axis-connection-manager button:hover:not(:disabled){
+  color:var(--admin-accent);border-color:var(--admin-accent);
+  background:var(--admin-accent-soft);
+}
+.axis-connection-manager button:disabled{opacity:.5;cursor:wait}
+.axis-connection-manager .axis-connection-danger{
+  color:#b73939;border-color:color-mix(in srgb,#b73939 26%,var(--admin-line));
+  background:color-mix(in srgb,#b73939 5%,var(--admin-panel));
+}
+.axis-connection-grants{
+  display:grid;gap:0;list-style:none;padding:0;margin:15px 0 0;
+  border-top:1px solid var(--admin-line);
+}
+.axis-connection-grants>li{
+  display:grid;gap:12px;min-width:0;padding:14px 0 2px;
+}
+.axis-connection-grants>li+li{border-top:1px solid var(--admin-line);padding-top:16px}
+.axis-connection-grants>li>div:first-child{display:grid;gap:7px;min-width:0}
+.axis-connection-grant-title{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.axis-connection-grant-title>b{
+  margin-right:auto;flex:1 1 170px;min-width:0;color:var(--admin-ink);
+  font-size:14px;line-height:1.55;overflow-wrap:anywhere;
+}
+.axis-connection-grants p{margin:0!important;color:var(--admin-muted);font-size:12px;line-height:1.65}
+.axis-connection-grants p strong{color:var(--admin-copy);font-weight:650}
+.axis-connection-grants em{
+  color:#be6a11;font-size:12px;font-style:normal;
+}
+.axis-connection-manager .axis-connection-rename{
+  display:flex;align-items:end;flex-wrap:wrap;gap:9px;
+  min-width:0;margin:13px 0 0;padding:12px;border:1px solid var(--admin-line);
+  border-radius:12px;background:var(--admin-control);
+}
+.axis-connection-manager .axis-connection-rename label{
+  flex:1 1 210px;min-width:0;display:grid;gap:7px;
+  color:var(--admin-copy);font-size:12px;
+}
+.axis-connection-manager .axis-connection-rename input{
+  width:100%;min-width:0;min-height:42px;padding:9px 12px;
+  border:1px solid var(--admin-line-strong);border-radius:10px;
+  color:var(--admin-ink);background:var(--admin-panel);font-size:14px;
+}
+.axis-connection-empty,.axis-connection-no-grants{
+  margin:12px 0;color:var(--admin-muted);font-size:13px;line-height:1.75;
+}
+.axis-connection-manager .axis-connection-history{
+  margin-top:18px;border:1px solid var(--admin-line);border-radius:14px;
+  background:var(--admin-control);overflow:hidden;
+}
+.axis-connection-history>summary{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;min-height:52px;padding:13px 17px;
+  color:var(--admin-copy);font-size:13px;font-weight:670;
+  cursor:pointer;list-style:none;
+}
+.axis-connection-history>summary::-webkit-details-marker{display:none}
+.axis-connection-history>summary>span{color:var(--admin-muted);font-size:12px;font-weight:500}
+.axis-connection-history[open]>summary{border-bottom:1px solid var(--admin-line)}
+.axis-connection-history-controls{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:12px;padding:13px 17px;
+}
+.axis-connection-history-controls>p{
+  flex:1 1 220px;margin:0;color:var(--admin-muted);font-size:12px;line-height:1.65;
+}
+.axis-connection-history>.axis-connection-list{padding:0 14px 15px}
+.axis-connection-history .axis-connection-row{background:var(--admin-panel)}
+.axis-connection-disclosure{
+  max-width:80ch;margin:17px 0 0;color:var(--admin-muted);
+  font-size:12px;line-height:1.7;
+}
+@media(max-width:800px){
+  .axis-connection-heading{flex-wrap:wrap}
+  .axis-connection-actions{width:100%;justify-content:flex-start}
+  .axis-connection-row{padding:14px}
+  .axis-connection-grant-title>b{flex-basis:100%}
+  .axis-connection-manager :is(.axis-connection-actions,.axis-connection-grant-title,.axis-connection-rename,.axis-connection-history-controls) button{
+    min-height:44px;
+  }
+  .axis-connection-manager .axis-connection-rename label{flex-basis:100%}
+  .axis-connection-summary>button{min-height:44px}
+  .axis-connection-summary>div+div{padding-left:11px}
+  .axis-connection-history>.axis-connection-list{padding:0 10px 12px}
+}
+@media(prefers-reduced-motion:reduce){
+  .axis-connection-manager *{scroll-behavior:auto}
+}
