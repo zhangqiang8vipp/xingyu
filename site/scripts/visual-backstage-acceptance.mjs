@@ -255,6 +255,9 @@ async function verifyFloatingSearch(page,origin,profile){
 
   await page.keyboard.press("Escape");
   await page.waitForSelector(".admin-search-island .admin-article-search-trigger",{visible:true,timeout:7000});
+  await page.waitForFunction(()=>document.activeElement===
+    document.querySelector(".admin-search-island .admin-article-search-trigger"),
+    {timeout:5000});
   assert.ok(await page.$eval(".admin-search-island .admin-article-search-trigger",element=>
     document.activeElement===element),"escape must restore focus to floating island");
   console.log("PASS "+profile.id+" real Worker AXIS floating search, opened screenshot and focus");
