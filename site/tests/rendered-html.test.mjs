@@ -287,7 +287,8 @@ test("admin previews unsaved content through the real public pages", async () =>
   assert.ok(sidebar.indexOf('label: "接入"') < sidebar.indexOf('label: "AI 连接"'));
   assert.match(sidebar, /label: "内容"/);
   assert.match(sidebar, /更多/);
-  assert.match(admin, /admin-workspace-bar/);
+  assert.match(admin, /className="admin-search-island"/, "global AXIS search remains a floating island");
+  assert.doesNotMatch(admin, /className="admin-workspace-bar"/, "legacy sticky toolbar must not return");
   assert.match(homeSettings, /HomeLivePreview settings=\{form\}/);
   assert.match(aboutEditor, /ContentPageLivePreview page=\{form\}/);
   assert.match(articleEditor, /onOpenStudio\("reading"\)/);
