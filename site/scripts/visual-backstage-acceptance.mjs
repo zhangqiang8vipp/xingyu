@@ -202,6 +202,15 @@ async function verifyFloatingSearch(page,origin,profile){
   await page.waitForFunction(()=>
     getComputedStyle(document.querySelector(".admin-article-search-results")).height!=="0px",
     {timeout:5000});
+  // The pill morphs for 420ms. Wait for the FINAL width before measuring or
+  // taking screenshots; otherwise Chromium captures a misleading half-width panel.
+  await page.waitForFunction(()=>{
+    const island=document.querySelector(".admin-shell > .admin-search-island");
+    if(!island)return false;
+    const width=island.getBoundingClientRect().width;
+    const expected=innerWidth<=800?innerWidth-18:Math.min(560,innerWidth-318);
+    return width>=expected-3;
+  },{timeout:7000});
   const opened=await page.evaluate(()=>{
     const island=document.querySelector(".admin-search-island");
     const panel=island.querySelector(".admin-article-search-dialog");
@@ -229,6 +238,8 @@ async function verifyFloatingSearch(page,origin,profile){
   });
   assert.ok(opened.visible&&opened.inputFocused&&opened.panel.height>=250,
     profile.id+" floating search must have a full readable panel: "+JSON.stringify(opened));
+  assert.ok(opened.panel.width >= (profile.width<=800 ? profile.width-24 : 530),
+    profile.id+" full-width search island must not be captured mid-animation: "+JSON.stringify(opened));
   assert.ok(opened.panel.left>=-1&&opened.panel.right<=profile.width+1&&
     opened.panel.top>=0&&opened.panel.bottom<=profile.height-52,
     profile.id+" floating search stays in viewport, away from bottom island: "+JSON.stringify(opened));
