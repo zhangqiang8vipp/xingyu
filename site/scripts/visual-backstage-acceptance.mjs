@@ -135,6 +135,18 @@ async function verifyPage(page,profile,section){
       profile.id+" "+section+" readable heading: "+JSON.stringify(m));
     assert.ok(m.leadDisplay!=="none",profile.id+" "+section+" heading description visible");
   }
+  if(section==="integrations"){
+    const identity=await page.evaluate(()=>({
+      active:document.querySelectorAll(".axis-connection-manager > .axis-connection-list > .axis-connection-row").length,
+      hiddenHistory:!document.querySelector(".axis-connection-history")?.open,
+      source:document.querySelector(".axis-connection-list")?.textContent??"",
+    }));
+    assert.equal(identity.active,1,profile.id+" only authorized clients appear in primary view");
+    assert.equal(identity.hiddenHistory,true,profile.id+" obsolete registrations must be collapsed");
+    assert.ok(identity.source.includes("客户端自报：Google"));
+    assert.ok(identity.source.includes("axis-full-backstage-owner@example.test"),
+      "show Xingyu identity, not unverified Google account");
+  }
   if(["home","about","connect","integrations"].includes(section)){
     const footerMode=await page.$eval(".config-footer",node=>getComputedStyle(node).position);
     assert.equal(footerMode,"static",profile.id+" "+section+" save footer must not cover form content");
@@ -285,6 +297,14 @@ try{
   const owner=await makeActiveUser(h,"axis-full-backstage-owner");
   await h.db.prepare("INSERT INTO site_memberships(user_id,role) VALUES(?,'owner')")
     .bind(owner.id).run();
+  await h.db.prepare("INSERT INTO oauth_clients(client_id,client_name,redirect_uris,allowed_scopes) VALUES(?,?,?,?)")
+    .bind("xy_dcr_visual_active","Google",'["https://thirdparty.example.test/oauth/callback"]',"xingyu.read offline_access").run();
+  await h.db.prepare("INSERT INTO oauth_clients(client_id,client_name,redirect_uris,allowed_scopes) VALUES(?,?,?,?)")
+    .bind("xy_dcr_visual_abandoned","Google",'["https://thirdparty.example.test/oauth/callback"]',"xingyu.read offline_access").run();
+  await h.db.prepare("INSERT INTO oauth_consents(subject,client_id,resource,granted_scopes,granted_at) VALUES(?,?,?,?,?)")
+    .bind("user:"+owner.id,"xy_dcr_visual_active",h.origin+"/mcp","xingyu.read offline_access",
+      Math.floor(Date.now()/1000)).run();
+
   server=await proxy(h.worker);
   browser=await puppeteer.launch({headless:true,executablePath:browserBinary(),
     args:["--no-sandbox","--disable-dev-shm-usage","--disable-gpu"]});
