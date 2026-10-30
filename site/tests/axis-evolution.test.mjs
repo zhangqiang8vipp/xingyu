@@ -183,4 +183,8 @@ test("global search is the original fixed AXIS island, never a sticky toolbar or
   assert.match(css, /\.admin-article-search-results\s*\{\s*min-height:0/);
   assert.match(visual, /axis-search-open-/);
   assert.match(visual, /async function verifyFloatingSearch/);
+  assert.doesNotMatch(visual, /admin-workspace-bar/, "visual screenshots use the real floating island");
+  const spaces=read("scripts/visual-spaces-acceptance.mjs");
+  assert.doesNotMatch(spaces, /admin-workspace-bar/, "knowledge-space screenshots use the real floating island");
+  assert.match(read("features/admin/AdminArticleSearch.tsx"), /returnFocusRef/, "Escape focus return waits for React remount");
 });
