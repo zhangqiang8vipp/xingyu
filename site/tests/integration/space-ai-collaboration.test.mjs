@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {randomBytes,createHash} from "node:crypto";
 import {openTestHarness,closeTestHarness,jsonRequest,callMcpTool,callMcpRaw,loginAdmin} from "./harness.mjs";
 import {makeActiveUser} from "./identity-fixtures.mjs";
+import {makeReverseDelta} from "../../domain/revision-delta.mjs";
 
 const digest=value=>createHash("sha256").update(value).digest("hex");
 async function api(h,path,{cookie,method="GET",body}={}){
@@ -495,5 +496,66 @@ test("invited editors can preview, rename and share a single private document wh
     const row=await h.db.prepare("SELECT COUNT(*) AS n FROM document_revisions WHERE post_id=?")
       .bind(created.body.result.id).first();
     assert.equal(row.n,0,"deletion trigger must clean document history");
+  }finally{await closeTestHarness(h);}
+});
+
+test("compacted reverse-delta history is fully readable, restorable and leaves permissions intact",async()=>{
+  const h=await openTestHarness();
+  try{
+    const owner=await makeActiveUser(h,"delta-owner");
+    const root=await rootOf(h,owner.workspaceId);
+    const original="# 差异历史\n"+("这是需要保留的历史正文😀；每一行都必须能够恢复。\n".repeat(120))+"\n结尾：初始状态";
+    const created=await api(h,"/api/space-collaboration/"+root,{cookie:owner.cookie,method:"POST",body:{
+      action:"create_document",title:"历史差异验证",content:original,
+    }});
+    assert.equal(created.status,201,JSON.stringify(created.body));
+    const id=created.body.result.publicId;
+    const postId=created.body.result.id;
+    const path="/api/space-collaboration/documents/"+id;
+    const rename=await api(h,path,{cookie:owner.cookie,method:"PATCH",body:{
+      action:"rename",title:"历史差异验证（重命名）",baseVersion:1,
+    }});
+    assert.equal(rename.status,200,JSON.stringify(rename.body));
+    assert.equal(rename.body.result.version,2);
+    const patch1=makeReverseDelta(original,original);
+    assert.ok(patch1,"the title-only edit must not duplicate a long body");
+    await h.db.prepare("UPDATE document_revisions SET content='',reverse_patch=?,original_content_length=?,compaction_state='delta' WHERE post_id=? AND version=1")
+      .bind(patch1,original.length,postId).run();
+    const revised=original.replace("结尾：初始状态","结尾：更新后的状态");
+    const edited=await api(h,path,{cookie:owner.cookie,method:"PATCH",body:{
+      baseVersion:2,content:revised,summary:"修订尾部",
+    }});
+    assert.equal(edited.status,200,JSON.stringify(edited.body));
+    assert.equal(edited.body.result.version,3);
+    const patch2=makeReverseDelta(revised,original);
+    assert.ok(patch2,"small Markdown updates should produce a patch");
+    await h.db.prepare("UPDATE document_revisions SET content='',reverse_patch=?,original_content_length=?,compaction_state='delta' WHERE post_id=? AND version=2")
+      .bind(patch2,original.length,postId).run();
+
+    const older=await api(h,path+"?revision=1",{cookie:owner.cookie});
+    const middle=await api(h,path+"?revision=2",{cookie:owner.cookie});
+    assert.equal(older.status,200,JSON.stringify(older.body));
+    assert.equal(older.body.revision.content,original);
+    assert.equal(middle.body.revision.content,original);
+    assert.equal(older.body.revision.title,"历史差异验证");
+    const history=await api(h,path+"?history=1",{cookie:owner.cookie});
+    assert.deepEqual(history.body.revisions.map(v=>v.version),[3,2,1]);
+    assert.equal(history.body.revisions[2].contentLength,original.length);
+    const rows=await h.db.prepare("SELECT version,content,reverse_patch FROM document_revisions WHERE post_id=? ORDER BY version").bind(postId).all();
+    assert.equal(rows.results[0].content,"");
+    assert.equal(rows.results[1].content,"");
+    assert.equal(rows.results[2].content,revised);
+
+    const restored=await api(h,path,{cookie:owner.cookie,method:"POST",body:{
+      action:"restore",revision:1,expectedVersion:3,
+    }});
+    assert.equal(restored.status,200,JSON.stringify(restored.body));
+    assert.equal(restored.body.result.version,4);
+    const current=await api(h,path,{cookie:owner.cookie});
+    assert.equal(current.body.document.content,original);
+    assert.equal(current.body.document.title,"历史差异验证（重命名）",
+      "restoring body history does not overwrite modern document metadata");
+    const noAccess=await api(h,path,{cookie:"invalid"});
+    assert.notEqual(noAccess.status,200);
   }finally{await closeTestHarness(h);}
 });
