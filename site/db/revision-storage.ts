@@ -1,4 +1,4 @@
-import {applyReverseDelta} from "@/domain/revision-delta.mjs";
+import {applyReverseDelta} from "../domain/revision-delta.mjs";
 
 export type RevisionPost={id:number;workspaceId:number;version:number;content:string};
 type RevisionRecord={
