@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {readdirSync} from "node:fs";
 import {expectedMigrationFiles,inspectSchema27,rowsFromD1} from "../scripts/axis-schema-27-release.mjs";
 
-const files=expectedMigrationFiles();
+// Test the historical schema-27 guard against its ORIGINAL migration set.
+ // The old one-time release must now refuse real invocations because schema-28
+ // is present; preserving these pure invariant tests prevents unsafe reuse.
+const files=readdirSync(new URL("../drizzle/",import.meta.url))
+  .filter(name=>/^\d{4}_.+\.sql$/.test(name)).sort().slice(0,26);
 const meta=(version,environment="production")=>[
   {key:"schema_version",value:version},
   {key:"app_environment",value:environment},
@@ -11,6 +16,9 @@ const meta=(version,environment="production")=>[
 const migrations=(count)=>files.slice(0,count).map(name=>({name}));
 const shape=(migrated)=>migrated?[{type:"table",name:"oauth_connection_labels"}]:[];
 
+test("retired schema-27 production workflow refuses a newer migration inventory",()=>{
+  assert.throws(()=>expectedMigrationFiles(),/only the exact 0025 additive migration/);
+});
 test("schema 27 release requires exactly the additive migration at index 25",()=>{
   assert.equal(files.length,26);
   assert.equal(files[25],"0025_oauth_connection_labels.sql");
