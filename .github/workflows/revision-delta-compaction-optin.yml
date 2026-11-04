@@ -95,6 +95,7 @@ jobs:
           test "$MODE" = "enable"
           test "$CONFIRM" = "ENABLE-REVISION-DELTAS"
           test "$BACKUP_ACK" = "TIME-TRAVEL-IS-TEMPORARY"
+          echo "::notice::PRE-COMPACTION D1 RECOVERY UTC: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           npx wrangler d1 time-travel info DB --config wrangler.production.jsonc --json > "$ROOT/bookmark.json"
           node -e 'const fs=require("node:fs");const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));let found=false;const walk=x=>{if(!x||typeof x!=="object")return;for(const [k,y] of Object.entries(x)){if(/bookmark/i.test(k)&&typeof y==="string"&&y.length>12)found=true;else if(y&&typeof y==="object")walk(y)}};walk(v);if(!found)throw Error("D1 Time Travel bookmark unavailable");console.log("D1 recovery point verified; bookmarks expire, do not auto-restore")' "$ROOT/bookmark.json"
           npx wrangler d1 execute DB --config wrangler.production.jsonc --remote --command "INSERT INTO app_meta(key,value) SELECT 'revision_delta_compaction_enabled','1' WHERE (SELECT value FROM app_meta WHERE key='schema_version')='28' AND (SELECT value FROM app_meta WHERE key='app_environment')='production' AND (SELECT value FROM app_meta WHERE key='instance_id')='production:xingyu-blog' ON CONFLICT(key) DO UPDATE SET value='1' WHERE (SELECT value FROM app_meta WHERE key='schema_version')='28'" --json > "$ROOT/enabled.json"
