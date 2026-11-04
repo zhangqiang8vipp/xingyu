@@ -1,5 +1,5 @@
-import {makeReverseDelta,applyReverseDelta} from "@/domain/revision-delta.mjs";
-import {readStoredRevisionContent} from "./revision-storage";
+import {makeReverseDelta,applyReverseDelta} from "../domain/revision-delta.mjs";
+import {readStoredRevisionContent} from "./revision-storage.ts";
 
 type Candidate={
   postId:number;workspaceId:number;version:number;content:string;
