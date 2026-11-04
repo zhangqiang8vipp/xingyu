@@ -40,6 +40,6 @@
 
 1. 完整 CI、schema28 DB 迁移、多人共创的独立修改自动合并、同一位置冲突、历史预览与旧版本恢复，必须在真实隔离 D1 中测试通过。
 2. 生产上线后只读检查 `app_meta` 身份、`document_revisions` 新列及样本历史的可读取性，再启用清理；任何不一致停止。
-3. Cloudflare Time Travel 是**有期限**的恢复能力，不能替代长期加密的离线/私有数据库备份。若要跨恢复保留期仍能灾难恢复，应先建立**不上传到公开 GitHub artifact 或公共 R2**的长期备份方案，再扩大历史清理量。
+3. Cloudflare Time Travel 是**有期限**的恢复能力（通常 Workers Paid 30 天、Free 7 天，具体以实际计划为准），不能替代长期加密的离线/私有数据库备份。两个工作流会在操作前把可用于按时间点恢复的 UTC 时间戳记录在 Actions notice，数据库内容和临时 bookmark JSON 不写入公开日志。若要跨恢复保留期仍能灾难恢复，应先建立**不上传到公开 GitHub artifact 或公共 R2**的长期备份方案，再扩大历史清理量。
 4. 不应在日志中输出 Markdown 私有正文、OAuth 密钥或完整用户内容。复核摘要或行数即可。
 5. 不要直接运行普通 `Deploy production` 去部署 schema28 代码到 schema27 库；旧的 schema27 专项发布入口也不适用于 schema28。
