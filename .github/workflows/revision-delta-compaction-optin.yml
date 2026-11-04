@@ -4,14 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "audit is read-only; enable starts bounded daily compaction"
+        description: "audit=read-only, enable=start, disable=stop future compaction"
         required: true
         type: choice
         options:
           - audit
           - enable
+          - disable
       confirm:
-        description: "For enable type ENABLE-REVISION-DELTAS"
+        description: "For enable type ENABLE-REVISION-DELTAS; disable: DISABLE-REVISION-DELTAS"
         required: false
         type: string
       backup_ack:
@@ -81,6 +82,14 @@ jobs:
 
           if [[ "$MODE" == "audit" ]]; then
             echo "::notice::Read-only history audit complete; no database write was made."
+            exit 0
+          fi
+          if [[ "$MODE" == "disable" ]]; then
+            test "$CONFIRM" = "DISABLE-REVISION-DELTAS"
+            npx wrangler d1 execute DB --config wrangler.production.jsonc --remote --command "INSERT INTO app_meta(key,value) VALUES ('revision_delta_compaction_enabled','0') ON CONFLICT(key) DO UPDATE SET value='0'" --json > "$ROOT/disabled.json"
+            npx wrangler d1 execute DB --config wrangler.production.jsonc --remote --command "SELECT key,value FROM app_meta WHERE key='revision_delta_compaction_enabled'" --json > "$ROOT/verify.json"
+            node -e 'const fs=require("node:fs");const a=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const entries=Array.isArray(a)?a:[a];if(entries.some(x=>x.success===false))throw Error("Remote D1 disable failed");const rows=entries.flatMap(x=>x.results??[]);if(rows.length!==1||rows[0].value!=="0")throw Error("Compaction flag did not disable");console.log("Future revision compaction disabled; past deltas remain reversible")' "$ROOT/verify.json"
+            echo "::notice::Daily history compaction was disabled; historical revisions were not deleted."
             exit 0
           fi
           test "$MODE" = "enable"
