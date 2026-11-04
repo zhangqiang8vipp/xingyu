@@ -6,6 +6,7 @@ import { sessionDigest } from "@/server/auth/identity-session";
 import { normalizeEmail } from "@/server/auth/identity";
 import { createPostPublicId } from "@/db/public-id";
 import { mergeMarkdown } from "@/domain/posts/three-way-merge.mjs";
+import { readStoredRevisionContent } from "@/db/revision-storage";
 import { listPostPreviewTokens } from "@/db/post-preview-tokens";
 
 export type SpaceCollaborationRole="owner"|"admin"|"editor"|"viewer";
@@ -412,7 +413,7 @@ export async function getCollaborativeDocument(userId:number,identifier:string){
 export async function listDocumentRevisions(userId:number,identifier:string,limit=30){
   const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!);
   const num=Math.max(1,Math.min(100,Number.isInteger(limit)?limit:30));
-  const rows=await env.DB.prepare("SELECT version,title,actor_user_id AS actorUserId,client_label AS clientLabel,created_at AS createdAt,length(content) AS contentLength FROM document_revisions WHERE post_id=? AND workspace_id=? ORDER BY version DESC LIMIT ?")
+  const rows=await env.DB.prepare("SELECT version,title,actor_user_id AS actorUserId,client_label AS clientLabel,created_at AS createdAt,CASE WHEN reverse_patch IS NULL THEN length(content) ELSE original_content_length END AS contentLength FROM document_revisions WHERE post_id=? AND workspace_id=? ORDER BY version DESC LIMIT ?")
     .bind(post.id,post.workspaceId,num).all();
   return rows.results??[];
 }
@@ -421,7 +422,9 @@ export async function getDocumentRevision(userId:number,identifier:string,versio
   const rev=await env.DB.prepare("SELECT version,title,content,actor_user_id AS actorUserId,client_label AS clientLabel,created_at AS createdAt FROM document_revisions WHERE post_id=? AND workspace_id=? AND version=?")
     .bind(post.id,post.workspaceId,version).first();
   if(!rev)throw new SpaceCollaborationError("历史版本不存在",404);
-  return rev;
+  const content=await readStoredRevisionContent(env.DB,post,version);
+  if(content===null)throw new SpaceCollaborationError("历史版本不存在",404);
+  return {...rev,content};
 }
 export async function listDocumentProposals(userId:number,identifier:string){
   const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!,"manage");
@@ -441,10 +444,9 @@ export async function proposeDocumentChange(userId:number,identifier:string,base
   ensureId(baseVersion);const content=contentLimit(proposedContent);
   const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!,"write");
   if(baseVersion>post.version)throw new SpaceCollaborationError("提交版本不可能晚于当前版本",409);
-  const base=await env.DB.prepare("SELECT content FROM document_revisions WHERE post_id=? AND workspace_id=? AND version=?")
-    .bind(post.id,post.workspaceId,baseVersion).first<{content:string}>();
-  if(!base)throw new SpaceCollaborationError("基础版本快照不存在，请刷新文档",409);
-  const merged=mergeMarkdown(base.content,post.content,content);
+  const base=await readStoredRevisionContent(env.DB,post,baseVersion);
+  if(base===null)throw new SpaceCollaborationError("基础版本不存在，请刷新文档",409);
+  const merged=mergeMarkdown(base,post.content,content);
   if(merged.status==="conflict"){
     const id=crypto.randomUUID();
     const gate=gateSql("write");
@@ -492,12 +494,11 @@ export async function restoreDocumentRevision(userId:number,identifier:string,re
   const post=await rawDocument(identifier);await spaceAccess(userId,post.spaceId!,"manage");
   ensureId(revision);ensureId(expectedVersion);
   if(post.version!==expectedVersion)throw new SpaceCollaborationError("文档已更新，请重新检查后恢复",409);
-  const previous=await env.DB.prepare("SELECT content FROM document_revisions WHERE post_id=? AND workspace_id=? AND version=?")
-    .bind(post.id,post.workspaceId,revision).first<{content:string}>();
-  if(!previous)throw new SpaceCollaborationError("版本不存在",404);
+  const previous=await readStoredRevisionContent(env.DB,post,revision);
+  if(previous===null)throw new SpaceCollaborationError("版本不存在",404);
   const result=await env.DB.batch([
     env.DB.prepare("UPDATE posts SET content=?,version=version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND workspace_id=? AND space_id=? AND version=? AND "+gateSql("manage")+" RETURNING version")
-      .bind(previous.content,userId,post.id,post.workspaceId,post.spaceId,expectedVersion,...gateParams(post.workspaceId,userId,post.spaceId!)),
+      .bind(previous,userId,post.id,post.workspaceId,post.spaceId,expectedVersion,...gateParams(post.workspaceId,userId,post.spaceId!)),
     env.DB.prepare("UPDATE document_revisions SET client_label=? WHERE post_id=? AND version=? AND changes()=1")
       .bind(safeClient(clientLabel),post.id,post.version+1),
     env.DB.prepare("INSERT INTO mcp_activity(workspace_id,action,post_id,public_id,title,changed_fields,summary,client_label) SELECT workspace_id,'update_post',id,public_id,title,'[\"content\"]',?,? FROM posts WHERE id=? AND workspace_id=? AND version=? AND changes()=1")

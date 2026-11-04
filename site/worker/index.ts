@@ -9,6 +9,7 @@ import { adminRuntimeEnv, requestHasAdminSession, validSessionSecret } from "@/d
 import { handleOAuthRequest, isOAuthPath } from "./oauth";
 import { enqueueExpiredUnboundAttachments, UNBOUND_ATTACHMENT_RETENTION_DAYS } from "@/db/attachment-cleanup";
 import { cleanupExpiredPostViews, POST_VIEWS_RETENTION_DAYS } from "@/db/view-tracking";
+import { compactDocumentRevisions } from "@/db/revision-compaction";
 import { ensureDatabase } from "@/db/bootstrap";
 import { schemaVersion } from "@/db/bootstrap";
 import { collectSiteHealth } from "@/db/health";
@@ -231,6 +232,22 @@ const worker = {
         console.error(JSON.stringify({
           event: "qa_quota_retention_cleanup_failed",
           errorType: error instanceof Error ? error.name : typeof error,
+        }));
+      }
+      try {
+        // Disabled until a protected production release records a D1 Time
+        // Travel bookmark and explicitly opts in to bounded compaction.
+        const enabled=await env.DB.prepare(
+          "SELECT value FROM app_meta WHERE key='revision_delta_compaction_enabled'"
+        ).first<{value:string}>();
+        if(enabled?.value==="1"){
+          const report=await compactDocumentRevisions(env.DB,25);
+          console.log(JSON.stringify({event:"revision_delta_compaction",...report}));
+        }
+      }catch(error){
+        console.error(JSON.stringify({
+          event:"revision_delta_compaction_failed",
+          errorType:error instanceof Error?error.name:typeof error,
         }));
       }
       try {

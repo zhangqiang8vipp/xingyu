@@ -12,7 +12,7 @@ import { assertStoredInstanceIdentity, requireRuntimeInstanceIdentity } from "./
 let ready: Promise<void> | null = null;
 
 /** 当前 worker 期望的 D1 schema 版本，供健康检查与迁移门禁共用。 */
-export const schemaVersion = "27";
+export const schemaVersion = "28";
 
 const requiredUniqueIndexes = {
   attachments_object_key_uidx: { table: "attachments", columns: ["object_key"] },
@@ -118,6 +118,12 @@ async function initialize() {
       || !/\bcontent_rowid\s*=\s*'id'/i.test(ftsDefinition)
       || !/\btokenize\s*=\s*'trigram'/i.test(ftsDefinition)) {
       throw new Error("D1 posts_fts is not the required content-linked FTS5 index");
+    }
+    const revisionColumns=await d1.prepare("PRAGMA table_info(document_revisions)")
+      .all<{name:string;type:string;notnull:number;dflt_value:string|null}>();
+    const revisionNames=new Set((revisionColumns.results??[]).map(({name})=>name));
+    if(!["reverse_patch","original_content_length","compaction_state"].every(name=>revisionNames.has(name))){
+      throw new Error("D1 revision delta storage columns are missing or incompatible");
     }
     const postColumns = await d1.prepare("PRAGMA table_info(posts)")
       .all<{ name: string; type: string; notnull: number; dflt_value: string | null }>();
