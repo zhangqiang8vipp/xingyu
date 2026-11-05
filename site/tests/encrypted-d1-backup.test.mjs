@@ -43,7 +43,7 @@ test("bad key, tiny SQL and altered plaintext cannot produce a trusted backup",a
 });
 
 test("protected enable always backs up before enabling and audit remains read only",()=>{
-  const workflow=readFileSync(resolve(".github/workflows/revision-delta-compaction-optin.yml"),"utf8");
+  const workflow=readFileSync(resolve("..",".github/workflows/revision-delta-compaction-optin.yml"),"utf8");
   const backupCall='bash scripts/revision-private-backup.sh';
   const positionEnable=workflow.lastIndexOf(backupCall);
   const positionWrite=workflow.indexOf("INSERT INTO app_meta(key,value) SELECT 'revision_delta_compaction_enabled','1'");
