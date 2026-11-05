@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {randomBytes} from "node:crypto";
 import {mkdtemp,readFile,writeFile,rm} from "node:fs/promises";
-import {join} from "node:path";
+import {join,resolve} from "node:path";
+import {readFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {encryptBackup,verifyBackup} from "../scripts/encrypted-d1-backup.mjs";
 
@@ -39,4 +40,15 @@ test("bad key, tiny SQL and altered plaintext cannot produce a trusted backup",a
     await writeFile(sql,"Y".repeat(5000));
     await assert.rejects(verifyBackup(sql,encrypted,key),/does not match/);
   }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test("protected enable always backs up before enabling and audit remains read only",()=>{
+  const workflow=readFileSync(resolve(".github/workflows/revision-delta-compaction-optin.yml"),"utf8");
+  const backupCall='bash scripts/revision-private-backup.sh';
+  const positionEnable=workflow.lastIndexOf(backupCall);
+  const positionWrite=workflow.indexOf("INSERT INTO app_meta(key,value) SELECT 'revision_delta_compaction_enabled','1'");
+  assert.ok(positionEnable>=0&&positionEnable<positionWrite,
+    "encrypted R2 backup must precede the first enable flag write");
+  assert.match(workflow,/if \[\[ "\$MODE" == "audit" \]\]; then/);
+  assert.match(workflow,/if \[\[ "\$MODE" == "backup" \]\]; then/);
 });
