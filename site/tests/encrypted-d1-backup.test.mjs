@@ -5,7 +5,7 @@ import {mkdtemp,readFile,writeFile,rm} from "node:fs/promises";
 import {join,resolve} from "node:path";
 import {readFileSync} from "node:fs";
 import {tmpdir} from "node:os";
-import {encryptBackup,verifyBackup} from "../scripts/encrypted-d1-backup.mjs";
+import {encryptBackup,verifyBackup,decryptBackup} from "../scripts/encrypted-d1-backup.mjs";
 
 test("encrypted private D1 export roundtrips exactly",async()=>{
   const root=await mkdtemp(join(tmpdir(),"xingyu-d1-"));
@@ -17,12 +17,20 @@ test("encrypted private D1 export roundtrips exactly",async()=>{
     const size=await encryptBackup(sql,encrypted,key);
     assert.ok(size>1024);
     assert.equal(await verifyBackup(sql,encrypted,key),true);
+    const restored=join(root,"restored.sql");
+    await decryptBackup(encrypted,restored,key);
+    assert.equal((await readFile(restored,"utf8")),original);
+    await assert.rejects(decryptBackup(encrypted,restored,key),/EEXIST/);
+    assert.equal((await readFile(restored,"utf8")),original,"existing restore cannot be overwritten");
     const encryptedContent=await readFile(encrypted);
     assert.equal(encryptedContent.includes(Buffer.from("知识空间机密内容")),false);
     await assert.rejects(verifyBackup(sql,encrypted,randomBytes(32).toString("base64")));
     encryptedContent[Math.floor(encryptedContent.length/2)]^=0x40;
     await writeFile(encrypted,encryptedContent);
     await assert.rejects(verifyBackup(sql,encrypted,key));
+    const damaged=join(root,"damaged.sql");
+    await assert.rejects(decryptBackup(encrypted,damaged,key));
+    await assert.rejects(readFile(damaged),/ENOENT/);
   }finally{await rm(root,{recursive:true,force:true});}
 });
 
