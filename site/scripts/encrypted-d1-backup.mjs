@@ -33,14 +33,18 @@ export async function encryptBackup(source,destination,encodedKey){
   if(!info.isFile()||info.size<1024)throw new Error("Incomplete D1 SQL export");
   const key=secretKey(encodedKey),nonce=randomBytes(NONCE_BYTES);
   const cipher=createCipheriv("aes-256-gcm",key,nonce);
+  let owned=false;
   try{
-    const output=createWriteStream(destination,{flags:"wx",mode:0o600});
+    const reserved=await open(destination,"wx",0o600);
+    owned=true;
+    await reserved.close();
+    const output=createWriteStream(destination,{flags:"w",mode:0o600});
     output.write(Buffer.concat([MARK,nonce]));
     await pipeline(createReadStream(source),cipher,output);
     await appendFile(destination,cipher.getAuthTag());
     return (await stat(destination)).size;
   }catch(error){
-    await unlink(destination).catch(()=>{});
+    if(owned)await unlink(destination).catch(()=>{});
     throw error;
   }finally{key.fill(0);}
 }
@@ -89,14 +93,18 @@ export async function decryptBackup(encrypted,destination,encodedKey){
       throw new Error("Unrecognized D1 backup format");
   }finally{await handle.close();}
   const key=secretKey(encodedKey);
+  let owned=false;
   try{
+    const reserved=await open(destination,"wx",0o600);
+    owned=true;
+    await reserved.close();
     const decipher=createDecipheriv("aes-256-gcm",key,head.subarray(MARK.length));
     decipher.setAuthTag(tag);
     await pipeline(createReadStream(encrypted,{start:offset,end:info.size-TAG_BYTES-1}),
-      decipher,createWriteStream(destination,{flags:"wx",mode:0o600}));
+      decipher,createWriteStream(destination,{flags:"w",mode:0o600}));
     return (await stat(destination)).size;
   }catch(error){
-    await unlink(destination).catch(()=>{});
+    if(owned)await unlink(destination).catch(()=>{});
     throw error;
   }finally{key.fill(0);}
 }
