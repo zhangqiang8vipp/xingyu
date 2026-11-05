@@ -72,15 +72,45 @@ export async function verifyBackup(source,encrypted,encodedKey){
     return true;
   }finally{key.fill(0);}
 }
+/** Restore an independently downloadable R2 ciphertext into a protected SQL file.
+ * AES-GCM authentication must succeed before the file is considered usable.
+ * A failed decrypt always removes the partial plaintext.
+ */
+export async function decryptBackup(encrypted,destination,encodedKey){
+  if(resolve(encrypted)===resolve(destination))throw new Error("Source and destination must differ");
+  const info=await stat(encrypted),offset=MARK.length+NONCE_BYTES;
+  if(!info.isFile()||info.size<offset+TAG_BYTES+1024)throw new Error("Incomplete encrypted D1 backup");
+  const handle=await open(encrypted,"r");
+  const head=Buffer.alloc(offset),tag=Buffer.alloc(TAG_BYTES);
+  try{
+    const a=await handle.read(head,0,offset,0);
+    const b=await handle.read(tag,0,TAG_BYTES,info.size-TAG_BYTES);
+    if(a.bytesRead!==offset||b.bytesRead!==TAG_BYTES||!head.subarray(0,MARK.length).equals(MARK))
+      throw new Error("Unrecognized D1 backup format");
+  }finally{await handle.close();}
+  const key=secretKey(encodedKey);
+  try{
+    const decipher=createDecipheriv("aes-256-gcm",key,head.subarray(MARK.length));
+    decipher.setAuthTag(tag);
+    await pipeline(createReadStream(encrypted,{start:offset,end:info.size-TAG_BYTES-1}),
+      decipher,createWriteStream(destination,{flags:"wx",mode:0o600}));
+    return (await stat(destination)).size;
+  }catch(error){
+    await unlink(destination).catch(()=>{});
+    throw error;
+  }finally{key.fill(0);}
+}
+
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const [mode,source,destination]=process.argv.slice(2);
   try{
-    if(!source||!destination)throw new Error("Usage: encrypt|verify SOURCE DESTINATION");
+    if(!source||!destination)throw new Error("Usage: encrypt|verify|decrypt SOURCE DESTINATION");
     const key=process.env.REVISION_BACKUP_KEY_B64;
     if(mode==="encrypt")await encryptBackup(source,destination,key);
     else if(mode==="verify")await verifyBackup(source,destination,key);
+    else if(mode==="decrypt")await decryptBackup(source,destination,key);
     else throw new Error("Use encrypt or verify");
-    console.log(mode==="encrypt"?"Private backup encrypted":"Retrieved R2 backup authenticated and byte-for-byte verified");
+    console.log(mode==="encrypt"?"Private backup encrypted":mode==="verify"?"Retrieved R2 backup authenticated and byte-for-byte verified":"Authenticated backup decrypted into a private local SQL file");
   }catch(error){
     console.error(error instanceof Error?error.message:"Backup failed closed");
     process.exitCode=1;
