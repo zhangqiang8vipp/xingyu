@@ -16,7 +16,7 @@ if [[ ! "$REVISION_BACKUP_BUCKET" =~ ^xingyu-private-[a-z0-9-]+$ ]]; then
 fi
 
 ROOT="$(mktemp -d "$RUNNER_TEMP/xingyu-revision-backup.XXXXXXXX")"
-trap 'rm -f "$ROOT/d1.sql" "$ROOT/d1.enc" "$ROOT/from-r2.enc"; rmdir "$ROOT" 2>/dev/null || true' EXIT
+trap 'rm -f "$ROOT/d1.sql" "$ROOT/d1.enc" "$ROOT/from-r2.enc" "$ROOT/meta.json"; rmdir "$ROOT" 2>/dev/null || true' EXIT
 node scripts/verify-production-deploy.mjs config
 npx wrangler d1 execute DB --config wrangler.production.jsonc --remote --command "SELECT key,value FROM app_meta WHERE key IN ('schema_version','app_environment','instance_id')" --json > "$ROOT/meta.json"
 node scripts/verify-production-deploy.mjs d1 "$ROOT/meta.json"
