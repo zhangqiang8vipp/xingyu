@@ -4,11 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "audit=read-only, enable=start, disable=stop future compaction"
+        description: "audit=read-only, backup=encrypted private R2 export, enable=backup then start, disable=stop"
         required: true
         type: choice
         options:
           - audit
+          - backup
           - enable
           - disable
       confirm:
@@ -56,6 +57,8 @@ jobs:
           MODE: ${{ inputs.mode }}
           CONFIRM: ${{ inputs.confirm }}
           BACKUP_ACK: ${{ inputs.backup_ack }}
+          REVISION_BACKUP_BUCKET: ${{ vars.REVISION_BACKUP_BUCKET }}
+          REVISION_BACKUP_KEY_B64: ${{ secrets.REVISION_BACKUP_KEY_B64 }}
           WRANGLER_WRITE_LOGS: "false"
         run: |
           set -euo pipefail
@@ -92,9 +95,17 @@ jobs:
             echo "::notice::Daily history compaction was disabled; historical revisions were not deleted."
             exit 0
           fi
+          if [[ "$MODE" == "backup" ]]; then
+            bash scripts/revision-private-backup.sh
+            echo "::notice::Encrypted remote backup verified. No D1 history was changed."
+            exit 0
+          fi
           test "$MODE" = "enable"
           test "$CONFIRM" = "ENABLE-REVISION-DELTAS"
           test "$BACKUP_ACK" = "TIME-TRAVEL-IS-TEMPORARY"
+          # Required: private encrypted off-table backup. Fail before any
+          # D1 writes if the bucket, key, export or remote restore verification fails.
+          bash scripts/revision-private-backup.sh
           echo "::notice::PRE-COMPACTION D1 RECOVERY UTC: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           npx wrangler d1 time-travel info DB --config wrangler.production.jsonc --json > "$ROOT/bookmark.json"
           node -e 'const fs=require("node:fs");const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));let found=false;const walk=x=>{if(!x||typeof x!=="object")return;for(const [k,y] of Object.entries(x)){if(/bookmark/i.test(k)&&typeof y==="string"&&y.length>12)found=true;else if(y&&typeof y==="object")walk(y)}};walk(v);if(!found)throw Error("D1 Time Travel bookmark unavailable");console.log("D1 recovery point verified; bookmarks expire, do not auto-restore")' "$ROOT/bookmark.json"
