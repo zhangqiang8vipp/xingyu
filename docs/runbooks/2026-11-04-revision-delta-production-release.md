@@ -26,18 +26,19 @@
 
 ### 阶段 2：只读统计 → 单独批准有界清理
 
-先运行 `.github/workflows/revision-delta-compaction-optin.yml`，选择 `mode=audit`，**仅读取**旧版本数、正文字符和已转换记录数，不输出正文。确认备份和可重建抽样结果后，单独运行：
+先运行 `.github/workflows/revision-delta-compaction-optin.yml`，选择 `mode=audit`，**仅读取**旧版本数、正文字符和已转换记录数，不输出正文。确认可重建抽样结果，并接受 Time Travel 有时限、没有独立备份的风险后，单独运行：
 
 - `mode = enable`
 - `confirm = ENABLE-REVISION-DELTAS`
 - `backup_ack = TIME-TRAVEL-IS-TEMPORARY`
 
-**新增加密备份门槛（2026-11-05）**：本流程需先建立一个单独的私有 R2 桶（名称以 `xingyu-private-` 开头），不得绑定公开域名或开启 r2.dev，也**不能复用**现有的 `xingyu-production-media` 媒体桶。确认桶不会自动过期删除后，在 GitHub 受保护环境 `CLOUDFLARE` 中增加变量 `REVISION_BACKUP_BUCKET`（桶名）与 Secret `REVISION_BACKUP_KEY_B64`（`openssl rand -base64 32` 生成的独立 256 位密钥）。**密钥还必须单独保存到密码管理器或离线介质**，不能只保留在 GitHub；私有仓库文件和 Issue 都不能存储密钥。
+**2026-11-06：按站点所有者明确授权，生产差异压缩可仅依赖 D1 Time Travel，不要求新建 R2 桶。**
 
-- 先独立执行 `mode=backup`，此模式会校验生产 D1 身份，完整导出数据库 SQL，使用 AES-256-GCM 加密上传到单独私有 R2 桶，再从 R2 下载、验证认证标签和完整明文 SHA-256 回环。只读 D1；失败关闭、不启用压缩。不上传任何 SQL 或加密文件到公开 GitHub Artifact。
-- 此后执行 `mode=enable` 仍会**重新进行同样的全量加密备份及下载验证**，成功后再检查 Cloudflare Time Travel bookmark，最后才启用每日有界压缩。未配置 R2 变量或密钥、R2 不可读写、D1 导出异常、密钥错误、下载损坏时，不允许设置压缩标志。
-- 历史压缩不会删除版本行；保留原始内容的 R2 备份是可长期保存的单独副本，但与 D1 同在 Cloudflare 账户中，仍需另建跨账户/供应商的灾难恢复备份，以抵御账户级风险。
-- 如需恢复，需要从私有 R2 下载 `revision-history/*.sql.aes256gcm`，在安全、隔离的环境中用密码管理器提供的 `REVISION_BACKUP_KEY_B64` 环境变量执行 `node site/scripts/encrypted-d1-backup.mjs decrypt backup.sql.aes256gcm restored.sql`，用 AES-256-GCM 认证解密为新建的 `restored.sql`（命令拒绝覆盖已有文件）；先在隔离测试库核验后才考虑生产恢复，绝不能直接覆盖运行中的库。
+- `mode=enable` 仍需在 `main` 的受保护 `CLOUDFLARE` Environment 中运行，填写 `confirm=ENABLE-REVISION-DELTAS`、`backup_ack=TIME-TRAVEL-IS-TEMPORARY`，检查生产 D1 身份、schema28、站点健康，并**取得 Time Travel 书签**后才能写入开关。
+- 此选择**不创建独立备份**，D1 Time Travel 只能在 Cloudflare 实际提供的有限保留窗口内使用。超过期限、遇到账户级故障或恢复点不可用，可能再也无法取得旧版本原始完整快照；用户已明确要求先执行精简方案。
+- `mode=backup` 仍为**可选**。今后需要独立备份时，可单独创建未开放公网访问的 `xingyu-private-*` R2 桶，并在 GitHub `CLOUDFLARE` Environment 设置 `REVISION_BACKUP_BUCKET` 和 `REVISION_BACKUP_KEY_B64`，执行完整导出、AES-256-GCM 加密、R2 上传下载及回环校验。
+- 无论是否启用可选备份，都不会删除历史版本行；老版本正文存储只有经过相邻差异往返与重建校验才会从全量快照转换为差异。每日 cron 最多处理 25 条候选。
+- 若发现任何旧版预览、恢复或共创合并异常，应立即运行 `mode=disable`，先停止后续压缩并核查 D1；**不要直接回滚整库**，否则会丢失恢复点之后的新文章和编辑。
 
 工作流重新校验生产实例与 schema28，并确认 Time Travel 书签后才写入启用标记。现有每日 cron 将最多处理 25 条未压缩历史；每次更新都经过版本、全文、快照一致性及补丁回环校验。失败或未完成可安全重新执行，**不删除版本行**。
 
@@ -47,6 +48,6 @@
 
 1. 完整 CI、schema28 DB 迁移、多人共创的独立修改自动合并、同一位置冲突、历史预览与旧版本恢复，必须在真实隔离 D1 中测试通过。
 2. 生产上线后只读检查 `app_meta` 身份、`document_revisions` 新列及样本历史的可读取性，再启用清理；任何不一致停止。
-3. Cloudflare Time Travel 是**有期限**的恢复能力（通常 Workers Paid 30 天、Free 7 天，具体以实际计划为准），不能替代长期加密的离线/私有数据库备份。两个工作流会在操作前把可用于按时间点恢复的 UTC 时间戳记录在 Actions notice，数据库内容和临时 bookmark JSON 不写入公开日志。若要跨恢复保留期仍能灾难恢复，应先建立**不上传到公开 GitHub artifact 或公共 R2**的长期备份方案，再扩大历史清理量。
+3. Cloudflare Time Travel 是**有期限**的恢复能力（通常 Workers Paid 30 天、Free 7 天，具体以实际计划为准），不能替代长期加密的离线/私有数据库备份。启用工作流必须在操作前取得 Time Travel bookmark，并将恢复时间戳记录在 Actions notice，数据库内容和临时 bookmark JSON 不写入公开日志。如果未来扩大清理范围或需要跨保留期恢复，建议单独建立私有长期备份。
 4. 不应在日志中输出 Markdown 私有正文、OAuth 密钥或完整用户内容。复核摘要或行数即可。
 5. 不要直接运行普通 `Deploy production` 去部署 schema28 代码到 schema27 库；旧的 schema27 专项发布入口也不适用于 schema28。

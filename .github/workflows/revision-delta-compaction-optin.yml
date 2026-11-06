@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "audit=read-only, backup=encrypted private R2 export, enable=backup then start, disable=stop"
+        description: "audit=read-only, backup=optional encrypted R2, enable=Time Travel only, disable=stop"
         required: true
         type: choice
         options:
@@ -17,7 +17,7 @@ on:
         required: false
         type: string
       backup_ack:
-        description: "For enable type TIME-TRAVEL-IS-TEMPORARY"
+        description: "For enable type TIME-TRAVEL-IS-TEMPORARY (without independent backup)"
         required: false
         type: string
 
@@ -103,9 +103,10 @@ jobs:
           test "$MODE" = "enable"
           test "$CONFIRM" = "ENABLE-REVISION-DELTAS"
           test "$BACKUP_ACK" = "TIME-TRAVEL-IS-TEMPORARY"
-          # Required: private encrypted off-table backup. Fail before any
-          # D1 writes if the bucket, key, export or remote restore verification fails.
-          bash scripts/revision-private-backup.sh
+          # Explicit opt-in: run without an independent R2 backup. The existing
+          # protected production environment, instance/schema guard and required
+          # D1 Time Travel bookmark remain mandatory. No revision rows are deleted.
+          echo "::warning::Compaction uses only temporary D1 Time Travel recovery. No independent backup will be created."
           echo "::notice::PRE-COMPACTION D1 RECOVERY UTC: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           npx wrangler d1 time-travel info DB --config wrangler.production.jsonc --json > "$ROOT/bookmark.json"
           node -e 'const fs=require("node:fs");const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));let found=false;const walk=x=>{if(!x||typeof x!=="object")return;for(const [k,y] of Object.entries(x)){if(/bookmark/i.test(k)&&typeof y==="string"&&y.length>12)found=true;else if(y&&typeof y==="object")walk(y)}};walk(v);if(!found)throw Error("D1 Time Travel bookmark unavailable");console.log("D1 recovery point verified; bookmarks expire, do not auto-restore")' "$ROOT/bookmark.json"
