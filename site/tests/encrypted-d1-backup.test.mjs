@@ -50,13 +50,21 @@ test("bad key, tiny SQL and altered plaintext cannot produce a trusted backup",a
   }finally{await rm(root,{recursive:true,force:true});}
 });
 
-test("protected enable always backs up before enabling and audit remains read only",()=>{
+test("explicit Time Travel-only enable never requires an R2 bucket or backup key",()=>{
   const workflow=readFileSync(resolve("..",".github/workflows/revision-delta-compaction-optin.yml"),"utf8");
-  const backupCall='bash scripts/revision-private-backup.sh';
-  const positionEnable=workflow.lastIndexOf(backupCall);
-  const positionWrite=workflow.indexOf("INSERT INTO app_meta(key,value) SELECT 'revision_delta_compaction_enabled','1'");
-  assert.ok(positionEnable>=0&&positionEnable<positionWrite,
-    "encrypted R2 backup must precede the first enable flag write");
+  const enabled=workflow.slice(workflow.indexOf('          test "$MODE" = "enable"'));
+  const backupBranch=workflow.slice(workflow.indexOf('          if [[ "$MODE" == "backup" ]]'),workflow.indexOf('          test "$MODE" = "enable"'));
+  const writeIndex=enabled.indexOf("INSERT INTO app_meta(key,value) SELECT 'revision_delta_compaction_enabled','1'");
+  const bookmarkIndex=enabled.indexOf("npx wrangler d1 time-travel info DB");
+  const verifyIndex=enabled.indexOf("D1 recovery point verified");
+  assert.ok(writeIndex>0 && bookmarkIndex>0 && bookmarkIndex<verifyIndex && verifyIndex<writeIndex,
+    "enable requires a verified Time Travel bookmark before any D1 writes");
+  assert.match(enabled,/test "\$CONFIRM" = "ENABLE-REVISION-DELTAS"/);
+  assert.match(enabled,/test "\$BACKUP_ACK" = "TIME-TRAVEL-IS-TEMPORARY"/);
+  assert.doesNotMatch(enabled,/bash scripts\/revision-private-backup\.sh/,
+    "direct enable must not require optional encrypted R2 backup");
+  assert.match(backupBranch,/bash scripts\/revision-private-backup\.sh/,
+    "independent encrypted backup mode remains available");
   assert.match(workflow,/if \[\[ "\$MODE" == "audit" \]\]; then/);
   assert.match(workflow,/if \[\[ "\$MODE" == "backup" \]\]; then/);
 });
