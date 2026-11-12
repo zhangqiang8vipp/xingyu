@@ -206,10 +206,31 @@ async function inspect(browser, origin, p) {
     checkChrome(afterClose,p.id+" closed","initial");
 
     await page.evaluate(()=>document.querySelector("#experience")?.scrollIntoView({block:"center"}));
-    await page.click('.xy-mkt-mode-tabs button:last-of-type');
-    await page.waitForFunction(() => document.querySelector('.xy-mkt-mode-tabs button:last-of-type')?.getAttribute('aria-pressed') === 'true' &&
-      document.querySelector('.xy-mkt-context')?.textContent?.includes('MCP'),
-      {timeout:5000});
+    // Four distinct, stateful experiences - never a substituted "MCP" tab.
+    const modes=await page.$eval('.xy-mkt-mode-tabs [role="tab"]', nodes => nodes.map(node=>node.textContent?.trim()));
+    assert.deepEqual(modes.map(label => label?.match(/阅读|问题|考试|AI/)?.[0]), ["阅读","问题","考试","AI"],
+      p.id+" must expose the four agreed product experiences");
+
+    await page.click('#xy-mkt-tab-exam');
+    await page.waitForSelector('.xy-mkt-stage-exam', {visible:true, timeout:6000});
+    await page.click('.xy-mkt-answer-option:nth-child(3)');
+    await page.click('.xy-mkt-exam-submit button');
+    await page.waitForSelector('.xy-mkt-exam-feedback.is-correct',{visible:true,timeout:5000});
+
+    await page.click('#xy-mkt-tab-questions');
+    await page.waitForSelector('.xy-mkt-stage-questions',{visible:true,timeout:5000});
+    await page.click('.xy-mkt-question-picker button:nth-child(2)');
+    assert.ok((await page.$eval('.xy-mkt-answer-area', el=>el.textContent)).includes('修订'),
+      p.id+" switching a question should update its answer");
+
+    await page.click('#xy-mkt-tab-ai');
+    await page.waitForSelector('.xy-mkt-stage-ai',{visible:true,timeout:5000});
+    await page.click('.xy-mkt-ai-actions button:nth-child(2)');
+    assert.ok((await page.$eval('.xy-mkt-ai-response',el=>el.textContent)).includes('风险'),
+      p.id+" switching AI task should change example output");
+
+    await page.click('#xy-mkt-tab-reading');
+    await page.waitForSelector('.xy-mkt-stage-reader',{visible:true,timeout:5000});
     assert.deepEqual(errors,[],p.id+" JavaScript errors");
     console.log("PASS REAL AXIS HOME",p.id,JSON.stringify({initial,scrolled:p.width>=931,search:open}));
   }finally{

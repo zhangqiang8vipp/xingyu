@@ -104,7 +104,7 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const html=fs.readFileSync(process.env.RUNNER_TEMP+'/xingyu-axis-preview-home.html','utf8');
-          if(!html.includes('知识，不止被保存') || !html.includes('更应该被共同创造')) {
+          if(!html.includes('知识，从来不该') || !html.includes('停在被保存的那一刻')) {
             throw new Error('Deployed preview did not return the expected AXIS marketing homepage');
           }
           console.log('PASS: remote Cloudflare preview serves real XINGYU homepage');
