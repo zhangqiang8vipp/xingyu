@@ -110,3 +110,52 @@ html[data-theme="dark"] .xy-mkt-post:hover{background:rgba(200,218,240,.05)}
 @media(max-width:1000px){.xy-mkt-device-body{grid-template-columns:minmax(0,1fr) 275px}.xy-mkt-document{padding:34px 28px}.xy-mkt-hero{padding-top:94px}}
 @media(max-width:760px){.xy-mkt-wrap{width:calc(100% - 36px)}.xy-mkt-hero{padding:102px 0 35px}.xy-mkt-hero h1{font-size:clamp(41px,10.6vw,64px);letter-spacing:-.067em;margin:23px 0 19px}.xy-mkt-intro{font-size:14px;line-height:1.9}.xy-mkt-actions{gap:16px;margin-top:24px}.xy-mkt-device{padding:6px;border-radius:19px;margin-top:18px}.xy-mkt-device-inner{border-radius:14px}.xy-mkt-device-top{height:50px;padding:0 13px}.xy-mkt-device-path{display:none}.xy-mkt-device-body{grid-template-columns:minmax(0,1fr)}.xy-mkt-document{padding:28px 21px 29px}.xy-mkt-document h2{font-size:27px}.xy-mkt-context{border-left:0;border-top:1px solid #ebeff3;padding:23px 19px}.xy-mkt-context .xy-mkt-mode-tabs{margin-top:18px}.xy-mkt-device-caption{text-align:left}.xy-mkt-section{padding-top:95px}.xy-mkt-steps{grid-template-columns:1fr;margin-top:32px}.xy-mkt-step,.xy-mkt-step+.xy-mkt-step{border:0;border-bottom:1px solid var(--mkt-line);padding:23px 0 27px}.xy-mkt-step:last-child{border-bottom:0}.xy-mkt-step h3{margin-top:12px}.xy-mkt-public{padding:85px 0 90px}.xy-mkt-section-head{display:block}.xy-mkt-section-head .xy-mkt-text-link{margin-top:15px}.xy-mkt-post{grid-template-columns:minmax(0,1fr) 20px;gap:7px}.xy-mkt-post-type{grid-column:1/-1}.xy-mkt-finish{padding:65px 0 54px}.xy-mkt-footer{margin-top:70px;flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.xy-mkt *{animation:none!important;transition:none!important}}
+
+
+/*
+ * AXIS marketing navigation geometry.
+ * Keep the real SiteNavigation / IslandSearch / NavTitleChrome intact.
+ * The shared public island uses a fixed center slot; when the full desktop
+ * links are visible, shift the marketing title/search into the actual
+ * brand-to-links rail instead of placing them over the links.
+ */
+@media (min-width: 931px) {
+  body:has(.xy-mkt) .site-nav nav > .home-nav-title {
+    left: 41%;
+    width: min(280px, 28%);
+  }
+  body:has(.xy-mkt) .site-nav nav > .island-search,
+  body:has(.xy-mkt) .site-nav nav > .island-search:not(.active),
+  body:has(.xy-mkt) .site-nav nav:has(> .home-nav-title.visible) > .island-search:not(.active) {
+    left: 41%;
+  }
+  body:has(.xy-mkt) .site-nav nav > .island-search.active,
+  body:has(.xy-mkt) .site-nav nav:has(> .home-nav-title.visible) > .island-search.active {
+    left: 41%;
+    width: min(330px, 30%);
+  }
+  body:has(.xy-mkt) .site-nav nav:has(> .home-nav-title.visible) > .island-search:not(.active) .island-search-trigger {
+    left: calc(88% - 15px);
+  }
+}
+@media (min-width: 931px) and (max-width: 1120px) {
+  body:has(.xy-mkt) .site-nav nav > .home-nav-title {
+    width: min(245px, 26%);
+  }
+  body:has(.xy-mkt) .site-nav nav:has(> .home-nav-title.visible) > .island-search:not(.active) .island-search-trigger {
+    left: calc(79% - 15px);
+  }
+}
+/* A legible glass surface, not a transparent sheet exposing giant text. */
+body:has(.xy-mkt) .site-nav nav {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.35), rgba(255,255,255,.10) 55%, rgba(255,255,255,.24)),
+    rgba(247,249,252,.82);
+  backdrop-filter: blur(34px) saturate(175%);
+  -webkit-backdrop-filter: blur(34px) saturate(175%);
+}
+html[data-theme="dark"] body:has(.xy-mkt) .site-nav nav {
+  background:
+    linear-gradient(135deg,rgba(255,255,255,.09),rgba(255,255,255,.016) 55%,rgba(255,255,255,.05)),
+    rgba(25,27,32,.86);
+}
