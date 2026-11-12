@@ -1,0 +1,111 @@
+name: Deploy AXIS interactive dev preview (isolated Cloudflare beta)
+
+# Only the explicitly selected review branch can deploy this isolated instance.
+# No production D1, R2, Worker name, routes, triggers or credentials are copied.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xingyu-axis-home-beta-preview
+  cancel-in-progress: false
+
+jobs:
+  deploy-preview:
+    if: github.repository == 'zhangqiang8vipp/xingyu' && github.event.pull_request.number == 87 && github.event.pull_request.head.repo.full_name == 'zhangqiang8vipp/xingyu' && github.event.pull_request.head.ref == 'refactor/axis-island-foundation-20261112'
+    name: Deploy xingyu-beta-axishome to workers.dev
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    # This uses the repository's existing Cloudflare environment permission
+    # gate, but deploys exclusively the separate *beta* resource triplet.
+    environment: CLOUDFLARE
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.18.0'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install exact dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Verify Cloudflare authentication is configured
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCOUNT" ]; then
+            echo "::error::Cloudflare credentials are not accessible to this review environment."
+            exit 1
+          fi
+          echo "Cloudflare credential names are configured (values are never logged)."
+      - name: Create or verify isolated beta D1, R2 and Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_WRITE_LOGS: "false"
+        run: |
+          node scripts/beta-provision.mjs apply --instance axishome --execute
+      - name: Make only the reviewed beta Worker available on workers.dev
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path='outputs/beta/axishome/wrangler.beta.jsonc';
+          const config=JSON.parse(fs.readFileSync(path,'utf8'));
+          if(config.name!=='xingyu-beta-axishome' || config.vars?.APP_ENV!=='beta' ||
+              config.vars?.INSTANCE_ID!=='beta:axishome' ||
+              config.d1_databases?.[0]?.database_name!=='xingyu-beta-axishome-db' ||
+              config.r2_buckets?.[0]?.bucket_name!=='xingyu-beta-axishome-media' ||
+              !/^[0-9a-f-]{36}$/.test(config.d1_databases[0].database_id) ||
+              config.routes?.length) {
+            throw new Error('unsafe or incomplete beta resource binding');
+          }
+          config.workers_dev=true;
+          delete config.triggers;
+          config.vars.REGISTRATION_ENABLED='false';
+          // Never direct a beta Worker at production auth, email, URLs or user data.
+          delete config.vars.PUBLIC_SITE_URL;
+          delete config.vars.EMAIL_FROM;
+          fs.writeFileSync(path,JSON.stringify(config,null,2)+'\n');
+          console.log('Isolated beta resource pairing verified, workers.dev enabled');
+          NODE
+      - name: Deploy to dedicated beta Worker, no production route
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_WRITE_LOGS: "false"
+        shell: bash
+        run: |
+          npx wrangler deploy --config outputs/beta/axishome/wrangler.beta.jsonc             2>&1 | tee "$RUNNER_TEMP/xingyu-axis-preview-deploy.log"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const s=fs.readFileSync(process.env.RUNNER_TEMP+'/xingyu-axis-preview-deploy.log','utf8');
+          const match=s.match(/https:\/\/xingyu-beta-axishome\.[a-zA-Z0-9-]+\.workers\.dev\/?/);
+          if(!match)throw new Error('No verified workers.dev preview URL was emitted by Wrangler');
+          const url=match[0].replace(/\/$/,'');
+          fs.writeFileSync(process.env.RUNNER_TEMP+'/xingyu-axis-preview-url',url);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## Interactive AXIS dev preview\n\n**'+url+'**\n\nIsolated beta D1 and R2; never production.\n');
+          console.log('INTERACTIVE_DEV_PREVIEW_URL='+url);
+          NODE
+      - name: Verify live preview responds with marketing homepage
+        shell: bash
+        run: |
+          url="$(cat "$RUNNER_TEMP/xingyu-axis-preview-url")"
+          curl --fail --show-error --silent --location --retry 5             --retry-all-errors --retry-delay 3 "$url/"             -o "$RUNNER_TEMP/xingyu-axis-preview-home.html"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const html=fs.readFileSync(process.env.RUNNER_TEMP+'/xingyu-axis-preview-home.html','utf8');
+          if(!html.includes('知识，从来不该') || !html.includes('停在被保存的那一刻')) {
+            throw new Error('Deployed preview did not return the expected AXIS marketing homepage');
+          }
+          console.log('PASS: remote Cloudflare preview serves real XINGYU homepage');
+          NODE
