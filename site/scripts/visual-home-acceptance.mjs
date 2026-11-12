@@ -226,7 +226,7 @@ async function inspect(browser, origin, p) {
     await page.click('#xy-mkt-tab-ai');
     await page.waitForSelector('.xy-mkt-stage-ai',{visible:true,timeout:5000});
     await page.click('.xy-mkt-ai-actions button:nth-child(2)');
-    assert.ok((await page.$eval('.xy-mkt-ai-response',el=>el.textContent)).includes('风险'),
+    assert.ok((await page.$eval('.xy-mkt-ai-response',el=>el.textContent)).includes('不可逆'),
       p.id+" switching AI task should change example output");
 
     await page.click('#xy-mkt-tab-reading');
