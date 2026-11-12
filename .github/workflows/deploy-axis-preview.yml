@@ -3,9 +3,8 @@ name: Deploy AXIS interactive dev preview (isolated Cloudflare beta)
 # Only the explicitly selected review branch can deploy this isolated instance.
 # No production D1, R2, Worker name, routes, triggers or credentials are copied.
 on:
-  push:
-    branches:
-      - refactor/axis-island-foundation-20261112
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -16,7 +15,7 @@ concurrency:
 
 jobs:
   deploy-preview:
-    if: github.repository == 'zhangqiang8vipp/xingyu' && github.ref == 'refs/heads/refactor/axis-island-foundation-20261112'
+    if: github.repository == 'zhangqiang8vipp/xingyu' && github.event.pull_request.number == 87 && github.event.pull_request.head.repo.full_name == 'zhangqiang8vipp/xingyu' && github.event.pull_request.head.ref == 'refactor/axis-island-foundation-20261112'
     name: Deploy xingyu-beta-axishome to workers.dev
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -29,6 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
