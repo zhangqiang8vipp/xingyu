@@ -197,12 +197,15 @@ html[data-theme="dark"] body:has(.xy-mkt) .site-nav nav {
     box-shadow: inset 0 1px rgba(255,255,255,.08);
   }
   body:has(.xy-mkt) .site-nav nav > .island-search.active .island-search-dropdown {
-    position: fixed !important;
+    /* An ancestor's backdrop-filter establishes a containing block, so
+       position:fixed here is NOT viewport-relative on mobile Chromium.
+       Anchor to the real search slot and offset to the island's left edge. */
+    position: absolute !important;
     z-index: 26;
-    top: calc(70px + env(safe-area-inset-top)) !important;
-    right: 12px !important;
+    top: calc(100% + 12px) !important;
+    right: auto !important;
     bottom: auto !important;
-    left: 12px !important;
+    left: -91px !important;
     width: calc(100vw - 24px) !important;
     max-height: calc(100dvh - 90px);
     transform: none !important;
