@@ -117,6 +117,8 @@ async function metrics(page) {
       tools:rect(".site-nav .nav-tools"),
       search:rect(".site-nav nav > .island-search .island-search-trigger"),
       field:rect(".site-nav nav > .island-search.active .island-search-field"),
+      searchWrapper:rect(".site-nav nav > .island-search.active"),
+      results:rect(".site-nav nav > .island-search.active .island-search-results"),
       title:rect(".site-nav nav > .home-nav-title"),
       hero:rect("#home-hero-title"),
       mobile:rect(".site-nav .nav-mobile"),
@@ -149,6 +151,17 @@ function checkChrome(m,label,mode) {
   }
   if(mode==="expanded"){
     assert.ok(m.field && m.field.width>140,label + " field must be visible " + JSON.stringify(m));
+    assert.ok(m.field.left>=5 && m.field.right<=m.viewport-5,
+      label + " expanded search FIELD must fit entirely inside the viewport " + JSON.stringify(m));
+    if(m.viewport<=800) {
+      assert.ok(m.searchWrapper && m.searchWrapper.top>=m.nav.top &&
+        m.searchWrapper.bottom<=m.nav.bottom+1,
+        label + " mobile search must expand WITHIN the real top island " + JSON.stringify(m));
+      assert.ok(m.results && m.results.left>=5 && m.results.right<=m.viewport-5,
+        label + " mobile results must not be clipped outside the viewport " + JSON.stringify(m));
+      assert.ok(m.results && m.results.top>=m.nav.bottom-3,
+        label + " results must open BELOW the island " + JSON.stringify(m));
+    }
     assert.ok(!intersects(m.field,m.links),label + " expanded search must not obscure links " + JSON.stringify(m));
     assert.ok(!intersects(m.field,m.tools),label + " expanded search must not obscure tools " + JSON.stringify(m));
   }
@@ -193,8 +206,9 @@ async function inspect(browser, origin, p) {
     checkChrome(afterClose,p.id+" closed","initial");
 
     await page.evaluate(()=>document.querySelector("#experience")?.scrollIntoView({block:"center"}));
-    await page.click('button[aria-pressed][type="button"]:last-of-type');
-    await page.waitForFunction(()=>document.querySelector("#experience")?.textContent?.includes("Agent"),
+    await page.click('.xy-mkt-mode-tabs button:last-of-type');
+    await page.waitForFunction(() => document.querySelector('.xy-mkt-mode-tabs button:last-of-type')?.getAttribute('aria-pressed') === 'true' &&
+      document.querySelector('.xy-mkt-context')?.textContent?.includes('MCP'),
       {timeout:5000});
     assert.deepEqual(errors,[],p.id+" JavaScript errors");
     console.log("PASS REAL AXIS HOME",p.id,JSON.stringify({initial,scrolled:p.width>=931,search:open}));

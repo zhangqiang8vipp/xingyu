@@ -159,3 +159,64 @@ html[data-theme="dark"] body:has(.xy-mkt) .site-nav nav {
     linear-gradient(135deg,rgba(255,255,255,.09),rgba(255,255,255,.016) 55%,rgba(255,255,255,.05)),
     rgba(25,27,32,.86);
 }
+
+
+/* Mobile: the expanded search remains INSIDE the existing 52px AXIS island.
+   The generic CSS has older fixed-position phone variants that can combine
+   into a 100vw field shifted 8px beyond the right edge. Override the final
+   geometry for this marketing route only; do not change shared reader/nav. */
+@media (max-width: 800px) {
+  body:has(.xy-mkt) .site-nav nav > .island-search.active,
+  body:has(.xy-mkt) .site-nav nav:has(> .home-nav-title.visible) > .island-search.active {
+    position: absolute !important;
+    z-index: 25;
+    top: 6px !important;
+    right: 8px !important;
+    bottom: auto !important;
+    left: 90px !important;
+    width: calc(100% - 98px) !important;
+    height: 40px;
+    min-width: 0;
+    margin: 0 !important;
+    transform: none !important;
+  }
+  body:has(.xy-mkt) .site-nav nav > .island-search.active .island-search-field {
+    width: 100%;
+    height: 40px;
+    min-width: 0;
+    padding: 0 8px 0 11px;
+    border: 1px solid rgba(80,94,114,.12);
+    background: rgba(252,253,255,.80);
+    box-shadow: inset 0 1px rgba(255,255,255,.86);
+    backdrop-filter: blur(22px) saturate(165%);
+    -webkit-backdrop-filter: blur(22px) saturate(165%);
+  }
+  html[data-theme="dark"] body:has(.xy-mkt) .site-nav nav > .island-search.active .island-search-field {
+    border-color: rgba(255,255,255,.08);
+    background: rgba(45,49,56,.82);
+    box-shadow: inset 0 1px rgba(255,255,255,.08);
+  }
+  body:has(.xy-mkt) .site-nav nav > .island-search.active .island-search-dropdown {
+    position: fixed !important;
+    z-index: 26;
+    top: calc(70px + env(safe-area-inset-top)) !important;
+    right: 12px !important;
+    bottom: auto !important;
+    left: 12px !important;
+    width: calc(100vw - 24px) !important;
+    max-height: calc(100dvh - 90px);
+    transform: none !important;
+  }
+  body:has(.xy-mkt) .site-nav nav > .island-search.active .island-search-results {
+    background: rgba(250,251,253,.98);
+    border-color: rgba(48,60,77,.12);
+    box-shadow: 0 18px 50px rgba(24,37,56,.17);
+    backdrop-filter: blur(28px) saturate(155%);
+    -webkit-backdrop-filter: blur(28px) saturate(155%);
+  }
+  html[data-theme="dark"] body:has(.xy-mkt) .site-nav nav > .island-search.active .island-search-results {
+    background: rgba(30,33,39,.98);
+    border-color: rgba(255,255,255,.1);
+    box-shadow: 0 18px 50px rgba(0,0,0,.32);
+  }
+}
