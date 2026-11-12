@@ -176,7 +176,7 @@ async function inspect(browser, origin, p) {
   try{
     const response = await page.goto(origin + "/", {waitUntil:"networkidle0",timeout:75000});
     assert.equal(response.status(),200,p.id + " home route");
-    await page.waitForSelector(".xy-mkt-device", {visible:true,timeout:18000});
+    await page.waitForSelector(".xy-mkt-product-frame", {visible:true,timeout:18000});
     await page.waitForSelector(".site-nav nav > .island-search-trigger, .site-nav nav > .island-search .island-search-trigger", {visible:true,timeout:18000});
     const initial=await metrics(page);
     checkChrome(initial,p.id+" initial","initial");
@@ -213,7 +213,7 @@ async function inspect(browser, origin, p) {
 
     await page.click('#xy-mkt-tab-exam');
     await page.waitForSelector('.xy-mkt-stage-exam', {visible:true, timeout:6000});
-    await page.click('.xy-mkt-answer-option:nth-child(3)');
+    await page.click('.xy-mkt-answer-option:nth-of-type(3)');
     await page.click('.xy-mkt-exam-submit button');
     await page.waitForSelector('.xy-mkt-exam-feedback.is-correct',{visible:true,timeout:5000});
 
