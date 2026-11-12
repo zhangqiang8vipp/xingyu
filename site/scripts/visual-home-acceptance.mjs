@@ -207,7 +207,7 @@ async function inspect(browser, origin, p) {
 
     await page.evaluate(()=>document.querySelector("#experience")?.scrollIntoView({block:"center"}));
     // Four distinct, stateful experiences - never a substituted "MCP" tab.
-    const modes=await page.$eval('.xy-mkt-mode-tabs [role="tab"]', nodes => nodes.map(node=>node.textContent?.trim()));
+    const modes=await page.$$eval('.xy-mkt-mode-tabs [role="tab"]', nodes => nodes.map(node=>node.textContent?.trim()));
     assert.deepEqual(modes.map(label => label?.match(/阅读|问题|考试|AI/)?.[0]), ["阅读","问题","考试","AI"],
       p.id+" must expose the four agreed product experiences");
 
