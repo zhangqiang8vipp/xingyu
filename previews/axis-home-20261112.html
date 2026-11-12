@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-theme-mode="light" data-reading-mode="modal" data-motion-mode="flip">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>XINGYU · 首页分支视觉预览</title>
+<meta name="robots" content="noindex,nofollow"/>
+<link rel="stylesheet" href="https://raw.githack.com/zhangqiang8vipp/xingyu/main/site/app/globals.css"/>
+<style>
+/* XINGYU public marketing preview. Deliberately leaves SiteNavigation,
+   IslandSearch, NavTitleChrome, reader and the admin AXIS design untouched. */
+.xy-mkt{--mkt-ink:#171b20;--mkt-sub:#656c75;--mkt-line:rgba(37,49,61,.12);--mkt-paper:#fafbfc;--mkt-surface:#fff;--mkt-tint:#eef2f5;--mkt-blue:#1475d4;overflow:hidden;min-height:100vh;background:linear-gradient(180deg,#f7f8fa 0%,#fff 33%,#f7f8fa 100%);color:var(--mkt-ink);font-family:var(--font-sans,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif)}
+.xy-mkt *{box-sizing:border-box}
+.xy-mkt a{color:inherit;text-decoration:none}
+.xy-mkt-wrap{width:min(1180px,calc(100% - 72px));margin-inline:auto}
+.xy-mkt-hero{padding:110px 0 58px;position:relative}
+.xy-mkt-kicker{display:flex;align-items:center;gap:10px;color:#69717b;font-size:11px;letter-spacing:.16em;font-weight:760;text-transform:uppercase}
+.xy-mkt-kicker>i{display:block;width:7px;height:7px;border-radius:50%;background:#38ab88;box-shadow:0 0 0 5px rgba(56,171,136,.09)}
+.xy-mkt-hero h1{margin:30px 0 23px;font-weight:690;font-size:clamp(48px,6.9vw,97px);line-height:1.12;letter-spacing:-.073em;max-width:1080px}
+.xy-mkt-hero h1 span{display:block}
+.xy-mkt-hero h1 span:last-child{color:#6b7682}
+.xy-mkt-intro{max-width:725px;margin:0;color:var(--mkt-sub);font-size:clamp(16px,1.55vw,19px);font-weight:450;line-height:1.9;letter-spacing:-.01em}
+.xy-mkt-actions{display:flex;align-items:center;gap:24px;flex-wrap:wrap;margin-top:29px}
+.xy-mkt-primary{min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:22px;padding:0 20px;border-radius:13px;background:#171a20;color:#fff!important;font-size:13px;font-weight:700;box-shadow:0 11px 28px rgba(20,26,33,.16);transition:transform .23s,box-shadow .23s}
+.xy-mkt-primary:hover{transform:translateY(-2px);box-shadow:0 15px 33px rgba(20,26,33,.23)}
+.xy-mkt-primary>span{font-size:17px}
+.xy-mkt-text-link{display:inline-flex;gap:9px;align-items:center;font-size:13px;font-weight:680}
+.xy-mkt-text-link span{font-size:17px}
+.xy-mkt-text-link:hover{text-decoration:underline}
+.xy-mkt-device{position:relative;border-radius:26px;padding:10px;background:linear-gradient(145deg,rgba(255,255,255,.97),rgba(220,227,235,.8));border:1px solid rgba(48,62,79,.14);box-shadow:0 28px 90px rgba(46,61,80,.11),0 4px 13px rgba(36,50,66,.07),inset 0 1px rgba(255,255,255,.92);margin-top:26px}
+.xy-mkt-device-inner{background:#fff;border:1px solid rgba(35,47,62,.11);border-radius:19px;overflow:hidden;min-height:540px}
+.xy-mkt-device-top{height:56px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(36,47,59,.08);background:linear-gradient(120deg,#f9fafb,#fff)}
+.xy-mkt-device-brand{display:flex;gap:11px;align-items:center;font-size:12px;font-weight:730;letter-spacing:-.025em}
+.xy-mkt-brand-mark{width:23px;height:23px;display:grid;place-items:center;color:#1d1d1f}
+.xy-mkt-brand-mark svg{width:23px;height:23px}
+.xy-mkt-device-path{color:#939ba5;font-size:11px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xy-mkt-device-presence{display:flex;align-items:center;gap:5px}
+.xy-mkt-presence-dot{width:23px;height:23px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:#d5e1ec;color:#3f566a;font-size:9px;font-weight:760}
+.xy-mkt-presence-dot:nth-child(2){background:#e1d9cc;color:#735c3f;margin-left:-8px}
+.xy-mkt-presence-dot:nth-child(3){background:#e4e9df;color:#5a7059;margin-left:-8px}
+.xy-mkt-device-body{display:grid;grid-template-columns:minmax(0,1fr) 310px;min-height:482px}
+.xy-mkt-document{padding:38px 48px 49px;min-width:0}
+.xy-mkt-bread{display:flex;gap:10px;align-items:center;color:#8b949e;font-size:11px}
+.xy-mkt-bread b{color:#576372;font-weight:620}
+.xy-mkt-document h2{margin:23px 0 13px;font-size:clamp(26px,2.55vw,36px);font-weight:710;line-height:1.32;letter-spacing:-.05em}
+.xy-mkt-doc-sub{font-size:13px;color:#777f89;margin:0 0 26px;line-height:1.75}
+.xy-mkt-doc-rule{height:1px;background:#e9edf0;margin:0 0 24px}
+.xy-mkt-document h3{margin:0 0 12px;font-size:14px;font-weight:720;letter-spacing:-.02em}
+.xy-mkt-document p.xy-mkt-doc-copy{font-size:13px;line-height:1.95;color:#545c67;margin:0 0 17px}
+.xy-mkt-highlight{background:#eff6fd;border-bottom:2px solid #78b3e8;padding:2px 4px;border-radius:3px}
+.xy-mkt-note{margin:20px 0 0;padding:14px 17px;border-left:2px solid #78b0e2;background:#f4f9fd;border-radius:0 9px 9px 0;color:#516377;font-size:12px;line-height:1.85}
+.xy-mkt-doc-meta{margin-top:30px;display:flex;gap:13px;align-items:center;flex-wrap:wrap;color:#9099a3;font-size:11px}
+.xy-mkt-doc-status{color:#3b9774;font-weight:690}
+.xy-mkt-context{background:#f6f8fa;border-left:1px solid #ebeff3;padding:27px 22px 24px;display:flex;flex-direction:column;min-width:0}
+.xy-mkt-context-kicker{font-size:10px;color:#929ba4;font-weight:760;letter-spacing:.15em}
+.xy-mkt-context h3{font-size:20px;font-weight:700;letter-spacing:-.045em;line-height:1.35;margin:12px 0 7px}
+.xy-mkt-context-intro{font-size:12px;color:#777f89;line-height:1.75;margin:0}
+.xy-mkt-mode-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;margin-top:25px;padding:4px;background:#e8edf1;border-radius:13px}
+.xy-mkt-mode-tabs button{min-height:38px;padding:7px 2px;border:0;border-radius:9px;background:transparent;font-family:inherit;font-size:11px;font-weight:700;color:#75808c;cursor:pointer;transition:background .23s,color .23s,box-shadow .23s}
+.xy-mkt-mode-tabs button[aria-pressed="true"]{background:#fff;color:#202a35;box-shadow:0 2px 9px rgba(39,50,61,.1)}
+.xy-mkt-flow{display:grid;gap:10px;margin-top:18px}
+.xy-mkt-flow-item{background:#fff;border:1px solid rgba(38,49,62,.09);border-radius:13px;padding:13px 14px}
+.xy-mkt-flow-item strong{display:flex;align-items:center;gap:7px;font-size:12px;color:#252e3a;font-weight:720}
+.xy-mkt-flow-item strong:before{content:"";display:block;width:6px;height:6px;border-radius:50%;background:#39ad84;flex:none}
+.xy-mkt-flow-item p{font-size:11px;line-height:1.7;color:#7a8691;margin:7px 0 0}
+.xy-mkt-flow-code{margin-top:8px;background:#19212b;border-radius:9px;color:#bde5d6;padding:11px 12px;font-size:10px;line-height:1.8;white-space:pre-wrap;word-break:break-word}
+.xy-mkt-demo-foot{margin-top:auto;padding-top:22px;font-size:10px;line-height:1.65;color:#87919b}
+.xy-mkt-device-caption{font-size:11px;color:#8a949e;text-align:right;margin:11px 5px 2px}
+.xy-mkt-section{padding:134px 0 30px}
+.xy-mkt-section-tag{color:#89919a;font-size:11px;font-weight:790;letter-spacing:.18em;text-transform:uppercase}
+.xy-mkt-section-title{font-size:clamp(31px,4.5vw,59px);letter-spacing:-.06em;line-height:1.24;font-weight:680;margin:21px 0 18px;max-width:840px}
+.xy-mkt-section-desc{max-width:630px;color:var(--mkt-sub);font-size:16px;line-height:1.85;margin:0}
+.xy-mkt-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:54px;border-top:1px solid var(--mkt-line);border-bottom:1px solid var(--mkt-line)}
+.xy-mkt-step{padding:32px 34px 38px 0}
+.xy-mkt-step+.xy-mkt-step{border-left:1px solid var(--mkt-line);padding-left:34px}
+.xy-mkt-step-number{font-size:12px;font-weight:750;color:#9ba4ac}
+.xy-mkt-step h3{font-size:21px;line-height:1.35;margin:25px 0 11px;letter-spacing:-.045em}
+.xy-mkt-step p{font-size:13px;line-height:1.9;color:var(--mkt-sub);margin:0}
+.xy-mkt-public{padding:137px 0 120px}
+.xy-mkt-section-head{display:flex;justify-content:space-between;align-items:end;gap:22px;margin-bottom:30px}
+.xy-mkt-section-head .xy-mkt-section-title{margin-bottom:0}
+.xy-mkt-public-posts{border-top:1px solid var(--mkt-line)}
+.xy-mkt-post{display:grid;grid-template-columns:115px minmax(0,1fr) 28px;align-items:start;gap:15px;border-bottom:1px solid var(--mkt-line);padding:25px 3px;transition:background .24s,padding .24s}
+.xy-mkt-post:hover{background:rgba(80,110,145,.035);padding-left:13px;padding-right:13px}
+.xy-mkt-post-type{font-size:11px;color:#89949d;line-height:1.8}
+.xy-mkt-post-main b{display:block;font-size:17px;font-weight:700;line-height:1.5;letter-spacing:-.02em}
+.xy-mkt-post-main small{font-size:12px;color:#858e99;line-height:1.75;display:block;margin-top:6px}
+.xy-mkt-post-arrow{font-size:19px;color:#828d98}
+.xy-mkt-empty{padding:28px 2px;color:var(--mkt-sub);font-size:13px}
+.xy-mkt-finish{background:#171b20;color:#f8fafc;padding:80px 0 92px}
+.xy-mkt-finish .xy-mkt-section-tag{color:#8e9eac}
+.xy-mkt-finish h2{max-width:800px;font-size:clamp(37px,5vw,69px);line-height:1.25;letter-spacing:-.065em;font-weight:680;margin:20px 0 23px}
+.xy-mkt-finish p{font-size:14px;color:#a8b1bd;line-height:1.9;margin:0 0 27px}
+.xy-mkt-finish .xy-mkt-primary{background:#f8fafc;color:#161b20!important;box-shadow:none}
+.xy-mkt-footer{margin-top:100px;padding-top:23px;border-top:1px solid rgba(255,255,255,.14);display:flex;justify-content:space-between;gap:16px;font-size:11px;color:#81909e}
+.xy-mkt-footer a:hover{text-decoration:underline}
+html[data-theme="dark"] .xy-mkt{--mkt-ink:#f1f4f7;--mkt-sub:#a6b0bc;--mkt-line:rgba(245,248,253,.13);--mkt-surface:#20252b;--mkt-paper:#171b20;background:linear-gradient(180deg,#101216 0%,#15191e 38%,#0f1318 100%)}
+html[data-theme="dark"] .xy-mkt-hero h1 span:last-child{color:#9da7b3}
+html[data-theme="dark"] .xy-mkt-kicker{color:#adb5c0}
+html[data-theme="dark"] .xy-mkt-primary{background:#f5f7f9;color:#101419!important}
+html[data-theme="dark"] .xy-mkt-device{border-color:rgba(255,255,255,.2);background:linear-gradient(150deg,#3c454d,#262e37);box-shadow:0 30px 90px rgba(0,0,0,.33)}
+html[data-theme="dark"] .xy-mkt-device-inner{background:#1e232a;border-color:rgba(255,255,255,.07)}
+html[data-theme="dark"] .xy-mkt-device-top{background:#242a31;border-color:rgba(255,255,255,.09)}
+html[data-theme="dark"] .xy-mkt-device-brand{color:#e9edf1}
+html[data-theme="dark"] .xy-mkt-brand-mark{color:#e9edf1}
+html[data-theme="dark"] .xy-mkt-document h2,html[data-theme="dark"] .xy-mkt-document h3{color:#eef2f6}
+html[data-theme="dark"] .xy-mkt-doc-sub,html[data-theme="dark"] .xy-mkt-document p.xy-mkt-doc-copy{color:#aab4be}
+html[data-theme="dark"] .xy-mkt-doc-rule{background:#39434e}
+html[data-theme="dark"] .xy-mkt-highlight{background:#243f56}
+html[data-theme="dark"] .xy-mkt-note{background:#243341;color:#b8ccd9}
+html[data-theme="dark"] .xy-mkt-context{background:#1b2026;border-color:#333c45}
+html[data-theme="dark"] .xy-mkt-context h3{color:#eef2f6}
+html[data-theme="dark"] .xy-mkt-mode-tabs{background:#303841}
+html[data-theme="dark"] .xy-mkt-mode-tabs button[aria-pressed="true"]{background:#485462;color:#f8fafc}
+html[data-theme="dark"] .xy-mkt-flow-item{background:#262d34;border-color:#39424c}
+html[data-theme="dark"] .xy-mkt-flow-item strong{color:#f0f3f6}
+html[data-theme="dark"] .xy-mkt-public-posts{border-color:var(--mkt-line)}
+html[data-theme="dark"] .xy-mkt-post:hover{background:rgba(200,218,240,.05)}
+@media(max-width:1000px){.xy-mkt-device-body{grid-template-columns:minmax(0,1fr) 275px}.xy-mkt-document{padding:34px 28px}.xy-mkt-hero{padding-top:94px}}
+@media(max-width:760px){.xy-mkt-wrap{width:calc(100% - 36px)}.xy-mkt-hero{padding:102px 0 35px}.xy-mkt-hero h1{font-size:clamp(41px,10.6vw,64px);letter-spacing:-.067em;margin:23px 0 19px}.xy-mkt-intro{font-size:14px;line-height:1.9}.xy-mkt-actions{gap:16px;margin-top:24px}.xy-mkt-device{padding:6px;border-radius:19px;margin-top:18px}.xy-mkt-device-inner{border-radius:14px}.xy-mkt-device-top{height:50px;padding:0 13px}.xy-mkt-device-path{display:none}.xy-mkt-device-body{grid-template-columns:minmax(0,1fr)}.xy-mkt-document{padding:28px 21px 29px}.xy-mkt-document h2{font-size:27px}.xy-mkt-context{border-left:0;border-top:1px solid #ebeff3;padding:23px 19px}.xy-mkt-context .xy-mkt-mode-tabs{margin-top:18px}.xy-mkt-device-caption{text-align:left}.xy-mkt-section{padding-top:95px}.xy-mkt-steps{grid-template-columns:1fr;margin-top:32px}.xy-mkt-step,.xy-mkt-step+.xy-mkt-step{border:0;border-bottom:1px solid var(--mkt-line);padding:23px 0 27px}.xy-mkt-step:last-child{border-bottom:0}.xy-mkt-step h3{margin-top:12px}.xy-mkt-public{padding:85px 0 90px}.xy-mkt-section-head{display:block}.xy-mkt-section-head .xy-mkt-text-link{margin-top:15px}.xy-mkt-post{grid-template-columns:minmax(0,1fr) 20px;gap:7px}.xy-mkt-post-type{grid-column:1/-1}.xy-mkt-finish{padding:65px 0 54px}.xy-mkt-footer{margin-top:70px;flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.xy-mkt *{animation:none!important;transition:none!important}}
+
+/* Static branch review supplies the existing nav DOM and interactive demo.
+   The deployed React version uses the original live SiteNavigation instead. */
+body{margin:0} .preview-only{position:fixed;right:12px;bottom:12px;z-index:98;background:rgba(25,29,35,.88);border:1px solid rgba(255,255,255,.18);color:#f7f9fc;padding:7px 10px;border-radius:999px;font:600 10px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 8px 25px rgba(0,0,0,.17);pointer-events:none}
+.demo-search-hint{font-size:12px;color:#718092;padding:16px;line-height:1.8}
+#static-search-field,#static-search-dropdown{display:none}
+.island-search.active #static-search-trigger{display:none}
+.island-search.active #static-search-field{display:flex}
+.island-search.active #static-search-dropdown{display:block}
+.nav-mobile-sheet[hidden]{display:none!important}
+@media(max-width:800px){.preview-only{right:8px;bottom:9px;font-size:9px}.xy-mkt-hero{padding-top:103px}}
+html[data-theme="dark"] .preview-only{background:rgba(242,246,249,.85);color:#151a1f}
+</style>
+</head>
+<body id="page-content">
+<header class="site-nav"><nav>
+<a class="brand" href="https://zhangwansen.click/" aria-label="XINGYU 首页"><svg aria-hidden="true" viewBox="0 0 100 100" width="25" height="25"><path fill="#0A84FF" d="M62.1 18.8H75.5C78.6 18.8 80.1 21.5 78.2 24.1L54.3 55.8 43.7 41.5 59.4 21.6C60.4 20.3 60.9 18.8 62.1 18.8Z"/><path fill="#0A84FF" d="M41.5 47.5 51.6 61.8 39.1 78.3C38.2 79.5 36.9 80.2 35.4 80.2H21.3C18.5 80.2 17.2 77.8 19.3 75.2Z"/><path fill="currentColor" d="M21.4 18.8H34.2C36 18.8 37.3 19.5 38.3 20.9L78.3 74.6C80.4 77.4 78.9 80.2 75.8 80.2H62.6C61 80.2 59.6 79.5 58.6 78.1L18.8 24.6C16.7 21.8 18.3 18.8 21.4 18.8Z"/></svg><span class="brand-word">星屿</span></a>
+<button class="home-nav-title" id="static-nav-title" type="button" aria-label="返回首页顶部" style="opacity:0;pointer-events:none" onclick="window.scrollTo({top:0,behavior:'smooth'})"><span>知识</span><b>共同创造</b><i>↑</i></button>
+<div class="island-search" id="static-search">
+<button id="static-search-trigger" type="button" class="island-search-trigger" aria-label="展开知识搜索"><i aria-hidden="true"></i><span>搜索文章</span><kbd>⌘K</kbd></button>
+<div class="island-search-field" id="static-search-field"><i aria-hidden="true"></i><span>全部</span><input id="static-search-input" role="combobox" aria-expanded="true" aria-label="搜索公开知识" autocomplete="off" placeholder="搜索公开知识"/><button class="island-search-cancel" id="static-search-close" type="button" aria-label="取消搜索"><span>取消</span><kbd>ESC</kbd></button></div>
+<div class="island-search-dropdown" id="static-search-dropdown"><div class="island-search-results"><header><span>知识搜索</span><b>预览模式</b></header><div class="demo-search-hint">这里展示的是原版灵动岛的搜索展开结构。真实检索、权限控制和结果预览在正式 XINGYU 网站运行；此静态预览不读取生产数据。</div><footer><span>ESC 关闭</span><span>在真实产品中检索</span></footer></div></div>
+</div>
+<div class="nav-links nav-desktop"><div class="nav-primary">
+<a class="nav-current" href="https://zhangwansen.click/" aria-current="page">首页</a><a href="https://zhangwansen.click/archive">文章</a><a href="https://zhangwansen.click/ask">问答</a><a href="https://zhangwansen.click/connect">接入</a><a href="https://zhangwansen.click/about">关于</a>
+</div><div class="nav-tools">
+<button type="button" class="reading-mode-button" id="preview-reading" aria-label="切换阅读模式" title="切换弹窗与页面阅读"><i class="reading-modal">▣</i><i class="reading-page">↗</i></button>
+<button type="button" class="motion-mode-button" id="preview-motion" aria-label="切换动效模式" title="切换动效模式"><i></i></button>
+<button type="button" class="theme-button" id="preview-theme" aria-label="切换深浅主题" title="切换深浅主题"><span class="theme-system">◐</span><span class="theme-light">☀</span><span class="theme-dark">☾</span></button>
+</div></div>
+<div class="nav-mobile" id="static-mobile"><button class="nav-mobile-trigger" type="button" id="static-mobile-trigger" aria-label="打开菜单" aria-expanded="false"><svg class="nav-mobile-menu-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
+<div class="nav-mobile-sheet" id="static-mobile-sheet" hidden><div class="nav-mobile-section-title">导航</div><nav class="nav-mobile-links" aria-label="移动端站点导航"><a href="https://zhangwansen.click/">首页</a><a href="https://zhangwansen.click/archive">文章</a><a href="https://zhangwansen.click/ask">问答</a><a href="https://zhangwansen.click/connect">接入</a><a href="https://zhangwansen.click/about">关于</a></nav><div class="nav-mobile-tools"><span class="nav-mobile-section-title">显示偏好</span><button type="button" id="mobile-theme">切换深浅主题 ◐</button></div></div></div>
+</nav></header>
+<main>
+<div class="xy-mkt">
+<section class="xy-mkt-hero xy-mkt-wrap" aria-labelledby="home-hero-title">
+<p class="xy-mkt-kicker"><i aria-hidden="true"></i> XINGYU / OPEN KNOWLEDGE</p>
+<h1 id="home-hero-title"><span>知识，不止被保存。</span><span>更应该被共同创造。</span></h1>
+<p class="xy-mkt-intro">从个人记录到组织共创，从公开传播到 AI Agent 通过 MCP 协作。让知识有版本、有权限、有来处，也能在每一次使用中继续完善。</p>
+<div class="xy-mkt-actions"><a class="xy-mkt-primary" href="https://zhangwansen.click/register">开始使用 <span>↗</span></a><a class="xy-mkt-text-link" href="#experience">看看它如何工作 <span>↓</span></a></div>
+</section>
+<section class="xy-mkt-wrap" id="experience" aria-label="知识协作交互演示">
+<div class="xy-mkt-device"><div class="xy-mkt-device-inner">
+<header class="xy-mkt-device-top"><div class="xy-mkt-device-brand"><span class="xy-mkt-brand-mark"><svg aria-hidden="true" viewBox="0 0 100 100" width="25" height="25"><path fill="#0A84FF" d="M62.1 18.8H75.5C78.6 18.8 80.1 21.5 78.2 24.1L54.3 55.8 43.7 41.5 59.4 21.6C60.4 20.3 60.9 18.8 62.1 18.8Z"/><path fill="#0A84FF" d="M41.5 47.5 51.6 61.8 39.1 78.3C38.2 79.5 36.9 80.2 35.4 80.2H21.3C18.5 80.2 17.2 77.8 19.3 75.2Z"/><path fill="currentColor" d="M21.4 18.8H34.2C36 18.8 37.3 19.5 38.3 20.9L78.3 74.6C80.4 77.4 78.9 80.2 75.8 80.2H62.6C61 80.2 59.6 79.5 58.6 78.1L18.8 24.6C16.7 21.8 18.3 18.8 21.4 18.8Z"/></svg></span><span>XINGYU</span><span class="xy-mkt-device-path">/ Engineering / Knowledge</span></div><div class="xy-mkt-device-presence"><span class="xy-mkt-presence-dot">知</span><span class="xy-mkt-presence-dot">同</span><span class="xy-mkt-presence-dot">AI</span></div></header>
+<div class="xy-mkt-device-body">
+<article class="xy-mkt-document"><div class="xy-mkt-bread"><span>Engineering</span><span>/</span><b>基础设施与发布</b></div>
+<h2>生产部署与回滚规范</h2><p class="xy-mkt-doc-sub">可记录 · 可共同修订 · 可通过 MCP 在授权范围内使用</p><div class="xy-mkt-doc-rule"></div>
+<h3>01 / 发布前核对</h3><p class="xy-mkt-doc-copy"><span class="xy-mkt-highlight" id="preview-first">发布前确认当前 Worker 版本、环境绑定与 D1 迁移状态。</span></p>
+<h3>02 / 变更与验证</h3><p class="xy-mkt-doc-copy" id="preview-second">记录操作原因、变更范围和验证结果，帮助下一位同事理解背景。</p>
+<p class="xy-mkt-doc-copy" id="preview-last">知识从一次真实工作开始，而不是从一棵空白的文件夹树开始。</p>
+<div class="xy-mkt-note" id="preview-note">草稿可以持续完善，确认后再对适当的人开放。</div>
+<div class="xy-mkt-doc-meta"><span class="xy-mkt-doc-status">● 版本已记录</span><span id="preview-version">V1 · 初始记录</span><span>知识空间权限生效</span></div>
+</article>
+<aside class="xy-mkt-context"><span class="xy-mkt-context-kicker">ONE KNOWLEDGE · MANY CONTRIBUTORS</span>
+<h3 id="preview-panel-title">一次记录的开始</h3><p class="xy-mkt-context-intro" id="preview-panel-desc">从个人记录出发，逐渐形成团队可以使用的知识。</p>
+<div class="xy-mkt-mode-tabs" role="group" aria-label="切换知识协作示例"><button type="button" data-demo="write" aria-pressed="true">记录</button><button type="button" data-demo="review" aria-pressed="false">共创</button><button type="button" data-demo="agent" aria-pressed="false">MCP</button></div>
+<div class="xy-mkt-flow" aria-live="polite" id="preview-flow"><div class="xy-mkt-flow-item"><strong>创建知识草稿</strong><p>记录操作步骤、背景与风险，不必先设计复杂目录。</p></div><div class="xy-mkt-flow-item"><strong>保留来源与版本</strong><p>重要修改能回到它产生时的上下文。</p></div></div>
+<p class="xy-mkt-demo-foot">根据 XINGYU 现有协作、版本和 MCP 能力制作的交互示例，并非实时生产数据。</p>
+</aside></div></div></div>
+<p class="xy-mkt-device-caption">INTERACTIVE PRODUCT SCENARIO · 点击「记录 / 共创 / MCP」切换</p>
+</section>
+<section class="xy-mkt-section xy-mkt-wrap" aria-labelledby="xy-mkt-principles"><div class="xy-mkt-section-tag">BUILT FOR KNOWLEDGE IN MOTION</div><h2 id="xy-mkt-principles" class="xy-mkt-section-title">不只是写下一份文档。<br/>让知识拥有下一步。</h2><p class="xy-mkt-section-desc">XINGYU 的基础是一套不断被使用的知识体系。无论是一人记录、团队讨论，还是 Agent 协作，变化都发生在同一份可追溯的内容中。</p>
+<div class="xy-mkt-steps"><div class="xy-mkt-step"><span class="xy-mkt-step-number">01 / CAPTURE</span><h3>从任何一个想法开始</h3><p>保存资料、记录方法和经验。个人、团队与公开内容由原有权限体系清晰区分。</p></div><div class="xy-mkt-step"><span class="xy-mkt-step-number">02 / COLLABORATE</span><h3>让理解不断接近真实</h3><p>邀请成员一起完善内容。修订、历史版本与冲突处理，让协作有迹可循。</p></div><div class="xy-mkt-step"><span class="xy-mkt-step-number">03 / CONNECT</span><h3>让 AI 使用同一份知识</h3><p>通过 MCP 将经授权的知识交给外部 Agent，查询、使用与提出建议，而不是复制粘贴另一套文档。</p></div></div>
+</section>
+<section class="xy-mkt-public xy-mkt-wrap" aria-labelledby="xy-mkt-public-title"><div class="xy-mkt-section-head"><div><div class="xy-mkt-section-tag">OPEN KNOWLEDGE</div><h2 id="xy-mkt-public-title" class="xy-mkt-section-title">已经公开的知识。</h2></div><a class="xy-mkt-text-link" href="https://zhangwansen.click/archive">探索全部公开内容 <span>↗</span></a></div><div class="xy-mkt-public-posts"><p class="xy-mkt-empty">分支真实首页会在这里加载现有公开文章。此静态预览不读取你的生产数据库。<a href="https://zhangwansen.click/archive" style="text-decoration:underline">查看现有公开内容 ↗</a></p></div></section>
+<section class="xy-mkt-finish"><div class="xy-mkt-wrap"><div class="xy-mkt-section-tag">START WITH KNOWLEDGE</div><h2>知识的下一步，<br/>由我们一起决定。</h2><p>为个人、组织与智能体而建。今天从一份知识开始，未来不设边界。</p><a class="xy-mkt-primary" href="https://zhangwansen.click/register">进入星屿 <span>↗</span></a><footer class="xy-mkt-footer"><span>© 2026 星屿 · XINGYU</span><div><a href="https://zhangwansen.click/about">关于</a>　·　<a href="https://zhangwansen.click/connect">连接</a>　·　<a href="https://zhangwansen.click/archive">公开知识</a></div></footer></div></section>
+</div>
+</main>
+<div class="preview-only" aria-label="来自 GitHub 设计分支的独立交互预览">AXIS · BRANCH PREVIEW</div>
+<script>
+const scenes={
+write:{first:"发布前确认当前 Worker 版本、环境绑定与 D1 迁移状态。",second:"记录操作原因、变更范围和验证结果，帮助下一位同事理解背景。",last:"知识从一次真实工作开始，而不是从一棵空白的文件夹树开始。",note:"草稿可以持续完善，确认后再对适当的人开放。",version:"V1 · 初始记录",title:"一次记录的开始",summary:"从个人记录出发，逐渐形成团队可以使用的知识。",steps:[["创建知识草稿","记录操作步骤、背景与风险，不必先设计复杂目录。"],["保留来源与版本","重要修改能回到它产生时的上下文。"]]},
+review:{first:"发布前核查 Worker 版本、环境绑定、D1 迁移状态与回滚路径。",second:"评审人补充生产环境的故障恢复检查，建议保留执行证据。",last:"知识吸收更多人的实际经验，而非停留在一个人的笔记里。",note:"修订保留历史；并发冲突需要明确审阅和合并。",version:"V2 · 团队修订",title:"共同完善，而非覆盖",summary:"让知识的变化有来源、有过程，也有责任边界。",steps:[["成员提出补充","增加生产回滚的验证步骤和排查经验。"],["保留原始版本","记录修订和冲突提案，由有权限的成员确认。"]]},
+agent:{first:"Agent 检查 Worker 版本、迁移记录以及回滚与验证步骤。",second:"结合已有规范识别缺失的检查项，并提交修订建议。",last:"人和 AI 使用同一份知识，而不是维护两套内容。",note:"Agent 的修改建议仍遵循知识空间权限和版本控制。",version:"V3 · AI 修订提案",title:"AI 能参与，但不越权",summary:"连接外部 Agent，不强迫每个人都在网页里聊天。",steps:[["MCP · 读取授权内容","Agent 只接收当前身份能够访问的文档。",'get_document({ id: "..." })'],["MCP · 提出修订","提交建议与版本信息；发生冲突进入人工审阅。","propose_revision({ version: 2 })"]]}};
+const byId=id=>document.getElementById(id);
+for(const b of document.querySelectorAll("[data-demo]"))b.addEventListener("click",()=>{
+const key=b.dataset.demo,d=scenes[key];document.querySelectorAll("[data-demo]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+for(const [id,value] of [["preview-first",d.first],["preview-second",d.second],["preview-last",d.last],["preview-note",d.note],["preview-version",d.version],["preview-panel-title",d.title],["preview-panel-desc",d.summary]])byId(id).textContent=value;
+byId("preview-flow").replaceChildren(...d.steps.map(s=>{const item=document.createElement("div");item.className="xy-mkt-flow-item";const title=document.createElement("strong");title.textContent=s[0];const desc=document.createElement("p");desc.textContent=s[1];item.append(title,desc);if(s[2]){const code=document.createElement("div");code.className="xy-mkt-flow-code";code.textContent=s[2];item.append(code)}return item}));
+});
+let searchOpen=false;const island=byId("static-search");const searchInput=byId("static-search-input");function setSearch(open){searchOpen=open;island.classList.toggle("active",open);if(open)requestAnimationFrame(()=>searchInput.focus());else byId("static-search-trigger").focus()}
+byId("static-search-trigger").addEventListener("click",()=>setSearch(true));byId("static-search-close").addEventListener("click",()=>setSearch(false));document.addEventListener("pointerdown",e=>{if(searchOpen&&!island.contains(e.target))setSearch(false)});
+window.addEventListener("keydown",e=>{const editable=e.target.closest?.("input,textarea,[contenteditable]");if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();setSearch(!searchOpen)}else if(e.key==="/"&&!editable&&!searchOpen){e.preventDefault();setSearch(true)}else if(e.key==="Escape"&&searchOpen){e.preventDefault();setSearch(false)}});
+let mobileOpen=false;const mobile=byId("static-mobile");function setMobile(open){mobileOpen=open;mobile.classList.toggle("open",open);byId("static-mobile-sheet").hidden=!open;byId("static-mobile-trigger").setAttribute("aria-expanded",String(open));if(!open)byId("static-mobile-trigger").focus()}
+byId("static-mobile-trigger").addEventListener("click",()=>setMobile(!mobileOpen));document.addEventListener("pointerdown",e=>{if(mobileOpen&&!mobile.contains(e.target))setMobile(false)});
+window.addEventListener("keydown",e=>{if(e.key==="Escape"&&mobileOpen)setMobile(false)});
+function toggleTheme(){const el=document.documentElement;const next=el.dataset.theme==="dark"?"light":"dark";el.dataset.theme=next;el.dataset.themeMode=next;el.style.colorScheme=next}
+for(const id of ["preview-theme","mobile-theme"])byId(id).addEventListener("click",toggleTheme);
+byId("preview-motion").addEventListener("click",()=>{const el=document.documentElement;el.dataset.motionMode=el.dataset.motionMode==="static"?"flip":"static"});
+byId("preview-reading").addEventListener("click",()=>{const el=document.documentElement;el.dataset.readingMode=el.dataset.readingMode==="page"?"modal":"page"});
+const navTitle=byId("static-nav-title");
+let raf=0;function syncTitle(){raf=0;const hero=byId("home-hero-title"),nav=document.querySelector(".site-nav nav");if(!hero||!nav)return;const top=hero.getBoundingClientRect().top,bottom=nav.getBoundingClientRect().bottom;const p=Math.max(0,Math.min(1,(bottom+36-top)/58));navTitle.style.opacity=p;navTitle.style.pointerEvents=p>.92?"auto":"none";navTitle.style.transform="translate(-50%,calc(-50% + "+((1-p)*11)+"px)) scale("+(0.96+p*.04)+")";}
+window.addEventListener("scroll",()=>{if(!raf)raf=requestAnimationFrame(syncTitle)},{passive:true});window.addEventListener("resize",syncTitle);syncTitle();
+</script>
+</body>
+</html>
